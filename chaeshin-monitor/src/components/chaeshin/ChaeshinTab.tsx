@@ -14,6 +14,7 @@ import {
 import { StatCard } from "@/components/common/StatCard";
 import { CaseDetailDialog } from "./CaseDetailDialog";
 import { CaseEditDialog } from "./CaseEditDialog";
+import { CaseCreateDialog } from "./CaseCreateDialog";
 import {
   type ChaeshinCase,
   type ChaeshinStats,
@@ -30,6 +31,7 @@ import {
   Trash2,
   Eye,
   XCircle,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,6 +43,7 @@ export function ChaeshinTab() {
   const [filterSuccess, setFilterSuccess] = useState<string>("all");
   const [detailCase, setDetailCase] = useState<ChaeshinCase | null>(null);
   const [editCase, setEditCase] = useState<ChaeshinCase | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -80,6 +83,21 @@ export function ChaeshinTab() {
       fetchData();
     } catch {
       toast.error("수정에 실패했습니다");
+    }
+  };
+
+  const handleCreate = async (newCase: ChaeshinCase) => {
+    try {
+      const res = await fetch("/api/chaeshin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newCase),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("새 케이스가 생성되었습니다");
+      fetchData();
+    } catch {
+      toast.error("생성에 실패했습니다");
     }
   };
 
@@ -147,6 +165,10 @@ export function ChaeshinTab() {
         <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? "animate-spin" : ""}`} />
           새로고침
+        </Button>
+        <Button size="sm" onClick={() => setShowCreate(true)}>
+          <Plus className="h-4 w-4 mr-1.5" />
+          새 케이스
         </Button>
       </div>
 
@@ -242,6 +264,7 @@ export function ChaeshinTab() {
         } : undefined}
       />
       <CaseEditDialog caseData={editCase} open={!!editCase} onOpenChange={(o) => !o && setEditCase(null)} onSave={handleSave} />
+      <CaseCreateDialog open={showCreate} onOpenChange={setShowCreate} onCreate={handleCreate} />
     </div>
   );
 }
