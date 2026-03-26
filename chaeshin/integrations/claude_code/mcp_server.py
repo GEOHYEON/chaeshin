@@ -1,36 +1,24 @@
 """
 Chaeshin MCP Server — Claude Code 연동.
 
-Claude Code에서 한 줄로 연결:
+공식 MCP Python SDK (FastMCP) 사용.
+
+셋업:
+    pip install chaeshin
+    chaeshin setup claude-code
+
+또는 수동:
     claude mcp add chaeshin -- python -m chaeshin.integrations.claude_code.mcp_server
 
 제공하는 MCP Tools:
-    - chaeshin_retrieve: 유사 케이스 검색
-    - chaeshin_retain:   성공한 실행 패턴 저장
-    - chaeshin_stats:    저장소 통계
+    - chaeshin_retrieve:   유사 케이스 검색 (안티패턴 경고 포함)
+    - chaeshin_retain:     실행 패턴 저장 (성공/실패)
+    - chaeshin_stats:      저장소 통계
     - chaeshin_anticipate: 현재 컨텍스트 기반 선제 제안
 """
 
 import json
 import os
-import sys
-import types
-
-# ── 빠른 기동을 위한 경량 import ──
-# chaeshin/__init__.py는 GraphExecutor/structlog 등 무거운 모듈을 로드함.
-# MCP 서버는 schema + case_store만 필요하므로 __init__.py를 건너뜀.
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_PKG_DIR = os.path.dirname(os.path.dirname(_HERE))  # chaeshin/ 패키지 디렉토리
-_PROJECT_ROOT = os.path.dirname(_PKG_DIR)
-
-if _PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, _PROJECT_ROOT)
-
-# chaeshin 패키지를 가벼운 스텁으로 선점 (무거운 __init__.py 실행 방지)
-if "chaeshin" not in sys.modules:
-    _pkg = types.ModuleType("chaeshin")
-    _pkg.__path__ = [_PKG_DIR]
-    sys.modules["chaeshin"] = _pkg
 
 # .env 로드
 try:
@@ -38,6 +26,8 @@ try:
     load_dotenv()
 except ImportError:
     pass
+
+from mcp.server.fastmcp import FastMCP
 
 from chaeshin.schema import (
     ProblemFeatures,
@@ -51,12 +41,11 @@ from chaeshin.schema import (
 )
 from chaeshin.case_store import CaseStore
 
-# ── 저장소 설정 ──
-# 글로벌 저장소 (항상 존재)
+# ── 저장소 설정 ──────────────────────────────────────────────
+
 GLOBAL_STORE_DIR = os.path.expanduser("~/.chaeshin")
 GLOBAL_STORE_FILE = os.path.join(GLOBAL_STORE_DIR, "cases.json")
 
-# 프로젝트 로컬 저장소 (CHAESHIN_STORE_DIR이 상대경로면 프로젝트별)
 _env_store = os.getenv("CHAESHIN_STORE_DIR", "")
 LOCAL_STORE_DIR = os.path.abspath(_env_store) if _env_store else None
 LOCAL_STORE_FILE = os.path.join(LOCAL_STORE_DIR, "cases.json") if LOCAL_STORE_DIR else None
@@ -74,35 +63,21 @@ def _get_embed_fn():
         return None
 
 
-def _load_single_store(store_file: str) -> CaseStore:
-    """단일 저장소 파일 로드."""
-    store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
-    if os.path.exists(store_file):
-        with open(store_file, "r", encoding="utf-8") as f:
-            store.load_json(f.read())
-    return store
-
-
 def _load_store() -> CaseStore:
-    """글로벌 + 로컬 저장소 병합 로드.
-
-    검색 시 두 저장소의 케이스를 모두 봄.
-    저장 시에는 로컬이 있으면 로컬에, 없으면 글로벌에.
-    """
+    """글로벌 + 로컬 저장소 병합 로드."""
     store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
 
-    # 글로벌 먼저 로드
     if os.path.exists(GLOBAL_STORE_FILE):
         with open(GLOBAL_STORE_FILE, "r", encoding="utf-8") as f:
             store.load_json(f.read())
 
-    # 로컬이 있으면 추가 로드 (중복 case_id는 로컬이 우선)
     if LOCAL_STORE_FILE and os.path.exists(LOCAL_STORE_FILE):
-        local_store = _load_single_store(LOCAL_STORE_FILE)
+        local = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
+        with open(LOCAL_STORE_FILE, "r", encoding="utf-8") as f:
+            local.load_json(f.read())
         existing_ids = {c.metadata.case_id for c in store.cases}
-        for case in local_store.cases:
+        for case in local.cases:
             if case.metadata.case_id in existing_ids:
-                # 로컬이 우선 — 글로벌 것을 교체
                 store.cases = [c for c in store.cases if c.metadata.case_id != case.metadata.case_id]
             store.cases.append(case)
 
@@ -110,36 +85,44 @@ def _load_store() -> CaseStore:
 
 
 def _save_store(store: CaseStore):
-    """저장: 로컬이 설정되어 있으면 로컬에, 아니면 글로벌에."""
+    """저장: 로컬이 있으면 로컬에, 없으면 글로벌에."""
     target_dir = LOCAL_STORE_DIR or GLOBAL_STORE_DIR
     target_file = LOCAL_STORE_FILE or GLOBAL_STORE_FILE
-
     os.makedirs(target_dir, exist_ok=True)
     with open(target_file, "w", encoding="utf-8") as f:
         f.write(store.to_json())
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# MCP Tool Handlers
+# FastMCP Server
 # ═══════════════════════════════════════════════════════════════════════
 
-def handle_retrieve(params: dict) -> dict:
-    """유사 케이스 검색 — 안티패턴 경고 포함."""
+mcp = FastMCP("chaeshin")
+
+
+@mcp.tool()
+def chaeshin_retrieve(
+    query: str,
+    category: str = "",
+    keywords: str = "",
+    top_k: int = 3,
+) -> str:
+    """Search for similar past cases in Chaeshin memory.
+
+    Returns successful tool execution graphs that worked before,
+    plus warnings about patterns that failed (anti-patterns).
+
+    Args:
+        query: What the user wants to do (natural language)
+        category: Task category (optional)
+        keywords: Comma-separated keywords for matching
+        top_k: Number of results to return
+    """
     store = _load_store()
-    query = params.get("query", "")
-    category = params.get("category", "")
-    keywords = params.get("keywords", [])
-    top_k = params.get("top_k", 3)
 
-    if isinstance(keywords, str):
-        keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
 
-    problem = ProblemFeatures(
-        request=query,
-        category=category,
-        keywords=keywords,
-    )
-
+    problem = ProblemFeatures(request=query, category=category, keywords=kw_list)
     result = store.retrieve_with_warnings(problem, top_k=top_k)
 
     cases = []
@@ -169,14 +152,37 @@ def handle_retrieve(params: dict) -> dict:
             "error_reason": case.outcome.error_reason,
         })
 
-    return {"cases": cases, "warnings": warnings, "total_in_store": len(store.cases)}
+    return json.dumps({"cases": cases, "warnings": warnings, "total_in_store": len(store.cases)}, ensure_ascii=False, indent=2)
 
 
-def handle_retain(params: dict) -> dict:
-    """성공한 실행 패턴 저장."""
+@mcp.tool()
+def chaeshin_retain(
+    request: str,
+    graph: str,
+    category: str = "",
+    keywords: str = "",
+    summary: str = "",
+    satisfaction: float = 0.85,
+    success: bool = True,
+    error_reason: str = "",
+) -> str:
+    """Save a tool execution pattern to Chaeshin memory for future reuse.
+
+    Save both successful patterns (to reuse) and failed patterns (to avoid).
+
+    Args:
+        request: Original user request
+        graph: Tool execution graph as JSON string with nodes and edges
+        category: Task category (e.g. "bug-fix", "feature", "ci")
+        keywords: Comma-separated keywords for future matching
+        summary: Short result summary
+        satisfaction: Satisfaction score 0-1 (default 0.85)
+        success: Whether the execution succeeded. Set false to save as anti-pattern.
+        error_reason: Why it failed (only when success=false)
+    """
     store = _load_store()
 
-    graph_data = params.get("graph", {})
+    graph_data = json.loads(graph) if isinstance(graph, str) else graph
     nodes = [
         GraphNode(
             id=n.get("id", f"n{i}"),
@@ -195,30 +201,21 @@ def handle_retain(params: dict) -> dict:
         for e in graph_data.get("edges", [])
     ]
 
-    keywords = params.get("keywords", [])
-    if isinstance(keywords, str):
-        keywords = [k.strip() for k in keywords.split(",") if k.strip()]
-
-    success = params.get("success", True)
-    error_reason = params.get("error_reason", "")
+    kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
 
     case = Case(
-        problem_features=ProblemFeatures(
-            request=params.get("request", ""),
-            category=params.get("category", ""),
-            keywords=keywords,
-        ),
+        problem_features=ProblemFeatures(request=request, category=category, keywords=kw_list),
         solution=Solution(tool_graph=ToolGraph(nodes=nodes, edges=edges)),
         outcome=Outcome(
             success=success,
-            result_summary=params.get("summary", ""),
+            result_summary=summary,
             tools_executed=len(nodes),
-            user_satisfaction=params.get("satisfaction", 0.85) if success else 0.0,
+            user_satisfaction=satisfaction if success else 0.0,
             error_reason=error_reason,
         ),
         metadata=CaseMetadata(
             source="claude_code",
-            tags=keywords + ["claude_code"] + (["failure"] if not success else []),
+            tags=kw_list + ["claude_code"] + (["failure"] if not success else []),
         ),
     )
 
@@ -228,26 +225,37 @@ def handle_retain(params: dict) -> dict:
         case_id = store.retain_failure(case, error_reason)
     _save_store(store)
 
-    return {"status": "saved", "case_id": case_id, "success": success, "total_cases": len(store.cases)}
+    return json.dumps({"status": "saved", "case_id": case_id, "success": success, "total_cases": len(store.cases)}, ensure_ascii=False)
 
 
-def handle_stats(params: dict) -> dict:
-    """저장소 통계."""
+@mcp.tool()
+def chaeshin_stats() -> str:
+    """Get Chaeshin memory store statistics.
+
+    Returns total cases, store paths, embedding status, and categories.
+    """
     store = _load_store()
-    return {
+    return json.dumps({
         "total_cases": len(store.cases),
         "global_store": GLOBAL_STORE_FILE,
         "local_store": LOCAL_STORE_FILE or "(not set)",
         "has_embeddings": store.embed_fn is not None,
         "categories": list(set(c.problem_features.category for c in store.cases if c.problem_features.category)),
-    }
+    }, ensure_ascii=False, indent=2)
 
 
-def handle_anticipate(params: dict) -> dict:
-    """현재 컨텍스트 기반 선제 제안."""
+@mcp.tool()
+def chaeshin_anticipate(context: str, category: str = "") -> str:
+    """Get proactive suggestions based on current context.
+
+    Chaeshin checks if it has seen a similar situation before and suggests
+    a tool execution graph to follow.
+
+    Args:
+        context: Current task context or user intent
+        category: Task category hint (optional)
+    """
     store = _load_store()
-    context = params.get("context", "")
-    category = params.get("category", "")
 
     problem = ProblemFeatures(
         request=context,
@@ -257,14 +265,14 @@ def handle_anticipate(params: dict) -> dict:
 
     results = store.retrieve(problem, top_k=1)
     if not results:
-        return {"suggestion": None, "message": "No similar cases found"}
+        return json.dumps({"suggestion": None, "message": "No similar cases found"})
 
     case, score = results[0]
     if score < 0.6:
-        return {"suggestion": None, "message": f"Best match too low (similarity: {score:.3f})"}
+        return json.dumps({"suggestion": None, "message": f"Best match too low (similarity: {score:.3f})"})
 
     g = case.solution.tool_graph
-    return {
+    return json.dumps({
         "suggestion": {
             "case_id": case.metadata.case_id,
             "similarity": round(score, 4),
@@ -276,229 +284,15 @@ def handle_anticipate(params: dict) -> dict:
             ],
         },
         "message": f"Found similar case with {score:.1%} similarity",
-    }
+    }, ensure_ascii=False, indent=2)
 
 
 # ═══════════════════════════════════════════════════════════════════════
-# MCP stdio Protocol
+# Entry point
 # ═══════════════════════════════════════════════════════════════════════
-
-TOOLS = {
-    "chaeshin_retrieve": {
-        "handler": handle_retrieve,
-        "description": "Search for similar past cases in Chaeshin memory. Returns tool execution graphs that worked before.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "What the user wants to do (natural language)"},
-                "category": {"type": "string", "description": "Task category (optional)"},
-                "keywords": {
-                    "oneOf": [
-                        {"type": "array", "items": {"type": "string"}},
-                        {"type": "string"},
-                    ],
-                    "description": "Keywords for matching (comma-separated string or array)",
-                },
-                "top_k": {"type": "integer", "description": "Number of results", "default": 3},
-            },
-            "required": ["query"],
-        },
-    },
-    "chaeshin_retain": {
-        "handler": handle_retain,
-        "description": "Save a successful tool execution pattern to Chaeshin memory for future reuse.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "request": {"type": "string", "description": "Original user request"},
-                "category": {"type": "string", "description": "Task category"},
-                "keywords": {
-                    "oneOf": [
-                        {"type": "array", "items": {"type": "string"}},
-                        {"type": "string"},
-                    ],
-                    "description": "Keywords for future matching",
-                },
-                "graph": {
-                    "type": "object",
-                    "description": "Tool execution graph with nodes and edges",
-                    "properties": {
-                        "nodes": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "id": {"type": "string"},
-                                    "tool": {"type": "string"},
-                                    "note": {"type": "string"},
-                                    "params_hint": {"type": "object"},
-                                },
-                            },
-                        },
-                        "edges": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "from": {"type": "string"},
-                                    "to": {"type": "string"},
-                                    "condition": {"type": "string"},
-                                },
-                            },
-                        },
-                    },
-                },
-                "summary": {"type": "string", "description": "Short result summary"},
-                "satisfaction": {"type": "number", "description": "Satisfaction score 0-1", "default": 0.85},
-                "success": {"type": "boolean", "description": "Whether the execution succeeded (default true). Set false to save a failure case as anti-pattern.", "default": True},
-                "error_reason": {"type": "string", "description": "Why it failed (only when success=false). E.g. 'API rate limit hit at step 3'"},
-            },
-            "required": ["request", "graph"],
-        },
-    },
-    "chaeshin_stats": {
-        "handler": handle_stats,
-        "description": "Get Chaeshin memory store statistics.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-        },
-    },
-    "chaeshin_anticipate": {
-        "handler": handle_anticipate,
-        "description": "Get proactive suggestions based on current context. Chaeshin checks if it has seen a similar situation before.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "context": {"type": "string", "description": "Current task context or user intent"},
-                "category": {"type": "string", "description": "Task category hint"},
-            },
-            "required": ["context"],
-        },
-    },
-}
-
-
-def _send(msg: dict):
-    """JSON-RPC 메시지 전송."""
-    data = json.dumps(msg)
-    sys.stdout.write(f"Content-Length: {len(data.encode())}\r\n\r\n{data}")
-    sys.stdout.flush()
-
-
-def _read() -> dict | None:
-    """JSON-RPC 메시지 수신. EOF이면 None 반환."""
-    # Content-Length 헤더 읽기
-    headers = {}
-    while True:
-        line = sys.stdin.readline()
-        if not line:
-            return None  # EOF — 연결 끊김
-        if line.strip() == "":
-            break
-        if ":" in line:
-            key, val = line.split(":", 1)
-            headers[key.strip()] = val.strip()
-
-    content_length = int(headers.get("Content-Length", 0))
-    if content_length == 0:
-        return {}  # 빈 메시지 — 무시하되 서버는 유지
-
-    body = sys.stdin.read(content_length)
-    if not body:
-        return None
-    return json.loads(body)
-
-
-def run_server():
-    """MCP stdio 서버 메인 루프."""
-    while True:
-        try:
-            msg = _read()
-        except (EOFError, KeyboardInterrupt):
-            break
-        except Exception:
-            continue  # 파싱 에러 등 — 무시하고 다음 메시지 대기
-
-        if msg is None:
-            break  # EOF — 연결 끊김
-
-        if not msg:
-            continue  # 빈 메시지 — 서버 유지
-
-        method = msg.get("method", "")
-        msg_id = msg.get("id")
-
-        if method == "initialize":
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {
-                        "name": "chaeshin",
-                        "version": "0.1.0",
-                    },
-                },
-            })
-
-        elif method == "notifications/initialized":
-            pass  # 확인만
-
-        elif method == "tools/list":
-            tool_list = []
-            for name, spec in TOOLS.items():
-                tool_list.append({
-                    "name": name,
-                    "description": spec["description"],
-                    "inputSchema": spec["inputSchema"],
-                })
-            _send({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {"tools": tool_list},
-            })
-
-        elif method == "tools/call":
-            tool_name = msg.get("params", {}).get("name", "")
-            arguments = msg.get("params", {}).get("arguments", {})
-
-            if tool_name in TOOLS:
-                try:
-                    result = TOOLS[tool_name]["handler"](arguments)
-                    _send({
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}],
-                        },
-                    })
-                except Exception as e:
-                    _send({
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "result": {
-                            "content": [{"type": "text", "text": json.dumps({"error": str(e)})}],
-                            "isError": True,
-                        },
-                    })
-            else:
-                _send({
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {
-                        "code": -32601,
-                        "message": f"Unknown tool: {tool_name}",
-                    },
-                })
-
-        elif method == "ping":
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": {}})
-
 
 def main():
-    run_server()
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
