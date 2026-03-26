@@ -43,39 +43,54 @@ from chaeshin.schema import (
 from chaeshin.case_store import CaseStore
 
 # ── 저장소 경로 ──
-STORE_DIR = os.path.expanduser(
-    os.getenv("CHAESHIN_STORE_DIR", "~/.chaeshin")
-)
-STORE_FILE = os.path.join(STORE_DIR, "cases.json")
+GLOBAL_STORE_DIR = os.path.expanduser("~/.chaeshin")
+GLOBAL_STORE_FILE = os.path.join(GLOBAL_STORE_DIR, "cases.json")
+
+_env_store = os.getenv("CHAESHIN_STORE_DIR", "")
+LOCAL_STORE_DIR = os.path.abspath(_env_store) if _env_store else None
+LOCAL_STORE_FILE = os.path.join(LOCAL_STORE_DIR, "cases.json") if LOCAL_STORE_DIR else None
+
+
+def _get_embed_fn():
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        from chaeshin.integrations.openai import OpenAIAdapter
+        return OpenAIAdapter(api_key=api_key).embed_fn
+    except ImportError:
+        return None
 
 
 def _get_store() -> CaseStore:
-    """싱글톤 저장소 로드."""
-    # 임베딩 함수 (OpenAI 있으면 사용, 없으면 키워드 모드)
-    embed_fn = None
-    api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
-        try:
-            from chaeshin.integrations.openai import OpenAIAdapter
-            adapter = OpenAIAdapter(api_key=api_key)
-            embed_fn = adapter.embed_fn
-        except ImportError:
-            pass
+    """글로벌 + 로컬 저장소 병합 로드."""
+    store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
 
-    store = CaseStore(embed_fn=embed_fn, similarity_threshold=0.5)
-
-    # 기존 케이스 로드
-    if os.path.exists(STORE_FILE):
-        with open(STORE_FILE, "r", encoding="utf-8") as f:
+    # 글로벌 먼저
+    if os.path.exists(GLOBAL_STORE_FILE):
+        with open(GLOBAL_STORE_FILE, "r", encoding="utf-8") as f:
             store.load_json(f.read())
+
+    # 로컬 추가 (중복은 로컬 우선)
+    if LOCAL_STORE_FILE and os.path.exists(LOCAL_STORE_FILE):
+        local = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
+        with open(LOCAL_STORE_FILE, "r", encoding="utf-8") as f:
+            local.load_json(f.read())
+        existing_ids = {c.metadata.case_id for c in store.cases}
+        for case in local.cases:
+            if case.metadata.case_id in existing_ids:
+                store.cases = [c for c in store.cases if c.metadata.case_id != case.metadata.case_id]
+            store.cases.append(case)
 
     return store
 
 
 def _save_store(store: CaseStore):
-    """저장소를 디스크에 기록."""
-    os.makedirs(STORE_DIR, exist_ok=True)
-    with open(STORE_FILE, "w", encoding="utf-8") as f:
+    """저장: 로컬이 있으면 로컬에, 아니면 글로벌에."""
+    target_dir = LOCAL_STORE_DIR or GLOBAL_STORE_DIR
+    target_file = LOCAL_STORE_FILE or GLOBAL_STORE_FILE
+    os.makedirs(target_dir, exist_ok=True)
+    with open(target_file, "w", encoding="utf-8") as f:
         f.write(store.to_json())
 
 

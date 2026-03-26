@@ -42,8 +42,14 @@ from chaeshin.schema import (
 from chaeshin.case_store import CaseStore
 
 # ── 저장소 설정 ──
-STORE_DIR = os.path.expanduser(os.getenv("CHAESHIN_STORE_DIR", "~/.chaeshin"))
-STORE_FILE = os.path.join(STORE_DIR, "cases.json")
+# 글로벌 저장소 (항상 존재)
+GLOBAL_STORE_DIR = os.path.expanduser("~/.chaeshin")
+GLOBAL_STORE_FILE = os.path.join(GLOBAL_STORE_DIR, "cases.json")
+
+# 프로젝트 로컬 저장소 (CHAESHIN_STORE_DIR이 상대경로면 프로젝트별)
+_env_store = os.getenv("CHAESHIN_STORE_DIR", "")
+LOCAL_STORE_DIR = os.path.abspath(_env_store) if _env_store else None
+LOCAL_STORE_FILE = os.path.join(LOCAL_STORE_DIR, "cases.json") if LOCAL_STORE_DIR else None
 
 
 def _get_embed_fn():
@@ -58,17 +64,48 @@ def _get_embed_fn():
         return None
 
 
-def _load_store() -> CaseStore:
+def _load_single_store(store_file: str) -> CaseStore:
+    """단일 저장소 파일 로드."""
     store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
-    if os.path.exists(STORE_FILE):
-        with open(STORE_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(store_file):
+        with open(store_file, "r", encoding="utf-8") as f:
             store.load_json(f.read())
     return store
 
 
+def _load_store() -> CaseStore:
+    """글로벌 + 로컬 저장소 병합 로드.
+
+    검색 시 두 저장소의 케이스를 모두 봄.
+    저장 시에는 로컬이 있으면 로컬에, 없으면 글로벌에.
+    """
+    store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
+
+    # 글로벌 먼저 로드
+    if os.path.exists(GLOBAL_STORE_FILE):
+        with open(GLOBAL_STORE_FILE, "r", encoding="utf-8") as f:
+            store.load_json(f.read())
+
+    # 로컬이 있으면 추가 로드 (중복 case_id는 로컬이 우선)
+    if LOCAL_STORE_FILE and os.path.exists(LOCAL_STORE_FILE):
+        local_store = _load_single_store(LOCAL_STORE_FILE)
+        existing_ids = {c.metadata.case_id for c in store.cases}
+        for case in local_store.cases:
+            if case.metadata.case_id in existing_ids:
+                # 로컬이 우선 — 글로벌 것을 교체
+                store.cases = [c for c in store.cases if c.metadata.case_id != case.metadata.case_id]
+            store.cases.append(case)
+
+    return store
+
+
 def _save_store(store: CaseStore):
-    os.makedirs(STORE_DIR, exist_ok=True)
-    with open(STORE_FILE, "w", encoding="utf-8") as f:
+    """저장: 로컬이 설정되어 있으면 로컬에, 아니면 글로벌에."""
+    target_dir = LOCAL_STORE_DIR or GLOBAL_STORE_DIR
+    target_file = LOCAL_STORE_FILE or GLOBAL_STORE_FILE
+
+    os.makedirs(target_dir, exist_ok=True)
+    with open(target_file, "w", encoding="utf-8") as f:
         f.write(store.to_json())
 
 
@@ -189,7 +226,8 @@ def handle_stats(params: dict) -> dict:
     store = _load_store()
     return {
         "total_cases": len(store.cases),
-        "store_path": STORE_FILE,
+        "global_store": GLOBAL_STORE_FILE,
+        "local_store": LOCAL_STORE_FILE or "(not set)",
         "has_embeddings": store.embed_fn is not None,
         "categories": list(set(c.problem_features.category for c in store.cases if c.problem_features.category)),
     }
