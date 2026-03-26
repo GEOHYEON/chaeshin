@@ -158,9 +158,13 @@ async def run_pipeline(
     """CBR 전체 파이프라인을 실행하면서 단계별 로그를 yield."""
 
     log_lines = []
+    # 콜백에서 새 로그가 추가되면 이 이벤트를 set해서
+    # 폴링 루프가 즉시 깨어나도록 함
+    _new_log = asyncio.Event()
 
     def log(msg: str):
         log_lines.append(msg)
+        _new_log.set()
         return "\n".join(log_lines)
 
     # ── 유효성 검사 ──
@@ -313,6 +317,7 @@ async def run_pipeline(
     async def on_todo_update(items):
         nonlocal status_md
         status_md = build_status_table(items)
+        _new_log.set()  # 상태 테이블 변경도 즉시 반영
 
     async def llm_replan(g, ctx, reason):
         log(f"🤖 **리플래닝**: {reason}")
@@ -338,7 +343,7 @@ async def run_pipeline(
     )
 
     # 실행은 콜백에서 log()를 호출하므로, 별도 태스크로 실행하고
-    # 주기적으로 log_lines를 yield
+    # _new_log 이벤트가 set될 때마다 즉시 yield
     exec_task = asyncio.create_task(
         executor.execute(
             graph=graph,
@@ -349,13 +354,22 @@ async def run_pipeline(
         )
     )
 
-    # 실행 중 로그 스트리밍
+    # 실행 중 로그 스트리밍 — 이벤트 기반으로 즉시 반영
     prev_len = len(log_lines)
     while not exec_task.done():
-        await asyncio.sleep(0.3)
+        _new_log.clear()
+        # 최대 0.15초 대기 후 yield (이벤트가 오면 즉시 깨어남)
+        try:
+            await asyncio.wait_for(_new_log.wait(), timeout=0.15)
+        except asyncio.TimeoutError:
+            pass
         if len(log_lines) > prev_len:
             prev_len = len(log_lines)
             yield "\n".join(log_lines), graph_mermaid, status_md
+
+    # 태스크 완료 후 마지막 로그가 있을 수 있으므로 한 번 더 yield
+    if len(log_lines) > prev_len:
+        yield "\n".join(log_lines), graph_mermaid, status_md
 
     # 실행 완료
     try:
@@ -412,20 +426,44 @@ async def run_pipeline(
 
 
 def run_pipeline_sync(*args):
-    """Gradio에서 generator로 yield하기 위한 동기 래퍼."""
-    loop = asyncio.new_event_loop()
+    """Gradio에서 generator로 yield하기 위한 동기 래퍼.
 
-    async def collect():
-        results = []
-        async for item in run_pipeline(*args):
-            results.append(item)
-        return results
+    별도 스레드에서 async 파이프라인을 돌리면서,
+    yield가 발생할 때마다 queue를 통해 메인 스레드로 즉시 전달.
+    이렇게 해야 Gradio가 중간 결과를 실시간으로 렌더링함.
+    """
+    import queue
+    import threading
 
-    all_results = loop.run_until_complete(collect())
-    loop.close()
+    q: queue.Queue = queue.Queue()
+    _sentinel = object()
 
-    for result in all_results:
-        yield result
+    def _run_in_thread():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        async def _consume():
+            async for item in run_pipeline(*args):
+                q.put(item)
+
+        try:
+            loop.run_until_complete(_consume())
+        except Exception as exc:
+            q.put(("error", str(exc), ""))
+        finally:
+            loop.close()
+            q.put(_sentinel)
+
+    thread = threading.Thread(target=_run_in_thread, daemon=True)
+    thread.start()
+
+    while True:
+        item = q.get()
+        if item is _sentinel:
+            break
+        yield item
+
+    thread.join(timeout=5)
 
 
 def reset_chroma():
