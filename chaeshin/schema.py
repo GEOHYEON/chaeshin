@@ -192,6 +192,7 @@ class Outcome:
     loops_triggered: int = 0
     total_time_ms: int = 0
     user_satisfaction: float = 0.0
+    error_reason: str = ""  # 실패 사유 (success=False일 때)
     details: Dict[str, Any] = field(default_factory=dict)
 
 

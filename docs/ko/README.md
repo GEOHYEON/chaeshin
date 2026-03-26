@@ -28,12 +28,12 @@ Chaeshin [MCP](https://modelcontextprotocol.io/) 서버가 Claude Code에 등록
 
 | 도구 | 설명 |
 |------|------|
-| `chaeshin_retrieve` | 자연어로 유사 케이스 검색 |
-| `chaeshin_retain` | 성공한 도구 실행 그래프를 저장 |
+| `chaeshin_retrieve` | 유사 케이스 검색 — 성공 케이스 + 안티패턴 경고 |
+| `chaeshin_retain` | 실행 그래프 저장 (성공/실패 모두) |
 | `chaeshin_anticipate` | 현재 컨텍스트 기반 선제 제안 |
 | `chaeshin_stats` | 케이스 저장소 통계 |
 
-멀티 스텝 작업 전에 유사한 성공 패턴을 먼저 찾고, 완료 후 실행 그래프를 저장합니다.
+멀티 스텝 작업 전에 유사한 패턴을 검색합니다. 성공 케이스와 함께 과거 실패한 **안티패턴 경고**도 반환합니다. 완료 후 실행 그래프를 저장하며, 실패한 실행도 사유와 함께 저장해서 같은 실수를 반복하지 않습니다.
 
 <details>
 <summary>수동 설정 (<code>claude</code> CLI가 없는 경우)</summary>

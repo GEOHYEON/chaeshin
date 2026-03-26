@@ -28,12 +28,12 @@ This registers a Chaeshin [MCP](https://modelcontextprotocol.io/) server with Cl
 
 | Tool | Description |
 |------|-------------|
-| `chaeshin_retrieve` | Search for similar past cases by natural language query |
-| `chaeshin_retain` | Save a successful tool execution graph for future reuse |
+| `chaeshin_retrieve` | Search past cases — returns successes + anti-pattern warnings |
+| `chaeshin_retain` | Save execution graphs (successes and failures) |
 | `chaeshin_anticipate` | Get proactive suggestions based on current context |
 | `chaeshin_stats` | View case store statistics |
 
-Before improvising a multi-step task, Claude checks if a similar successful pattern exists. After completing a task, it saves the execution graph for next time.
+Before improvising a multi-step task, Claude checks if a similar pattern exists. Retrieve returns both successful cases to follow **and** warnings about past failures to avoid. After completing a task, it saves the execution graph. Failed executions are also saved with an error reason so the same mistake is not repeated.
 
 <details>
 <summary>Manual setup (if <code>claude</code> CLI is not available)</summary>

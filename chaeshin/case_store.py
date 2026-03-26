@@ -151,7 +151,7 @@ class CaseStore:
     # ── Retain ────────────────────────────────────────────────────────
 
     def retain(self, case: Case) -> str:
-        """성공한 케이스를 저장소에 추가.
+        """케이스를 저장소에 추가.
 
         동일 case_id가 있으면 업데이트.
 
@@ -198,6 +198,105 @@ class CaseStore:
             satisfaction=case.outcome.user_satisfaction,
         )
         return None
+
+    def retain_failure(
+        self,
+        case: Case,
+        error_reason: str = "",
+    ) -> str:
+        """실패 케이스를 저장소에 추가.
+
+        나중에 retrieve 시 안티패턴 경고로 활용.
+        같은 상황에서 성공하면 promote_failure()로 교체 가능.
+
+        Args:
+            case: 실패한 케이스
+            error_reason: 실패 사유 (예: "API rate limit 초과")
+
+        Returns:
+            저장된 case_id
+        """
+        case.outcome.success = False
+        case.outcome.error_reason = error_reason
+        return self.retain(case)
+
+    def retrieve_with_warnings(
+        self,
+        problem: ProblemFeatures,
+        top_k: int = 3,
+        warning_threshold: float = 0.5,
+    ) -> Dict[str, Any]:
+        """성공 케이스 + 안티패턴 경고를 함께 반환.
+
+        Args:
+            problem: 현재 문제 정의
+            top_k: 성공 케이스 상위 K개
+            warning_threshold: 이 유사도 이상인 실패 케이스만 경고
+
+        Returns:
+            {"cases": [(Case, score), ...], "warnings": [(Case, score), ...]}
+        """
+        if not self.cases:
+            return {"cases": [], "warnings": []}
+
+        # 전체 케이스에 대해 유사도 계산
+        if self.embed_fn:
+            all_results = self._retrieve_by_embedding(problem, len(self.cases))
+        else:
+            all_results = self._retrieve_by_keywords(problem, len(self.cases))
+
+        successes = [(c, s) for c, s in all_results if c.outcome.success]
+        failures = [
+            (c, s) for c, s in all_results
+            if not c.outcome.success and s >= warning_threshold
+        ]
+
+        return {
+            "cases": successes[:top_k],
+            "warnings": failures[:3],
+        }
+
+    def promote_failure(
+        self,
+        failure_case_id: str,
+        successful_case: Case,
+    ) -> Optional[str]:
+        """실패 케이스를 성공 케이스로 교체.
+
+        같은 상황에서 나중에 성공하면, 실패 기록을 제거하고
+        성공 케이스로 대체.
+
+        Args:
+            failure_case_id: 교체할 실패 케이스 ID
+            successful_case: 새 성공 케이스
+
+        Returns:
+            새 case_id (교체 성공 시), None (실패 케이스를 못 찾으면)
+        """
+        # 실패 케이스 찾기
+        failure_idx = None
+        for i, c in enumerate(self.cases):
+            if c.metadata.case_id == failure_case_id and not c.outcome.success:
+                failure_idx = i
+                break
+
+        if failure_idx is None:
+            logger.warning("failure_not_found", case_id=failure_case_id)
+            return None
+
+        # 실패 케이스 제거
+        removed = self.cases.pop(failure_idx)
+        if failure_case_id in self._embeddings:
+            del self._embeddings[failure_case_id]
+
+        logger.info(
+            "failure_promoted",
+            old_case_id=failure_case_id,
+            new_case_id=successful_case.metadata.case_id,
+        )
+
+        # 성공 케이스 저장
+        return self.retain(successful_case)
 
     # ── Record Usage ──────────────────────────────────────────────────
 

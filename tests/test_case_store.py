@@ -14,7 +14,10 @@ from chaeshin.schema import (
 from chaeshin.case_store import CaseStore
 
 
-def _make_case(request: str, category: str, keywords: list, satisfaction: float = 0.9) -> Case:
+def _make_case(
+    request: str, category: str, keywords: list,
+    satisfaction: float = 0.9, success: bool = True, error_reason: str = "",
+) -> Case:
     return Case(
         problem_features=ProblemFeatures(
             request=request,
@@ -27,7 +30,7 @@ def _make_case(request: str, category: str, keywords: list, satisfaction: float 
                 edges=[],
             ),
         ),
-        outcome=Outcome(success=True, user_satisfaction=satisfaction),
+        outcome=Outcome(success=success, user_satisfaction=satisfaction, error_reason=error_reason),
         metadata=CaseMetadata(source="test"),
     )
 
@@ -207,3 +210,86 @@ class TestSerialization:
 
         assert len(store.cases) == 1
         assert store.cases[0].metadata.case_id == "test-001"
+
+
+class TestFailureCases:
+    def test_retain_failure(self):
+        """실패 케이스 저장."""
+        store = CaseStore()
+        case = _make_case("실패 작업", "test", ["a"], success=True)
+        case_id = store.retain_failure(case, error_reason="API rate limit")
+
+        assert case_id is not None
+        assert len(store.cases) == 1
+        assert store.cases[0].outcome.success is False
+        assert store.cases[0].outcome.error_reason == "API rate limit"
+
+    def test_retrieve_with_warnings(self):
+        """성공 케이스 + 안티패턴 경고 반환."""
+        store = CaseStore()
+
+        # 성공 케이스
+        store.retain(_make_case("김치찌개 만들기", "찌개류", ["김치", "찌개"]))
+
+        # 실패 케이스
+        store.retain_failure(
+            _make_case("김치찌개 전자레인지", "찌개류", ["김치", "찌개"]),
+            error_reason="전자레인지로는 찌개를 끓일 수 없음",
+        )
+
+        problem = ProblemFeatures(
+            request="김치찌개",
+            category="찌개류",
+            keywords=["김치", "찌개"],
+        )
+        result = store.retrieve_with_warnings(problem)
+
+        assert len(result["cases"]) == 1
+        assert result["cases"][0][0].outcome.success is True
+
+        assert len(result["warnings"]) == 1
+        assert result["warnings"][0][0].outcome.success is False
+        assert "전자레인지" in result["warnings"][0][0].outcome.error_reason
+
+    def test_promote_failure(self):
+        """실패 케이스를 성공 케이스로 교체."""
+        store = CaseStore()
+
+        # 실패 케이스 저장
+        failure = _make_case("배포 작업", "devops", ["deploy"], success=False, error_reason="timeout")
+        store.retain(failure)
+        failure_id = failure.metadata.case_id
+
+        assert len(store.cases) == 1
+        assert store.cases[0].outcome.success is False
+
+        # 성공 케이스로 교체
+        success = _make_case("배포 작업", "devops", ["deploy"], success=True)
+        new_id = store.promote_failure(failure_id, success)
+
+        assert new_id is not None
+        assert len(store.cases) == 1
+        assert store.cases[0].outcome.success is True
+        assert store.cases[0].metadata.case_id != failure_id
+
+    def test_promote_failure_not_found(self):
+        """존재하지 않는 실패 케이스 교체 시도."""
+        store = CaseStore()
+        success = _make_case("테스트", "test", ["a"])
+        assert store.promote_failure("nonexistent-id", success) is None
+
+    def test_failure_case_json_roundtrip(self):
+        """실패 케이스 JSON 직렬화/역직렬화."""
+        store = CaseStore()
+        store.retain_failure(
+            _make_case("실패", "test", ["a"]),
+            error_reason="테스트 실패 사유",
+        )
+
+        json_str = store.to_json()
+        store2 = CaseStore()
+        store2.load_json(json_str)
+
+        assert len(store2.cases) == 1
+        assert store2.cases[0].outcome.success is False
+        assert store2.cases[0].outcome.error_reason == "테스트 실패 사유"
