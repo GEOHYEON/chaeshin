@@ -5,6 +5,26 @@
  * Weaviate Experience의 inputJson/outputJson/metadataJson을 파싱하여 사용.
  */
 
+// ── Tool Registry ────────────────────────────────────────────
+
+export interface ChaeshinToolParam {
+  name: string;
+  type: string; // "string" | "number" | "boolean" | "object" | "array"
+  description: string;
+  required: boolean;
+}
+
+export interface ChaeshinTool {
+  id: string;
+  name: string;
+  display_name: string;
+  description: string;
+  category: string;
+  params: ChaeshinToolParam[];
+  created_at: string;
+  updated_at: string;
+}
+
 // ── Tool Graph ───────────────────────────────────────────────
 
 export interface ChaeshinGraphNode {

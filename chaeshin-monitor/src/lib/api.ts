@@ -3,7 +3,7 @@
  * 독립 프로젝트용 — cases.json API 라우트 호출.
  */
 
-import type { ChaeshinCase, ChaeshinStats } from "./chaeshin-types";
+import type { ChaeshinCase, ChaeshinStats, ChaeshinTool } from "./chaeshin-types";
 
 const BASE = "/api/chaeshin";
 
@@ -47,6 +47,45 @@ export const api = {
   async deleteCase(caseId: string): Promise<{ success: boolean }> {
     const res = await fetch(`${BASE}/${caseId}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete case");
+    return res.json();
+  },
+};
+
+// ── Tool Registry API ──────────────────────────────────────
+
+const TOOLS_BASE = "/api/tools";
+
+export const toolApi = {
+  async getTools(category?: string): Promise<{ data: ChaeshinTool[]; total: number }> {
+    const params = category ? `?category=${encodeURIComponent(category)}` : "";
+    const res = await fetch(`${TOOLS_BASE}${params}`);
+    if (!res.ok) throw new Error("Failed to fetch tools");
+    return res.json();
+  },
+
+  async createTool(tool: ChaeshinTool): Promise<{ success: boolean }> {
+    const res = await fetch(TOOLS_BASE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tool),
+    });
+    if (!res.ok) throw new Error("Failed to create tool");
+    return res.json();
+  },
+
+  async updateTool(toolId: string, data: Partial<ChaeshinTool>): Promise<ChaeshinTool> {
+    const res = await fetch(`${TOOLS_BASE}/${toolId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update tool");
+    return res.json();
+  },
+
+  async deleteTool(toolId: string): Promise<{ success: boolean }> {
+    const res = await fetch(`${TOOLS_BASE}/${toolId}`, { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete tool");
     return res.json();
   },
 };

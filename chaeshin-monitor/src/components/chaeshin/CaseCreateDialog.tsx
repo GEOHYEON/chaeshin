@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import type { ChaeshinCase, ChaeshinToolGraph } from "@/lib/chaeshin-types";
 import { ToolGraphEditor } from "./ToolGraphEditor";
-import { Plus } from "lucide-react";
+import { Plus, ExternalLink } from "lucide-react";
 
 interface CaseCreateDialogProps {
   open: boolean;
@@ -30,8 +30,10 @@ const EMPTY_GRAPH: ChaeshinToolGraph = {
   max_loops: 3,
 };
 
+const SESSION_KEY_RESULT = "chaeshin-graph-builder-result";
+const SESSION_KEY_DRAFT = "chaeshin-graph-builder-draft";
+
 export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDialogProps) {
-  const [tab, setTab] = useState<"info" | "graph">("info");
   const [request, setRequest] = useState("");
   const [category, setCategory] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -42,8 +44,30 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
   const [graph, setGraph] = useState<ChaeshinToolGraph>(EMPTY_GRAPH);
   const [saving, setSaving] = useState(false);
 
+  // Poll for graph builder result when window regains focus
+  const checkGraphResult = useCallback(() => {
+    const result = sessionStorage.getItem(SESSION_KEY_RESULT);
+    if (result) {
+      try {
+        const parsed = JSON.parse(result) as ChaeshinToolGraph;
+        setGraph(parsed);
+      } catch { /* ignore */ }
+      sessionStorage.removeItem(SESSION_KEY_RESULT);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => checkGraphResult();
+    window.addEventListener("focus", handler);
+    document.addEventListener("visibilitychange", handler);
+    return () => {
+      window.removeEventListener("focus", handler);
+      document.removeEventListener("visibilitychange", handler);
+    };
+  }, [open, checkGraphResult]);
+
   const reset = () => {
-    setTab("info");
     setRequest("");
     setCategory("");
     setKeywords("");
@@ -52,6 +76,14 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
     setErrorReason("");
     setTags("");
     setGraph(EMPTY_GRAPH);
+  };
+
+  const openGraphBuilder = () => {
+    // Save current graph as draft
+    if (graph.nodes.length > 0) {
+      sessionStorage.setItem(SESSION_KEY_DRAFT, JSON.stringify(graph));
+    }
+    window.open("/graph-builder?mode=create", "_blank", "width=1400,height=900");
   };
 
   const handleCreate = async () => {
@@ -98,87 +130,80 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
           <DialogTitle>새 CBR 케이스 추가</DialogTitle>
-          {/* Custom tab bar */}
-          <div className="flex gap-1 mt-3">
-            <button
-              onClick={() => setTab("info")}
-              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-                tab === "info"
-                  ? "bg-primary text-primary-foreground font-medium"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              기본 정보
-            </button>
-            <button
-              onClick={() => setTab("graph")}
-              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-                tab === "graph"
-                  ? "bg-primary text-primary-foreground font-medium"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              Tool Graph ({graph.nodes.length} nodes)
-            </button>
-          </div>
         </DialogHeader>
 
-        {/* Content area — flex-1 fills remaining space */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {tab === "info" ? (
-            <div className="p-6 space-y-4 overflow-y-auto h-full">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">요청 (Request) *</label>
-                <Input value={request} onChange={(e) => setRequest(e.target.value)} placeholder="김치찌개 2인분 만들어줘" />
-              </div>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">요청 (Request) *</label>
+            <Input value={request} onChange={(e) => setRequest(e.target.value)} placeholder="김치찌개 2인분 만들어줘" />
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">카테고리</label>
-                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="찌개류" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">만족도 (0~1)</label>
-                  <Input type="number" min={0} max={1} step={0.05} value={satisfaction} onChange={(e) => setSatisfaction(Number(e.target.value))} />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">키워드 (쉼표 구분)</label>
-                <Input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="김치, 찌개, 묵은지" />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">태그 (쉼표 구분)</label>
-                <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="한식, 찌개" />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center gap-2">
-                <Checkbox id="create-success" checked={success} onCheckedChange={(v) => setSuccess(!!v)} />
-                <label htmlFor="create-success" className="text-sm">성공 케이스</label>
-              </div>
-
-              {!success && (
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">실패 사유</label>
-                  <Input value={errorReason} onChange={(e) => setErrorReason(e.target.value)} placeholder="API rate limit 초과" />
-                </div>
-              )}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">카테고리</label>
+              <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="찌개류" />
             </div>
-          ) : (
-            /* Graph tab: ToolGraphEditor fills entire area */
-            <div className="h-full w-full">
-              <ToolGraphEditor graph={graph} onChange={setGraph} className="h-full w-full rounded-none border-0" />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">만족도 (0~1)</label>
+              <Input type="number" min={0} max={1} step={0.05} value={satisfaction} onChange={(e) => setSatisfaction(Number(e.target.value))} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">키워드 (쉼표 구분)</label>
+            <Input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="김치, 찌개, 묵은지" />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">태그 (쉼표 구분)</label>
+            <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="한식, 찌개" />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center gap-2">
+            <Checkbox id="create-success" checked={success} onCheckedChange={(v) => setSuccess(!!v)} />
+            <label htmlFor="create-success" className="text-sm">성공 케이스</label>
+          </div>
+
+          {!success && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">실패 사유</label>
+              <Input value={errorReason} onChange={(e) => setErrorReason(e.target.value)} placeholder="API rate limit 초과" />
             </div>
           )}
+
+          <Separator />
+
+          {/* Tool Graph section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Tool Graph</label>
+              <Button variant="outline" size="sm" onClick={openGraphBuilder}>
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                그래프 빌더 열기
+              </Button>
+            </div>
+
+            {graph.nodes.length > 0 ? (
+              <div className="rounded-lg border overflow-hidden">
+                <ToolGraphEditor graph={graph} readOnly className="h-[200px]" />
+                <div className="px-3 py-1.5 bg-gray-50 border-t text-xs text-muted-foreground">
+                  {graph.nodes.length}개 노드, {graph.edges.length}개 엣지
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                그래프 빌더에서 Tool Graph를 구성하세요
+              </div>
+            )}
+          </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t shrink-0">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
           <Button onClick={handleCreate} disabled={saving || !request.trim()}>
             <Plus className="h-4 w-4 mr-1.5" />
