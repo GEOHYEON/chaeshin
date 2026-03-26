@@ -59,3 +59,9 @@ try:
     __all__.append("ChromaCaseStore")
 except ImportError:
     pass
+
+try:
+    from chaeshin.integrations.weaviate import WeaviateCaseStore
+    __all__.append("WeaviateCaseStore")
+except ImportError:
+    pass
