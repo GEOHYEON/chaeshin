@@ -50,7 +50,7 @@ function GraphBuilderInner() {
   const caseId = searchParams.get("caseId");
 
   // Tab
-  const [tab, setTab] = useState<"graph" | "info">("graph");
+  const [tab, setTab] = useState<"info" | "graph">("info");
 
   // Tools
   const [tools, setTools] = useState<ChaeshinTool[]>([]);
@@ -268,6 +268,17 @@ function GraphBuilderInner() {
         {/* Tab buttons */}
         <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-0.5">
           <button
+            onClick={() => setTab("info")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              tab === "info"
+                ? "bg-white text-gray-900 font-medium shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            기본 정보
+          </button>
+          <button
             onClick={() => setTab("graph")}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
               tab === "graph"
@@ -280,17 +291,6 @@ function GraphBuilderInner() {
             {nodes.length > 0 && (
               <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 rounded-full">{nodes.length}</span>
             )}
-          </button>
-          <button
-            onClick={() => setTab("info")}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
-              tab === "info"
-                ? "bg-white text-gray-900 font-medium shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            기본 정보
           </button>
         </div>
 
