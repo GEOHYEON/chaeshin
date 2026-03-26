@@ -296,7 +296,7 @@ export function ToolGraphEditor({
   };
 
   return (
-    <div className={`border rounded-lg overflow-hidden ${className ?? ""}`} style={{ height: 500 }}>
+    <div className={`border rounded-lg overflow-hidden ${className ?? "h-[500px]"}`}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
