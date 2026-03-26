@@ -1,0 +1,290 @@
+[
+  {
+    "problem_features": {
+      "request": "김치찌개 만들어줘",
+      "category": "찌개류",
+      "keywords": ["김치", "찌개", "묵은지", "돼지고기"],
+      "constraints": ["매운거 OK"],
+      "context": {
+        "servings": 2,
+        "available_ingredients": ["묵은지", "두부", "돼지고기", "대파", "고춧가루"]
+      }
+    },
+    "solution": {
+      "tool_graph": {
+        "nodes": [
+          {"id": "n1", "tool": "알레르기체크", "params_hint": {"재료목록": ["묵은지", "돼지고기", "두부", "대파"]}, "note": "안전 확인"},
+          {"id": "n2", "tool": "재료확인", "params_hint": {"필요재료": ["묵은지", "돼지고기", "두부", "대파", "고춧가루"]}, "note": "재료 체크"},
+          {"id": "n3", "tool": "썰기", "params_hint": {"재료": "묵은지, 돼지고기, 두부, 대파", "크기": "적당히"}, "note": "재료 손질"},
+          {"id": "n4", "tool": "볶기", "params_hint": {"재료": "돼지고기+묵은지", "불세기": "중불", "시간": "5분", "인분": 2}, "note": "베이스 볶기"},
+          {"id": "n5", "tool": "끓이기", "params_hint": {"재료": "볶은 재료+두부+대파", "육수종류": "쌀뜨물", "시간": "20분"}, "note": "메인 조리"},
+          {"id": "n6", "tool": "간보기", "params_hint": {"체크항목": ["짠맛", "매운맛", "감칠맛"]}, "note": "최종 맛 확인"},
+          {"id": "n7", "tool": "담기", "params_hint": {"요리명": "김치찌개", "인분": 2, "고명": ["대파"]}, "note": "완성"}
+        ],
+        "edges": [
+          {"from_node": "n1", "to_node": "n3", "condition": "n1.output.allergy_detected == false"},
+          {"from_node": "n1", "to_node": null, "condition": "n1.output.allergy_detected == true", "action": "ask_user", "note": "알레르기 발견 시 사용자에게 대체재료 문의"},
+          {"from_node": "n2", "to_node": "n3", "condition": "n2.output.all_available == true"},
+          {"from_node": "n2", "to_node": null, "condition": "n2.output.all_available == false", "action": "ask_user", "note": "재료 부족 시 사용자에게 문의"},
+          {"from_node": "n3", "to_node": "n4"},
+          {"from_node": "n4", "to_node": "n5"},
+          {"from_node": "n5", "to_node": "n6"},
+          {"from_node": "n6", "to_node": "n5", "condition": "n6.output.taste == 싱거움", "note": "루프: 간 부족하면 다시 끓이기"},
+          {"from_node": "n6", "to_node": "n7", "condition": "n6.output.taste == OK"}
+        ],
+        "parallel_groups": [["n1", "n2"]],
+        "entry_nodes": ["n1", "n2"],
+        "max_loops": 2
+      }
+    },
+    "outcome": {
+      "success": true,
+      "result_summary": "김치찌개 2인분 완성",
+      "tools_executed": 7,
+      "loops_triggered": 1,
+      "total_time_ms": 35000,
+      "user_satisfaction": 0.90,
+      "details": {"total_cooking_min": 35}
+    },
+    "metadata": {
+      "case_id": "recipe_kimchi_stew_001",
+      "created_at": "2026-03-20T12:00:00Z",
+      "updated_at": "2026-03-25T09:00:00Z",
+      "used_count": 25,
+      "avg_satisfaction": 0.88,
+      "source": "user_session",
+      "version": 2,
+      "tags": ["한식", "찌개", "김치", "가정식"]
+    }
+  },
+  {
+    "problem_features": {
+      "request": "된장찌개 만들어줘",
+      "category": "찌개류",
+      "keywords": ["된장", "찌개", "두부", "감자"],
+      "constraints": [],
+      "context": {
+        "servings": 2,
+        "available_ingredients": ["된장", "두부", "감자", "양파", "애호박", "대파"]
+      }
+    },
+    "solution": {
+      "tool_graph": {
+        "nodes": [
+          {"id": "n1", "tool": "알레르기체크", "params_hint": {"재료목록": ["된장", "두부", "감자", "양파", "애호박"]}, "note": "콩 알레르기 주의"},
+          {"id": "n2", "tool": "재료확인", "params_hint": {"필요재료": ["된장", "두부", "감자", "양파", "애호박", "대파"]}, "note": "재료 체크"},
+          {"id": "n3", "tool": "썰기", "params_hint": {"재료": "감자, 두부, 양파, 애호박, 대파", "크기": "적당히"}, "note": "재료 손질"},
+          {"id": "n4", "tool": "끓이기", "params_hint": {"재료": "멸치육수+된장+감자+양파", "육수종류": "멸치육수", "시간": "15분"}, "note": "1차 끓이기"},
+          {"id": "n5", "tool": "끓이기", "params_hint": {"재료": "+두부+애호박+대파", "시간": "5분"}, "note": "2차: 무른 재료 투입"},
+          {"id": "n6", "tool": "간보기", "params_hint": {"체크항목": ["짠맛", "감칠맛"]}, "note": "맛 확인"},
+          {"id": "n7", "tool": "담기", "params_hint": {"요리명": "된장찌개", "인분": 2, "고명": ["대파", "고춧가루"]}, "note": "완성"}
+        ],
+        "edges": [
+          {"from_node": "n1", "to_node": "n3", "condition": "n1.output.allergy_detected == false"},
+          {"from_node": "n1", "to_node": null, "condition": "n1.output.allergy_detected == true", "action": "ask_user"},
+          {"from_node": "n2", "to_node": "n3", "condition": "n2.output.all_available == true"},
+          {"from_node": "n2", "to_node": null, "condition": "n2.output.all_available == false", "action": "ask_user"},
+          {"from_node": "n3", "to_node": "n4"},
+          {"from_node": "n4", "to_node": "n5"},
+          {"from_node": "n5", "to_node": "n6"},
+          {"from_node": "n6", "to_node": "n5", "condition": "n6.output.taste == 싱거움", "note": "된장 추가 후 재끓이기"},
+          {"from_node": "n6", "to_node": "n7", "condition": "n6.output.taste == OK"}
+        ],
+        "parallel_groups": [["n1", "n2"]],
+        "entry_nodes": ["n1", "n2"],
+        "max_loops": 2
+      }
+    },
+    "outcome": {
+      "success": true,
+      "result_summary": "된장찌개 2인분 완성",
+      "tools_executed": 7,
+      "loops_triggered": 0,
+      "total_time_ms": 30000,
+      "user_satisfaction": 0.92,
+      "details": {"total_cooking_min": 30}
+    },
+    "metadata": {
+      "case_id": "recipe_doenjang_stew_001",
+      "created_at": "2026-03-21T18:00:00Z",
+      "updated_at": "2026-03-24T10:00:00Z",
+      "used_count": 15,
+      "avg_satisfaction": 0.91,
+      "source": "user_session",
+      "version": 1,
+      "tags": ["한식", "찌개", "된장", "가정식"]
+    }
+  },
+  {
+    "problem_features": {
+      "request": "김치찌개 끓이는 중에 전화가 와서 음식이 탔어",
+      "category": "찌개류",
+      "keywords": ["김치", "찌개", "과조리", "복구", "탄음식"],
+      "constraints": ["기존 조리 상태에서 복구"],
+      "context": {
+        "servings": 2,
+        "interruption": "phone_call",
+        "current_state": "boiling",
+        "problem": "overcooked_burnt"
+      }
+    },
+    "solution": {
+      "tool_graph": {
+        "nodes": [
+          {"id": "n1", "tool": "간보기", "params_hint": {"체크항목": ["탄맛", "짠맛", "구제가능여부"]}, "note": "현재 상태 진단"},
+          {"id": "n2", "tool": "끓이기", "params_hint": {"재료": "물 추가", "육수종류": "물", "시간": "2분"}, "note": "물 보충으로 농도 희석"},
+          {"id": "n3", "tool": "양념하기", "params_hint": {"양념": "고춧가루, 다진마늘, 설탕 약간", "목적": "탄맛 중화"}, "note": "양념으로 맛 복구"},
+          {"id": "n4", "tool": "끓이기", "params_hint": {"시간": "5분"}, "note": "재끓이기"},
+          {"id": "n5", "tool": "간보기", "params_hint": {"체크항목": ["짠맛", "매운맛", "탄맛잔여"]}, "note": "복구 확인"},
+          {"id": "n6", "tool": "담기", "params_hint": {"요리명": "김치찌개 (복구)", "인분": 2}, "note": "완성"}
+        ],
+        "edges": [
+          {"from_node": "n1", "to_node": "n2", "condition": "n1.output.recoverable == true", "note": "구제 가능"},
+          {"from_node": "n1", "to_node": null, "condition": "n1.output.recoverable == false", "action": "ask_user", "note": "완전히 탄 경우 사용자에게 처음부터 다시 할지 문의"},
+          {"from_node": "n2", "to_node": "n3"},
+          {"from_node": "n3", "to_node": "n4"},
+          {"from_node": "n4", "to_node": "n5"},
+          {"from_node": "n5", "to_node": "n4", "condition": "n5.output.taste == 탄맛남아있음", "note": "루프: 탄맛 남아있으면 재끓이기"},
+          {"from_node": "n5", "to_node": "n6", "condition": "n5.output.taste == OK"}
+        ],
+        "parallel_groups": [],
+        "entry_nodes": ["n1"],
+        "max_loops": 2
+      }
+    },
+    "outcome": {
+      "success": true,
+      "result_summary": "과조리된 김치찌개 복구 완료",
+      "tools_executed": 6,
+      "loops_triggered": 0,
+      "total_time_ms": 15000,
+      "user_satisfaction": 0.72,
+      "details": {"recovery_type": "overcooked", "quality_loss": "minor"}
+    },
+    "metadata": {
+      "case_id": "recipe_kimchi_stew_recovery_001",
+      "created_at": "2026-03-25T14:00:00Z",
+      "updated_at": "2026-03-25T14:00:00Z",
+      "used_count": 3,
+      "avg_satisfaction": 0.70,
+      "source": "replan_retained",
+      "version": 1,
+      "tags": ["한식", "찌개", "김치", "복구", "예외처리"]
+    }
+  },
+  {
+    "problem_features": {
+      "request": "요리 중에 손님이 땅콩 알레르기가 있다고 알려줬어",
+      "category": "찌개류",
+      "keywords": ["알레르기", "땅콩", "대체재료", "긴급변경"],
+      "constraints": ["이미 조리 진행 중", "알레르기 유발 재료 제거 필요"],
+      "context": {
+        "servings": 4,
+        "interruption": "allergy_alert",
+        "current_state": "stir_frying",
+        "allergen": "peanut"
+      }
+    },
+    "solution": {
+      "tool_graph": {
+        "nodes": [
+          {"id": "n1", "tool": "알레르기체크", "params_hint": {"재료목록": ["현재 사용된 모든 재료"], "알레르기": "땅콩"}, "note": "알레르기 성분 확인"},
+          {"id": "n2", "tool": "재료확인", "params_hint": {"필요재료": ["대체기름(참기름/들기름)", "대체양념"]}, "note": "대체 재료 확보 확인"},
+          {"id": "n3", "tool": "볶기", "params_hint": {"재료": "대체기름으로 재볶기", "불세기": "중불", "시간": "3분"}, "note": "안전한 재료로 재조리"},
+          {"id": "n4", "tool": "끓이기", "params_hint": {"시간": "15분"}, "note": "정상 조리 진행"},
+          {"id": "n5", "tool": "간보기", "params_hint": {"체크항목": ["짠맛", "매운맛"]}, "note": "맛 확인"},
+          {"id": "n6", "tool": "담기", "params_hint": {"요리명": "김치찌개 (알레르기 대응)", "인분": 4}, "note": "완성"}
+        ],
+        "edges": [
+          {"from_node": "n1", "to_node": "n2", "condition": "n1.output.allergen_found == true", "note": "알레르기 성분 발견 → 대체재료 확인"},
+          {"from_node": "n1", "to_node": "n4", "condition": "n1.output.allergen_found == false", "note": "알레르기 성분 없음 → 그냥 진행"},
+          {"from_node": "n2", "to_node": "n3", "condition": "n2.output.all_available == true"},
+          {"from_node": "n2", "to_node": null, "condition": "n2.output.all_available == false", "action": "ask_user", "note": "대체 재료도 없을 때"},
+          {"from_node": "n3", "to_node": "n4"},
+          {"from_node": "n4", "to_node": "n5"},
+          {"from_node": "n5", "to_node": "n6", "condition": "n5.output.taste == OK"},
+          {"from_node": "n5", "to_node": "n4", "condition": "n5.output.taste == 싱거움"}
+        ],
+        "parallel_groups": [],
+        "entry_nodes": ["n1"],
+        "max_loops": 2
+      }
+    },
+    "outcome": {
+      "success": true,
+      "result_summary": "알레르기 대응 후 김치찌개 4인분 완성",
+      "tools_executed": 6,
+      "loops_triggered": 0,
+      "total_time_ms": 28000,
+      "user_satisfaction": 0.85,
+      "details": {"allergen_removed": "peanut_oil", "substitute_used": "sesame_oil"}
+    },
+    "metadata": {
+      "case_id": "recipe_allergy_response_001",
+      "created_at": "2026-03-25T15:00:00Z",
+      "updated_at": "2026-03-25T15:00:00Z",
+      "used_count": 2,
+      "avg_satisfaction": 0.85,
+      "source": "replan_retained",
+      "version": 1,
+      "tags": ["한식", "찌개", "알레르기", "긴급대응", "예외처리"]
+    }
+  },
+  {
+    "problem_features": {
+      "request": "요리 시작했는데 돼지고기가 없어",
+      "category": "찌개류",
+      "keywords": ["재료부족", "대체", "참치", "김치찌개"],
+      "constraints": ["이미 재료 손질 시작", "핵심 재료 부재"],
+      "context": {
+        "servings": 2,
+        "interruption": "missing_ingredient",
+        "current_state": "chopping",
+        "missing": "pork"
+      }
+    },
+    "solution": {
+      "tool_graph": {
+        "nodes": [
+          {"id": "n1", "tool": "재료확인", "params_hint": {"필요재료": ["참치캔", "묵은지", "두부", "대파"]}, "note": "대체 재료 확인"},
+          {"id": "n2", "tool": "썰기", "params_hint": {"재료": "묵은지, 두부, 대파", "크기": "적당히"}, "note": "남은 재료 손질"},
+          {"id": "n3", "tool": "볶기", "params_hint": {"재료": "묵은지+참치", "불세기": "중불", "시간": "3분", "인분": 2}, "note": "참치+김치 볶기"},
+          {"id": "n4", "tool": "끓이기", "params_hint": {"재료": "볶은 재료+두부+대파", "육수종류": "쌀뜨물", "시간": "15분"}, "note": "메인 조리"},
+          {"id": "n5", "tool": "간보기", "params_hint": {"체크항목": ["짠맛", "매운맛", "감칠맛"]}, "note": "맛 확인"},
+          {"id": "n6", "tool": "담기", "params_hint": {"요리명": "참치김치찌개", "인분": 2, "고명": ["대파"]}, "note": "완성"}
+        ],
+        "edges": [
+          {"from_node": "n1", "to_node": "n2", "condition": "n1.output.all_available == true"},
+          {"from_node": "n1", "to_node": null, "condition": "n1.output.all_available == false", "action": "ask_user", "note": "참치도 없으면 사용자에게 문의"},
+          {"from_node": "n2", "to_node": "n3"},
+          {"from_node": "n3", "to_node": "n4"},
+          {"from_node": "n4", "to_node": "n5"},
+          {"from_node": "n5", "to_node": "n4", "condition": "n5.output.taste == 싱거움", "note": "참치라 간이 다를 수 있음"},
+          {"from_node": "n5", "to_node": "n6", "condition": "n5.output.taste == OK"}
+        ],
+        "parallel_groups": [],
+        "entry_nodes": ["n1"],
+        "max_loops": 2
+      }
+    },
+    "outcome": {
+      "success": true,
+      "result_summary": "돼지고기 대신 참치로 김치찌개 2인분 완성",
+      "tools_executed": 6,
+      "loops_triggered": 0,
+      "total_time_ms": 22000,
+      "user_satisfaction": 0.82,
+      "details": {"substitution": "pork→tuna", "total_cooking_min": 22}
+    },
+    "metadata": {
+      "case_id": "recipe_kimchi_stew_substitute_001",
+      "created_at": "2026-03-25T16:00:00Z",
+      "updated_at": "2026-03-25T16:00:00Z",
+      "used_count": 5,
+      "avg_satisfaction": 0.80,
+      "source": "replan_retained",
+      "version": 1,
+      "tags": ["한식", "찌개", "김치", "재료대체", "참치", "예외처리"]
+    }
+  }
+]

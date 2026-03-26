@@ -1,0 +1,227 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 620" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .node-fill { fill: #f8fafc; }
+    .node-stroke { stroke: #cbd5e1; }
+    .node-text { fill: #334155; }
+    .node-running-fill { fill: #f1f5f9; }
+    .node-running-stroke { stroke: #94a3b8; }
+    .node-running-text { fill: #475569; }
+    .node-done-fill { fill: #f1f5f9; }
+    .node-done-stroke { stroke: #94a3b8; }
+    .node-done-text { fill: #475569; }
+    .node-new-fill { fill: #eff6ff; }
+    .node-new-stroke { stroke: #93c5fd; }
+    .node-new-text { fill: #1e40af; }
+    .edge { stroke: #475569; }
+    .edge-head { fill: #475569; }
+    .replan-edge { stroke: #475569; }
+    .replan-head { fill: #475569; }
+    .diff-edge { stroke: #3b82f6; }
+    .diff-head { fill: #3b82f6; }
+    .lightning { fill: #475569; }
+    .scenario-label { fill: #1e293b; }
+    .scenario-bg { fill: #f8fafc; stroke: #e2e8f0; }
+    .desc-text { fill: #64748b; }
+    .badge-replan { fill: #f1f5f9; stroke: #cbd5e1; }
+    .badge-replan-text { fill: #475569; }
+    .badge-edge { fill: #f8fafc; stroke: #cbd5e1; }
+    .badge-edge-text { fill: #475569; }
+    .badge-diff { fill: #eff6ff; stroke: #93c5fd; }
+    .badge-diff-text { fill: #1e40af; }
+    .divider { stroke: #e2e8f0; }
+    .legend-text { fill: #64748b; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #f1f5f9; }
+      .subtitle { fill: #94a3b8; }
+      .node-fill { fill: #1e293b; }
+      .node-stroke { stroke: #334155; }
+      .node-text { fill: #e2e8f0; }
+      .node-running-fill { fill: #1e293b; }
+      .node-running-stroke { stroke: #64748b; }
+      .node-running-text { fill: #cbd5e1; }
+      .node-done-fill { fill: #1e293b; }
+      .node-done-stroke { stroke: #64748b; }
+      .node-done-text { fill: #cbd5e1; }
+      .node-new-fill { fill: #172554; }
+      .node-new-stroke { stroke: #1e40af; }
+      .node-new-text { fill: #93c5fd; }
+      .edge { stroke: #cbd5e1; }
+      .edge-head { fill: #cbd5e1; }
+      .replan-edge { stroke: #94a3b8; }
+      .replan-head { fill: #94a3b8; }
+      .diff-edge { stroke: #60a5fa; }
+      .diff-head { fill: #60a5fa; }
+      .lightning { fill: #94a3b8; }
+      .scenario-label { fill: #f1f5f9; }
+      .scenario-bg { fill: #1e293b; stroke: #334155; }
+      .desc-text { fill: #94a3b8; }
+      .badge-replan { fill: #1e293b; stroke: #475569; }
+      .badge-replan-text { fill: #94a3b8; }
+      .badge-edge { fill: #1e293b; stroke: #475569; }
+      .badge-edge-text { fill: #94a3b8; }
+      .badge-diff { fill: #172554; stroke: #1e40af; }
+      .badge-diff-text { fill: #93c5fd; }
+      .divider { stroke: #334155; }
+      .legend-text { fill: #94a3b8; }
+    }
+  </style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="edge-head"/>
+    </marker>
+    <marker id="a2" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="replan-head"/>
+    </marker>
+    <marker id="a3" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="diff-head"/>
+    </marker>
+    <filter id="s" x="-3%" y="-3%" width="106%" height="112%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="860" height="620" class="bg"/>
+
+  <!-- Main Title -->
+  <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" class="title">When Things Go Wrong — Diff-Based Replanning</text>
+  <text x="430" y="48" text-anchor="middle" font-size="11" class="subtitle">The graph stays immutable during normal execution. LLM only intervenes on unmatched exceptions.</text>
+
+  <!-- ═══════════════ SCENARIO 1: Phone Call ═══════════════ -->
+  <rect x="20" y="68" width="820" height="165" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="90" font-size="13" font-weight="700" class="scenario-label">Scenario 1 — Phone call interrupts, food burns</text>
+  <rect x="40" y="96" width="90" height="18" rx="9" class="badge-replan" stroke-width="1"/>
+  <text x="85" y="108" text-anchor="middle" font-size="9" class="badge-replan-text" font-weight="600">LLM REPLAN</text>
+
+  <!-- Nodes -->
+  <rect x="40" y="126" width="90" height="34" rx="7" class="node-done-fill node-done-stroke" stroke-width="1.2"/>
+  <text x="85" y="147" text-anchor="middle" font-size="11" class="node-done-text" font-weight="500">stir_fry ✓</text>
+
+  <rect x="160" y="126" width="90" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="205" y="147" text-anchor="middle" font-size="11" class="node-running-text" font-weight="600">boil ⏳</text>
+
+  <!-- Lightning bolt -->
+  <text x="272" y="148" font-size="16" class="lightning">⚡</text>
+  <text x="290" y="145" font-size="9" class="badge-replan-text" font-weight="600">overcooked!</text>
+
+  <!-- Arrow to replan -->
+  <line x1="290" y1="152" x2="360" y2="152" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+  <text x="325" y="166" text-anchor="middle" font-size="8" class="badge-replan-text">no edge match</text>
+
+  <!-- LLM box -->
+  <rect x="365" y="132" width="70" height="30" rx="6" class="badge-replan" stroke-width="1"/>
+  <text x="400" y="151" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <!-- Diff arrow -->
+  <line x1="435" y1="147" x2="480" y2="147" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="458" y="140" text-anchor="middle" font-size="8" class="badge-diff-text">diff</text>
+
+  <!-- New nodes from diff -->
+  <rect x="485" y="126" width="100" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="535" y="147" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ add_water</text>
+
+  <rect x="605" y="126" width="100" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="655" y="147" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ re_boil</text>
+
+  <rect x="725" y="126" width="90" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="770" y="147" text-anchor="middle" font-size="11" class="node-text" font-weight="500">taste →</text>
+
+  <line x1="585" y1="143" x2="603" y2="143" class="diff-edge" stroke-width="1.2" marker-end="url(#a3)"/>
+  <line x1="705" y1="143" x2="723" y2="143" class="edge" stroke-width="1.2" marker-end="url(#a1)"/>
+
+  <text x="430" y="218" text-anchor="middle" font-size="10" class="desc-text">Graph modified via minimal diff → execution continues from new nodes</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="243" x2="820" y2="243" class="divider" stroke-width="1"/>
+
+  <!-- ═══════════════ SCENARIO 2: Allergy ═══════════════ -->
+  <rect x="20" y="253" width="820" height="165" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="275" font-size="13" font-weight="700" class="scenario-label">Scenario 2 — Guest has nut allergy (mid-cooking)</text>
+  <rect x="40" y="281" width="90" height="18" rx="9" class="badge-replan" stroke-width="1"/>
+  <text x="85" y="293" text-anchor="middle" font-size="9" class="badge-replan-text" font-weight="600">LLM REPLAN</text>
+
+  <!-- Nodes -->
+  <rect x="40" y="311" width="100" height="34" rx="7" class="node-done-fill node-done-stroke" stroke-width="1.2"/>
+  <text x="90" y="332" text-anchor="middle" font-size="10" class="node-done-text" font-weight="500">stir_fry ✓</text>
+
+  <rect x="165" y="311" width="100" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="215" y="332" text-anchor="middle" font-size="10" class="node-running-text" font-weight="600">boil ⏳</text>
+
+  <text x="283" y="333" font-size="16" class="lightning">⚡</text>
+  <text x="300" y="330" font-size="9" class="badge-replan-text" font-weight="600">nut allergy!</text>
+
+  <line x1="305" y1="338" x2="370" y2="338" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+
+  <rect x="375" y="322" width="70" height="30" rx="6" class="badge-replan" stroke-width="1"/>
+  <text x="410" y="341" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <line x1="445" y1="337" x2="488" y2="337" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="466" y="330" text-anchor="middle" font-size="8" class="badge-diff-text">diff</text>
+
+  <rect x="493" y="311" width="110" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="548" y="332" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ remove_oil</text>
+
+  <rect x="623" y="311" width="110" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="678" y="332" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ safe_oil</text>
+
+  <rect x="753" y="311" width="75" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="790" y="332" text-anchor="middle" font-size="10" class="node-text" font-weight="500">boil →</text>
+
+  <line x1="603" y1="328" x2="621" y2="328" class="diff-edge" stroke-width="1.2" marker-end="url(#a3)"/>
+  <line x1="733" y1="328" x2="751" y2="328" class="edge" stroke-width="1.2" marker-end="url(#a1)"/>
+
+  <text x="430" y="403" text-anchor="middle" font-size="10" class="desc-text">Allergen detected → LLM inserts removal + substitution nodes via diff</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="428" x2="820" y2="428" class="divider" stroke-width="1"/>
+
+  <!-- ═══════════════ SCENARIO 3: Missing Ingredient ═══════════════ -->
+  <rect x="20" y="438" width="820" height="145" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="460" font-size="13" font-weight="700" class="scenario-label">Scenario 3 — Missing ingredient discovered</text>
+  <rect x="40" y="466" width="100" height="18" rx="9" class="badge-edge" stroke-width="1"/>
+  <text x="90" y="478" text-anchor="middle" font-size="9" class="badge-edge-text" font-weight="600">EDGE EXISTS</text>
+
+  <!-- Nodes -->
+  <rect x="40" y="496" width="90" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="85" y="517" text-anchor="middle" font-size="10" class="node-running-text" font-weight="600">chop ⏳</text>
+
+  <text x="148" y="518" font-size="16" class="lightning">⚡</text>
+  <text x="165" y="515" font-size="9" class="badge-replan-text" font-weight="600">no pork!</text>
+
+  <!-- This one HAS an edge -->
+  <line x1="195" y1="520" x2="250" y2="520" class="edge" stroke-width="1.5" marker-end="url(#a1)"/>
+  <text x="222" y="536" text-anchor="middle" font-size="8" class="badge-edge-text">edge match ✓</text>
+
+  <rect x="255" y="503" width="100" height="34" rx="7" class="badge-edge" stroke-width="1"/>
+  <text x="305" y="524" text-anchor="middle" font-size="10" class="badge-edge-text" font-weight="600">ask_user</text>
+
+  <line x1="355" y1="520" x2="405" y2="520" class="edge" stroke-width="1.5" marker-end="url(#a1)"/>
+  <text x="380" y="514" text-anchor="middle" font-size="8" class="desc-text">"use tuna"</text>
+
+  <rect x="410" y="503" width="70" height="34" rx="7" class="badge-replan" stroke-width="1"/>
+  <text x="445" y="524" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <line x1="480" y1="520" x2="520" y2="520" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="500" y="514" text-anchor="middle" font-size="8" class="badge-diff-text">adapt</text>
+
+  <rect x="525" y="503" width="130" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="590" y="524" text-anchor="middle" font-size="10" class="node-text" font-weight="500">tuna stew graph →</text>
+
+  <text x="430" y="568" text-anchor="middle" font-size="10" class="desc-text">Edge condition matched → no replan needed. LLM only adapts remaining graph after user input.</text>
+
+  <!-- Legend -->
+  <rect x="230" y="592" width="12" height="12" rx="3" class="node-done-fill node-done-stroke" stroke-width="1"/>
+  <text x="248" y="602" font-size="9" class="legend-text">done</text>
+  <rect x="290" y="592" width="12" height="12" rx="3" class="node-running-fill node-running-stroke" stroke-width="1"/>
+  <text x="308" y="602" font-size="9" class="legend-text">running</text>
+  <rect x="365" y="592" width="12" height="12" rx="3" class="node-new-fill node-new-stroke" stroke-width="1"/>
+  <text x="383" y="602" font-size="9" class="legend-text">added by diff</text>
+  <line x1="460" y1="598" x2="480" y2="598" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="488" y="602" font-size="9" class="legend-text">exception</text>
+  <line x1="545" y1="598" x2="565" y2="598" class="diff-edge" stroke-width="1.5"/>
+  <text x="573" y="602" font-size="9" class="legend-text">diff applied</text>
+</svg>

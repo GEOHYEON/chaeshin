@@ -1,0 +1,219 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 620" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .node-fill { fill: #f8fafc; }
+    .node-stroke { stroke: #cbd5e1; }
+    .node-text { fill: #334155; }
+    .node-running-fill { fill: #f1f5f9; }
+    .node-running-stroke { stroke: #94a3b8; }
+    .node-running-text { fill: #475569; }
+    .node-done-fill { fill: #f1f5f9; }
+    .node-done-stroke { stroke: #94a3b8; }
+    .node-done-text { fill: #475569; }
+    .node-new-fill { fill: #eff6ff; }
+    .node-new-stroke { stroke: #93c5fd; }
+    .node-new-text { fill: #1e40af; }
+    .edge { stroke: #475569; }
+    .edge-head { fill: #475569; }
+    .replan-edge { stroke: #475569; }
+    .replan-head { fill: #475569; }
+    .diff-edge { stroke: #3b82f6; }
+    .diff-head { fill: #3b82f6; }
+    .lightning { fill: #475569; }
+    .scenario-label { fill: #1e293b; }
+    .scenario-bg { fill: #f8fafc; stroke: #e2e8f0; }
+    .desc-text { fill: #64748b; }
+    .badge-replan { fill: #f1f5f9; stroke: #cbd5e1; }
+    .badge-replan-text { fill: #475569; }
+    .badge-edge { fill: #f8fafc; stroke: #cbd5e1; }
+    .badge-edge-text { fill: #475569; }
+    .badge-diff { fill: #eff6ff; stroke: #93c5fd; }
+    .badge-diff-text { fill: #1e40af; }
+    .divider { stroke: #e2e8f0; }
+    .legend-text { fill: #64748b; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #f1f5f9; }
+      .subtitle { fill: #94a3b8; }
+      .node-fill { fill: #1e293b; }
+      .node-stroke { stroke: #334155; }
+      .node-text { fill: #e2e8f0; }
+      .node-running-fill { fill: #1e293b; }
+      .node-running-stroke { stroke: #64748b; }
+      .node-running-text { fill: #cbd5e1; }
+      .node-done-fill { fill: #1e293b; }
+      .node-done-stroke { stroke: #64748b; }
+      .node-done-text { fill: #cbd5e1; }
+      .node-new-fill { fill: #172554; }
+      .node-new-stroke { stroke: #1e40af; }
+      .node-new-text { fill: #93c5fd; }
+      .edge { stroke: #cbd5e1; }
+      .edge-head { fill: #cbd5e1; }
+      .replan-edge { stroke: #94a3b8; }
+      .replan-head { fill: #94a3b8; }
+      .diff-edge { stroke: #60a5fa; }
+      .diff-head { fill: #60a5fa; }
+      .lightning { fill: #94a3b8; }
+      .scenario-label { fill: #f1f5f9; }
+      .scenario-bg { fill: #1e293b; stroke: #334155; }
+      .desc-text { fill: #94a3b8; }
+      .badge-replan { fill: #1e293b; stroke: #475569; }
+      .badge-replan-text { fill: #94a3b8; }
+      .badge-edge { fill: #1e293b; stroke: #475569; }
+      .badge-edge-text { fill: #94a3b8; }
+      .badge-diff { fill: #172554; stroke: #1e40af; }
+      .badge-diff-text { fill: #93c5fd; }
+      .divider { stroke: #334155; }
+      .legend-text { fill: #94a3b8; }
+    }
+  </style>
+  <defs>
+    <marker id="a1" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="edge-head"/>
+    </marker>
+    <marker id="a2" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="replan-head"/>
+    </marker>
+    <marker id="a3" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="7" markerHeight="5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" class="diff-head"/>
+    </marker>
+    <filter id="s" x="-3%" y="-3%" width="106%" height="112%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="860" height="620" class="bg"/>
+
+  <!-- Main Title -->
+  <text x="430" y="30" text-anchor="middle" font-size="16" font-weight="700" class="title">예상치 못한 상황 — Diff 기반 리플래닝</text>
+  <text x="430" y="48" text-anchor="middle" font-size="11" class="subtitle">정상 실행 중 그래프는 불변. 매칭 엣지가 없는 예외에서만 LLM이 개입합니다.</text>
+
+  <!-- ═══════════════ 시나리오 1: 전화 ═══════════════ -->
+  <rect x="20" y="68" width="820" height="165" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="90" font-size="13" font-weight="700" class="scenario-label">시나리오 1 — 전화가 와서 음식이 탔다</text>
+  <rect x="40" y="96" width="100" height="18" rx="9" class="badge-replan" stroke-width="1"/>
+  <text x="90" y="108" text-anchor="middle" font-size="9" class="badge-replan-text" font-weight="600">LLM 리플래닝</text>
+
+  <!-- Nodes -->
+  <rect x="40" y="126" width="90" height="34" rx="7" class="node-done-fill node-done-stroke" stroke-width="1.2"/>
+  <text x="85" y="147" text-anchor="middle" font-size="11" class="node-done-text" font-weight="500">볶기 ✓</text>
+
+  <rect x="160" y="126" width="100" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="210" y="147" text-anchor="middle" font-size="11" class="node-running-text" font-weight="600">끓이기 ⏳</text>
+
+  <text x="278" y="148" font-size="16" class="lightning">⚡</text>
+  <text x="296" y="145" font-size="9" class="badge-replan-text" font-weight="600">과조리!</text>
+
+  <line x1="296" y1="152" x2="364" y2="152" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+  <text x="330" y="166" text-anchor="middle" font-size="8" class="badge-replan-text">엣지 없음</text>
+
+  <rect x="369" y="132" width="70" height="30" rx="6" class="badge-replan" stroke-width="1"/>
+  <text x="404" y="151" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <line x1="439" y1="147" x2="484" y2="147" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="462" y="140" text-anchor="middle" font-size="8" class="badge-diff-text">diff</text>
+
+  <rect x="489" y="126" width="100" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="539" y="147" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ 물보충</text>
+
+  <rect x="609" y="126" width="100" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="659" y="147" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ 재끓이기</text>
+
+  <rect x="729" y="126" width="90" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="774" y="147" text-anchor="middle" font-size="11" class="node-text" font-weight="500">간보기 →</text>
+
+  <line x1="589" y1="143" x2="607" y2="143" class="diff-edge" stroke-width="1.2" marker-end="url(#a3)"/>
+  <line x1="709" y1="143" x2="727" y2="143" class="edge" stroke-width="1.2" marker-end="url(#a1)"/>
+
+  <text x="430" y="218" text-anchor="middle" font-size="10" class="desc-text">최소한의 diff로 그래프 수정 → 새 노드부터 실행 계속</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="243" x2="820" y2="243" class="divider" stroke-width="1"/>
+
+  <!-- ═══════════════ 시나리오 2: 알레르기 ═══════════════ -->
+  <rect x="20" y="253" width="820" height="165" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="275" font-size="13" font-weight="700" class="scenario-label">시나리오 2 — 손님이 견과류 알레르기 (조리 중 발견)</text>
+  <rect x="40" y="281" width="100" height="18" rx="9" class="badge-replan" stroke-width="1"/>
+  <text x="90" y="293" text-anchor="middle" font-size="9" class="badge-replan-text" font-weight="600">LLM 리플래닝</text>
+
+  <rect x="40" y="311" width="100" height="34" rx="7" class="node-done-fill node-done-stroke" stroke-width="1.2"/>
+  <text x="90" y="332" text-anchor="middle" font-size="10" class="node-done-text" font-weight="500">볶기 ✓</text>
+
+  <rect x="165" y="311" width="100" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="215" y="332" text-anchor="middle" font-size="10" class="node-running-text" font-weight="600">끓이기 ⏳</text>
+
+  <text x="283" y="333" font-size="16" class="lightning">⚡</text>
+  <text x="300" y="330" font-size="9" class="badge-replan-text" font-weight="600">알레르기!</text>
+
+  <line x1="310" y1="338" x2="374" y2="338" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2)"/>
+
+  <rect x="379" y="322" width="70" height="30" rx="6" class="badge-replan" stroke-width="1"/>
+  <text x="414" y="341" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <line x1="449" y1="337" x2="492" y2="337" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="470" y="330" text-anchor="middle" font-size="8" class="badge-diff-text">diff</text>
+
+  <rect x="497" y="311" width="110" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="552" y="332" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ 기름제거</text>
+
+  <rect x="627" y="311" width="110" height="34" rx="7" class="node-new-fill node-new-stroke" stroke-width="1.2"/>
+  <text x="682" y="332" text-anchor="middle" font-size="10" class="node-new-text" font-weight="600">+ 대체기름</text>
+
+  <rect x="757" y="311" width="75" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="794" y="332" text-anchor="middle" font-size="10" class="node-text" font-weight="500">끓이기 →</text>
+
+  <line x1="607" y1="328" x2="625" y2="328" class="diff-edge" stroke-width="1.2" marker-end="url(#a3)"/>
+  <line x1="737" y1="328" x2="755" y2="328" class="edge" stroke-width="1.2" marker-end="url(#a1)"/>
+
+  <text x="430" y="403" text-anchor="middle" font-size="10" class="desc-text">알레르기 성분 감지 → LLM이 제거 + 대체 노드를 diff로 삽입</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="428" x2="820" y2="428" class="divider" stroke-width="1"/>
+
+  <!-- ═══════════════ 시나리오 3: 재료 부족 ═══════════════ -->
+  <rect x="20" y="438" width="820" height="145" rx="10" class="scenario-bg" stroke-width="1" filter="url(#s)"/>
+  <text x="40" y="460" font-size="13" font-weight="700" class="scenario-label">시나리오 3 — 재료가 없다는 걸 뒤늦게 발견</text>
+  <rect x="40" y="466" width="110" height="18" rx="9" class="badge-edge" stroke-width="1"/>
+  <text x="95" y="478" text-anchor="middle" font-size="9" class="badge-edge-text" font-weight="600">기존 엣지 매칭</text>
+
+  <rect x="40" y="496" width="90" height="34" rx="7" class="node-running-fill node-running-stroke" stroke-width="1.2"/>
+  <text x="85" y="517" text-anchor="middle" font-size="11" class="node-running-text" font-weight="600">썰기 ⏳</text>
+
+  <text x="148" y="518" font-size="16" class="lightning">⚡</text>
+  <text x="165" y="515" font-size="9" class="badge-replan-text" font-weight="600">고기 없음!</text>
+
+  <line x1="200" y1="520" x2="254" y2="520" class="edge" stroke-width="1.5" marker-end="url(#a1)"/>
+  <text x="227" y="536" text-anchor="middle" font-size="8" class="badge-edge-text">엣지 매칭 ✓</text>
+
+  <rect x="259" y="503" width="110" height="34" rx="7" class="badge-edge" stroke-width="1"/>
+  <text x="314" y="524" text-anchor="middle" font-size="10" class="badge-edge-text" font-weight="600">사용자에게 질문</text>
+
+  <line x1="369" y1="520" x2="414" y2="520" class="edge" stroke-width="1.5" marker-end="url(#a1)"/>
+  <text x="391" y="514" text-anchor="middle" font-size="8" class="desc-text">"참치로 해줘"</text>
+
+  <rect x="419" y="503" width="70" height="34" rx="7" class="badge-replan" stroke-width="1"/>
+  <text x="454" y="524" text-anchor="middle" font-size="10" class="badge-replan-text" font-weight="600">LLM</text>
+
+  <line x1="489" y1="520" x2="529" y2="520" class="diff-edge" stroke-width="1.5" marker-end="url(#a3)"/>
+  <text x="509" y="514" text-anchor="middle" font-size="8" class="badge-diff-text">적응</text>
+
+  <rect x="534" y="503" width="140" height="34" rx="7" class="node-fill node-stroke" stroke-width="1.2"/>
+  <text x="604" y="524" text-anchor="middle" font-size="10" class="node-text" font-weight="500">참치찌개 그래프 →</text>
+
+  <text x="430" y="568" text-anchor="middle" font-size="10" class="desc-text">엣지 조건 매칭 → 리플래닝 불필요. 사용자 입력 후 LLM이 나머지 그래프만 적응.</text>
+
+  <!-- Legend -->
+  <rect x="210" y="592" width="12" height="12" rx="3" class="node-done-fill node-done-stroke" stroke-width="1"/>
+  <text x="228" y="602" font-size="9" class="legend-text">완료</text>
+  <rect x="268" y="592" width="12" height="12" rx="3" class="node-running-fill node-running-stroke" stroke-width="1"/>
+  <text x="286" y="602" font-size="9" class="legend-text">실행 중</text>
+  <rect x="335" y="592" width="12" height="12" rx="3" class="node-new-fill node-new-stroke" stroke-width="1"/>
+  <text x="353" y="602" font-size="9" class="legend-text">diff로 추가</text>
+  <line x1="420" y1="598" x2="440" y2="598" class="replan-edge" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="448" y="602" font-size="9" class="legend-text">예외 발생</text>
+  <line x1="510" y1="598" x2="530" y2="598" class="diff-edge" stroke-width="1.5"/>
+  <text x="538" y="602" font-size="9" class="legend-text">diff 적용</text>
+</svg>

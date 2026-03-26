@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chaeshin"
+version = "0.1.0"
+description = "A framework that retrieves, executes, and adapts Tool Calling graphs from past successful cases using Case-Based Reasoning."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "BananaTouch", email = "contact@geohyeon.com" },
+]
+keywords = [
+    "llm",
+    "agent",
+    "tool-calling",
+    "case-based-reasoning",
+    "cbr",
+    "graph",
+    "planning",
+    "replanning",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "structlog>=24.0.0",
+]
+
+[project.optional-dependencies]
+openai = ["openai>=1.0.0"]
+chroma = ["chromadb>=0.5.0"]
+llm = ["openai>=1.0.0", "chromadb>=0.5.0", "python-dotenv>=1.0.0"]
+demo = ["openai>=1.0.0", "python-dotenv>=1.0.0", "gradio>=5.0.0"]
+all = ["openai>=1.0.0", "chromadb>=0.5.0", "python-dotenv>=1.0.0", "gradio>=5.0.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+]
+
+[project.urls]
+Homepage = "https://github.com/GEOHYEON/chaeshin"
+Repository = "https://github.com/GEOHYEON/chaeshin"
+Issues = "https://github.com/GEOHYEON/chaeshin/issues"
