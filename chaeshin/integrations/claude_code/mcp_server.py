@@ -14,13 +14,23 @@ Claude Code에서 한 줄로 연결:
 import json
 import os
 import sys
-from typing import Any
+import types
 
-# 프로젝트 루트 자동 탐지
+# ── 빠른 기동을 위한 경량 import ──
+# chaeshin/__init__.py는 GraphExecutor/structlog 등 무거운 모듈을 로드함.
+# MCP 서버는 schema + case_store만 필요하므로 __init__.py를 건너뜀.
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
+_PKG_DIR = os.path.dirname(os.path.dirname(_HERE))  # chaeshin/ 패키지 디렉토리
+_PROJECT_ROOT = os.path.dirname(_PKG_DIR)
+
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
+
+# chaeshin 패키지를 가벼운 스텁으로 선점 (무거운 __init__.py 실행 방지)
+if "chaeshin" not in sys.modules:
+    _pkg = types.ModuleType("chaeshin")
+    _pkg.__path__ = [_PKG_DIR]
+    sys.modules["chaeshin"] = _pkg
 
 # .env 로드
 try:
