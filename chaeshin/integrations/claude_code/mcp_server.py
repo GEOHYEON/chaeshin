@@ -376,13 +376,15 @@ def _send(msg: dict):
     sys.stdout.flush()
 
 
-def _read() -> dict:
-    """JSON-RPC 메시지 수신."""
+def _read() -> dict | None:
+    """JSON-RPC 메시지 수신. EOF이면 None 반환."""
     # Content-Length 헤더 읽기
     headers = {}
     while True:
         line = sys.stdin.readline()
-        if not line or line.strip() == "":
+        if not line:
+            return None  # EOF — 연결 끊김
+        if line.strip() == "":
             break
         if ":" in line:
             key, val = line.split(":", 1)
@@ -390,9 +392,11 @@ def _read() -> dict:
 
     content_length = int(headers.get("Content-Length", 0))
     if content_length == 0:
-        return {}
+        return {}  # 빈 메시지 — 무시하되 서버는 유지
 
     body = sys.stdin.read(content_length)
+    if not body:
+        return None
     return json.loads(body)
 
 
@@ -403,9 +407,14 @@ def run_server():
             msg = _read()
         except (EOFError, KeyboardInterrupt):
             break
+        except Exception:
+            continue  # 파싱 에러 등 — 무시하고 다음 메시지 대기
+
+        if msg is None:
+            break  # EOF — 연결 끊김
 
         if not msg:
-            break
+            continue  # 빈 메시지 — 서버 유지
 
         method = msg.get("method", "")
         msg_id = msg.get("id")
