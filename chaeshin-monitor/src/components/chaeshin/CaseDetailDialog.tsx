@@ -11,9 +11,9 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   type ChaeshinCase,
-  toolGraphToMermaid,
+  type ChaeshinToolGraph,
 } from "@/lib/chaeshin-types";
-import { MermaidDiagram } from "./MermaidDiagram";
+import { ToolGraphEditor } from "./ToolGraphEditor";
 import {
   CheckCircle,
   XCircle,
@@ -26,18 +26,19 @@ interface CaseDetailDialogProps {
   caseData: ChaeshinCase | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onGraphChange?: (graph: ChaeshinToolGraph) => void;
 }
 
 export function CaseDetailDialog({
   caseData,
   open,
   onOpenChange,
+  onGraphChange,
 }: CaseDetailDialogProps) {
   if (!caseData) return null;
 
   const { problem_features: pf, solution, outcome, metadata } = caseData;
   const graph = solution.tool_graph;
-  const mermaidDef = toolGraphToMermaid(graph);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,35 +92,22 @@ export function CaseDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Tool Graph — Mermaid */}
+          {/* Tool Graph — React Flow Editor */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">
                 Tool Graph ({graph.nodes.length} nodes, {graph.edges.length} edges)
+                {!onGraphChange && (
+                  <span className="text-xs text-muted-foreground font-normal ml-2">읽기 전용</span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MermaidDiagram definition={mermaidDef} className="min-h-[200px]" />
-
-              {/* 노드 상세 */}
-              <Separator className="my-3" />
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground mb-2">노드 상세</p>
-                <div className="grid gap-1">
-                  {graph.nodes.map((node) => (
-                    <div
-                      key={node.id}
-                      className="flex items-center gap-2 text-xs bg-muted/50 px-2 py-1 rounded"
-                    >
-                      <code className="font-mono text-primary">{node.id}</code>
-                      <span className="font-medium">{node.tool}</span>
-                      {node.note && (
-                        <span className="text-muted-foreground">— {node.note}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ToolGraphEditor
+                graph={graph}
+                onChange={onGraphChange}
+                readOnly={!onGraphChange}
+              />
 
               {graph.parallel_groups.length > 0 && (
                 <>

@@ -226,7 +226,21 @@ export function ChaeshinTab() {
         </div>
       )}
 
-      <CaseDetailDialog caseData={detailCase} open={!!detailCase} onOpenChange={(o) => !o && setDetailCase(null)} />
+      <CaseDetailDialog
+        caseData={detailCase}
+        open={!!detailCase}
+        onOpenChange={(o) => !o && setDetailCase(null)}
+        onGraphChange={detailCase ? async (graph) => {
+          try {
+            const updated = { ...detailCase, solution: { tool_graph: graph } };
+            await api.updateCase(detailCase.metadata.case_id, updated);
+            toast.success("Tool Graph가 저장되었습니다");
+            fetchData();
+          } catch {
+            toast.error("그래프 저장에 실패했습니다");
+          }
+        } : undefined}
+      />
       <CaseEditDialog caseData={editCase} open={!!editCase} onOpenChange={(o) => !o && setEditCase(null)} onSave={handleSave} />
     </div>
   );
