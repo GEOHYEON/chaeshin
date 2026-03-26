@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import type { ChaeshinToolGraph, ChaeshinTool, ChaeshinCase } from "@/lib/chaeshin-types";
-import { nodeTypes, graphToFlow, flowToGraph } from "@/lib/graph-flow-utils";
+import { nodeTypes, edgeTypes, graphToFlow, flowToGraph } from "@/lib/graph-flow-utils";
 import { api, toolApi } from "@/lib/api";
 import { ToolPalette } from "@/components/chaeshin/ToolPalette";
 import { ToolManageDialog } from "@/components/chaeshin/ToolManageDialog";
@@ -87,7 +87,7 @@ function GraphBuilderInner() {
     if (caseId) {
       api.getCase(caseId).then((c) => {
         setBaseGraph(c.solution.tool_graph);
-        const flow = graphToFlow(c.solution.tool_graph);
+        const flow = graphToFlow(c.solution.tool_graph, onDeleteEdge);
         setNodes(flow.nodes);
         setEdges(flow.edges);
         nodeCounter.current = c.solution.tool_graph.nodes.length;
@@ -103,12 +103,26 @@ function GraphBuilderInner() {
     }
   }, [caseId, fetchTools, setNodes, setEdges]);
 
+  // Delete edge via X button
+  const onDeleteEdge = useCallback(
+    (edgeId: string) => {
+      setEdges((eds) => eds.filter((e) => e.id !== edgeId));
+    },
+    [setEdges]
+  );
+
   // Connect edges
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) => addEdge({ ...connection, animated: false, style: { stroke: "#94a3b8" } }, eds));
+      setEdges((eds) => addEdge({
+        ...connection,
+        type: "deletable",
+        animated: false,
+        style: { stroke: "#94a3b8" },
+        data: { onDelete: onDeleteEdge },
+      }, eds));
     },
-    [setEdges]
+    [setEdges, onDeleteEdge]
   );
 
   // Add node from palette
@@ -315,6 +329,7 @@ function GraphBuilderInner() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 fitView
                 deleteKeyCode="Backspace"
                 proOptions={{ hideAttribution: true }}

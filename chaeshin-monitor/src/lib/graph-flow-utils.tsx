@@ -5,7 +5,18 @@
  * ToolGraphEditor와 GraphBuilder 페이지에서 공유.
  */
 
-import { Handle, Position, type Node, type Edge, type NodeTypes } from "@xyflow/react";
+import {
+  Handle,
+  Position,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  type Node,
+  type Edge,
+  type EdgeProps,
+  type NodeTypes,
+  type EdgeTypes,
+} from "@xyflow/react";
 import type {
   ChaeshinToolGraph,
   ChaeshinGraphNode,
@@ -46,9 +57,71 @@ export const nodeTypes: NodeTypes = {
   action: ActionNode,
 };
 
+// ── Custom Edge with delete button ───────────────────────────
+
+export function DeletableEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style,
+  markerEnd,
+  label,
+  data,
+}: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const onDelete = data?.onDelete as ((id: string) => void) | undefined;
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: "absolute",
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: "all",
+          }}
+          className="nodrag nopan group"
+        >
+          {label && (
+            <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200">
+              {String(label)}
+            </span>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(id)}
+              className="absolute -top-2 -right-2 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 shadow-sm"
+              title="엣지 삭제"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
+
+export const edgeTypes: EdgeTypes = {
+  deletable: DeletableEdge,
+};
+
 // ── Graph → React Flow ───────────────────────────────────────
 
-export function graphToFlow(graph: ChaeshinToolGraph): { nodes: Node[]; edges: Edge[] } {
+export function graphToFlow(graph: ChaeshinToolGraph, onDeleteEdge?: (id: string) => void): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   const actionNodes = new Set<string>();
@@ -75,9 +148,11 @@ export function graphToFlow(graph: ChaeshinToolGraph): { nodes: Node[]; edges: E
         id: `e-${i}`,
         source: e.from_node,
         target: e.to_node,
+        type: onDeleteEdge ? "deletable" : undefined,
         label: e.condition || undefined,
         animated: !!e.condition,
         style: { stroke: e.condition ? "#f59e0b" : "#94a3b8" },
+        data: onDeleteEdge ? { onDelete: onDeleteEdge } : undefined,
       });
     } else if (e.action) {
       const actionId = `action-${e.action}-${e.from_node}`;
@@ -98,9 +173,11 @@ export function graphToFlow(graph: ChaeshinToolGraph): { nodes: Node[]; edges: E
         id: `e-${i}`,
         source: e.from_node,
         target: actionId,
+        type: onDeleteEdge ? "deletable" : undefined,
         label: e.condition || undefined,
         animated: true,
         style: { stroke: "#ef4444" },
+        data: onDeleteEdge ? { onDelete: onDeleteEdge } : undefined,
       });
     }
   });

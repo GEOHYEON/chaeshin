@@ -15,8 +15,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ChaeshinTool, ChaeshinToolParam } from "@/lib/chaeshin-types";
 import { toolApi } from "@/lib/api";
-import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Pencil, X, Download } from "lucide-react";
 import { toast } from "sonner";
+
+async function importTools(source: "claude-code" | "openclaw") {
+  const res = await fetch(`/api/tools/import?source=${source}`, { method: "POST" });
+  if (!res.ok) throw new Error();
+  return res.json() as Promise<{ imported: number; skipped: number; total: number; message?: string }>;
+}
 
 interface ToolManageDialogProps {
   open: boolean;
@@ -32,6 +38,7 @@ function emptyParam(): ChaeshinToolParam {
 export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolManageDialogProps) {
   const [mode, setMode] = useState<"list" | "form">("list");
   const [editId, setEditId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -230,13 +237,57 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
 
         <DialogFooter className="px-6 py-4 border-t shrink-0">
           {mode === "list" ? (
-            <>
+            <div className="flex items-center gap-2 w-full">
+              {/* Import buttons on the left */}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={importing}
+                onClick={async () => {
+                  setImporting(true);
+                  try {
+                    const r = await importTools("claude-code");
+                    if (r.imported > 0) {
+                      toast.success(`Claude Code에서 ${r.imported}개 도구를 가져왔습니다`);
+                      onRefresh();
+                    } else {
+                      toast.info(r.message || "가져올 도구가 없습니다");
+                    }
+                  } catch { toast.error("가져오기 실패"); }
+                  finally { setImporting(false); }
+                }}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                Claude Code
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={importing}
+                onClick={async () => {
+                  setImporting(true);
+                  try {
+                    const r = await importTools("openclaw");
+                    if (r.imported > 0) {
+                      toast.success(`OpenClaw에서 ${r.imported}개 도구를 가져왔습니다`);
+                      onRefresh();
+                    } else {
+                      toast.info(r.message || "가져올 도구가 없습니다");
+                    }
+                  } catch { toast.error("가져오기 실패"); }
+                  finally { setImporting(false); }
+                }}
+              >
+                <Download className="h-3.5 w-3.5 mr-1" />
+                OpenClaw
+              </Button>
+              <div className="flex-1" />
               <Button variant="outline" onClick={() => onOpenChange(false)}>닫기</Button>
               <Button onClick={openCreateForm}>
                 <Plus className="h-4 w-4 mr-1.5" />
                 새 도구 등록
               </Button>
-            </>
+            </div>
           ) : (
             <>
               <Button variant="outline" onClick={resetForm}>취소</Button>
