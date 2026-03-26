@@ -271,9 +271,9 @@ function GraphBuilderInner() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="h-screen flex flex-col" style={{ backgroundColor: "#ffffff" }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-2.5 border-b shrink-0">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b shrink-0" style={{ backgroundColor: "#ffffff" }}>
         <Button variant="ghost" size="sm" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           돌아가기
@@ -321,7 +321,7 @@ function GraphBuilderInner() {
         {tab === "graph" ? (
           <>
             {/* Canvas */}
-            <div className="flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+            <div className="flex-1" style={{ backgroundColor: "#ffffff" }} onDragOver={onDragOver} onDrop={onDrop}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -363,7 +363,7 @@ function GraphBuilderInner() {
           </>
         ) : (
           /* Info tab */
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" style={{ backgroundColor: "#ffffff" }}>
             <div className="max-w-xl mx-auto p-8 space-y-5">
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">요청 (Request) *</label>

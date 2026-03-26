@@ -35,11 +35,16 @@
     border-color: hsl(var(--border));
   }
   body {
+    background-color: #ffffff;
     background-color: hsl(var(--background));
+    color: #0a0a0a;
     color: hsl(var(--foreground));
     font-family: "Inter", system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  html {
+    background-color: #ffffff;
   }
 }
 
