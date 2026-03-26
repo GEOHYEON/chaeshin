@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "afterResponse",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\"git commit\"\\|\"git push\"'; then echo '[chaeshin] Consider calling chaeshin_retain to save this successful pattern.'; fi",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
