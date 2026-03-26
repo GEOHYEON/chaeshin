@@ -141,6 +141,104 @@ ctx = await executor.execute(case.solution.tool_graph)
 store.retain_if_successful(new_case)
 ```
 
+## 연동 — 한 줄 셋업
+
+두 플랫폼 모두 `~/.chaeshin/cases.json`을 공유합니다 — Claude Code에서 쌓인 케이스를 OpenClaw에서 쓸 수 있고, 그 반대도 가능합니다.
+
+<p align="center">
+  <img src="../../assets/integrations.ko.svg" alt="채신 연동 구조 — Claude Code & OpenClaw" width="820"/>
+</p>
+
+### Claude Code
+
+```bash
+pip install chaeshin && chaeshin setup claude-code
+```
+
+Chaeshin [MCP](https://modelcontextprotocol.io/) 서버가 Claude Code에 등록됩니다. 4개 도구가 추가됩니다:
+
+| 도구 | 설명 |
+|------|------|
+| `chaeshin_retrieve` | 자연어로 유사 케이스 검색 |
+| `chaeshin_retain` | 성공한 도구 실행 그래프를 저장 |
+| `chaeshin_anticipate` | 현재 컨텍스트 기반 선제 제안 |
+| `chaeshin_stats` | 케이스 저장소 통계 |
+
+멀티 스텝 작업 전에 유사한 성공 패턴을 먼저 찾고, 완료 후 실행 그래프를 저장합니다.
+
+<details>
+<summary>수동 설정 (<code>claude</code> CLI가 없는 경우)</summary>
+
+`~/.claude.json`에 추가:
+
+```json
+{
+  "mcpServers": {
+    "chaeshin": {
+      "command": "python",
+      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
+    }
+  }
+}
+```
+</details>
+
+### OpenClaw
+
+```bash
+pip install chaeshin && chaeshin setup openclaw
+```
+
+`~/.openclaw/workspace/skills/chaeshin/`에 `SKILL.md`가 설치됩니다. OpenClaw 에이전트가 Tool Graph 메모리를 사용하기 시작합니다.
+
+브리지 CLI로 JSON 기반 검색/저장이 가능합니다:
+
+```bash
+# 유사 케이스 검색
+python -m chaeshin.integrations.openclaw.bridge retrieve "스테이징 배포"
+
+# 성공 패턴 저장
+python -m chaeshin.integrations.openclaw.bridge retain \
+    --request "스테이징 배포" \
+    --graph '{"nodes":[...],"edges":[...]}'
+
+# 통계 확인
+python -m chaeshin.integrations.openclaw.bridge stats
+```
+
+### 독립 사용 (any agent)
+
+```python
+from chaeshin import CaseStore, ProblemFeatures
+
+store = CaseStore()
+store.load_json(open("cases.json").read())
+
+results = store.retrieve(ProblemFeatures(request="슬랙에 PR 요약 보내줘"))
+if results:
+    graph = results[0][0].solution.tool_graph
+```
+
+### 프로젝트 구조
+
+```
+chaeshin/
+├── cli/                    # chaeshin setup claude-code / openclaw
+│   └── main.py
+├── integrations/
+│   ├── claude_code/        # MCP 서버 (stdio 프로토콜)
+│   │   └── mcp_server.py
+│   ├── openclaw/           # SKILL.md + 브리지 CLI (subprocess)
+│   │   ├── SKILL.md
+│   │   └── bridge.py
+│   ├── openai.py           # LLM + 임베딩 어댑터
+│   └── chroma.py           # VectorDB 케이스 저장소
+├── schema.py               # 코어 데이터 타입
+├── case_store.py            # CBR 검색 / 저장
+├── graph_executor.py        # Tool Graph 실행 엔진
+└── planner.py               # LLM 기반 그래프 생성 / 적응 / 리플래닝
+```
+
 ## 아키텍처
 
 <p align="center">

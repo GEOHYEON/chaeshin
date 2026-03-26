@@ -47,6 +47,9 @@ dev = [
     "pytest-asyncio>=0.24",
 ]
 
+[project.scripts]
+chaeshin = "chaeshin.cli.main:main"
+
 [project.urls]
 Homepage = "https://github.com/GEOHYEON/chaeshin"
 Repository = "https://github.com/GEOHYEON/chaeshin"
