@@ -20,12 +20,15 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { Button } from "@/components/ui/button";
-import type { ChaeshinToolGraph, ChaeshinTool } from "@/lib/chaeshin-types";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import type { ChaeshinToolGraph, ChaeshinTool, ChaeshinCase } from "@/lib/chaeshin-types";
 import { nodeTypes, graphToFlow, flowToGraph } from "@/lib/graph-flow-utils";
 import { api, toolApi } from "@/lib/api";
 import { ToolPalette } from "@/components/chaeshin/ToolPalette";
 import { ToolManageDialog } from "@/components/chaeshin/ToolManageDialog";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, FileText, GitBranch } from "lucide-react";
 import { toast } from "sonner";
 
 const EMPTY_GRAPH: ChaeshinToolGraph = {
@@ -35,9 +38,6 @@ const EMPTY_GRAPH: ChaeshinToolGraph = {
   entry_nodes: [],
   max_loops: 3,
 };
-
-const SESSION_KEY_DRAFT = "chaeshin-graph-builder-draft";
-const SESSION_KEY_RESULT = "chaeshin-graph-builder-result";
 
 // ── Inner component (needs ReactFlowProvider) ─────────────────
 
@@ -49,56 +49,58 @@ function GraphBuilderInner() {
   const mode = searchParams.get("mode") || "create";
   const caseId = searchParams.get("caseId");
 
+  // Tab
+  const [tab, setTab] = useState<"graph" | "info">("graph");
+
+  // Tools
   const [tools, setTools] = useState<ChaeshinTool[]>([]);
   const [showToolManage, setShowToolManage] = useState(false);
+
+  // Graph
   const [baseGraph, setBaseGraph] = useState<ChaeshinToolGraph>(EMPTY_GRAPH);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const nodeCounter = useRef(0);
+
+  // Case info (기본 정보)
+  const [request, setRequest] = useState("");
+  const [category, setCategory] = useState("");
+  const [keywords, setKeywords] = useState("");
+  const [tags, setTags] = useState("");
+  const [success, setSuccess] = useState(true);
+  const [satisfaction, setSatisfaction] = useState(0.85);
+  const [errorReason, setErrorReason] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Load tools
   const fetchTools = useCallback(async () => {
     try {
       const res = await toolApi.getTools();
       setTools(res.data);
-    } catch {
-      /* tools.json may not exist yet */
-    }
+    } catch { /* tools.json may not exist yet */ }
   }, []);
 
-  // Load initial graph
+  // Load initial graph (edit mode)
   useEffect(() => {
     fetchTools();
 
-    const loadGraph = async () => {
-      let graph = EMPTY_GRAPH;
-
-      if (caseId) {
-        // Edit mode: load from API
-        try {
-          const c = await api.getCase(caseId);
-          graph = c.solution.tool_graph;
-        } catch {
-          toast.error("케이스를 불러올 수 없습니다");
-        }
-      } else {
-        // Create mode: check sessionStorage draft
-        const draft = sessionStorage.getItem(SESSION_KEY_DRAFT);
-        if (draft) {
-          try {
-            graph = JSON.parse(draft);
-          } catch { /* ignore */ }
-        }
-      }
-
-      setBaseGraph(graph);
-      const flow = graphToFlow(graph);
-      setNodes(flow.nodes);
-      setEdges(flow.edges);
-      nodeCounter.current = graph.nodes.length;
-    };
-
-    loadGraph();
+    if (caseId) {
+      api.getCase(caseId).then((c) => {
+        setBaseGraph(c.solution.tool_graph);
+        const flow = graphToFlow(c.solution.tool_graph);
+        setNodes(flow.nodes);
+        setEdges(flow.edges);
+        nodeCounter.current = c.solution.tool_graph.nodes.length;
+        // Fill info
+        setRequest(c.problem_features.request);
+        setCategory(c.problem_features.category);
+        setKeywords(c.problem_features.keywords.join(", "));
+        setTags(c.metadata.tags.join(", "));
+        setSuccess(c.outcome.success);
+        setSatisfaction(c.outcome.user_satisfaction);
+        setErrorReason(c.outcome.error_reason || "");
+      }).catch(() => toast.error("케이스를 불러올 수 없습니다"));
+    }
   }, [caseId, fetchTools, setNodes, setEdges]);
 
   // Connect edges
@@ -121,8 +123,9 @@ function GraphBuilderInner() {
         data: { label: id, tool: tool.name, note: tool.display_name, isEntry: false },
       };
       setNodes((nds) => [...nds, newNode]);
+      if (tab !== "graph") setTab("graph");
     },
-    [setNodes]
+    [setNodes, tab]
   );
 
   // Drop handler
@@ -154,26 +157,96 @@ function GraphBuilderInner() {
   );
 
   // Save
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
+    if (mode === "create" && !request.trim()) {
+      toast.error("요청(Request)을 입력하세요");
+      setTab("info");
+      return;
+    }
+
+    setSaving(true);
     const graph = flowToGraph(nodes, edges, baseGraph);
 
-    if (caseId) {
-      // Edit mode: update case via API
-      api
-        .updateCase(caseId, { solution: { tool_graph: graph } })
-        .then(() => {
-          toast.success("그래프가 저장되었습니다");
-          window.close();
-        })
-        .catch(() => toast.error("저장에 실패했습니다"));
-    } else {
-      // Create mode: save to sessionStorage and close
-      sessionStorage.setItem(SESSION_KEY_RESULT, JSON.stringify(graph));
-      sessionStorage.removeItem(SESSION_KEY_DRAFT);
-      toast.success("그래프가 저장되었습니다");
-      window.close();
+    try {
+      if (caseId) {
+        // Edit mode
+        await api.updateCase(caseId, {
+          problem_features: {
+            request,
+            category,
+            keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+            constraints: [],
+            context: {},
+          },
+          solution: { tool_graph: graph },
+          outcome: {
+            success,
+            result_summary: "",
+            tools_executed: graph.nodes.length,
+            loops_triggered: 0,
+            total_time_ms: 0,
+            user_satisfaction: success ? satisfaction : 0,
+            error_reason: success ? "" : errorReason,
+            details: {},
+          },
+          metadata: {
+            tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          },
+        } as unknown as Partial<ChaeshinCase>);
+        toast.success("케이스가 저장되었습니다");
+      } else {
+        // Create mode
+        const newCase: ChaeshinCase = {
+          problem_features: {
+            request,
+            category,
+            keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean),
+            constraints: [],
+            context: {},
+          },
+          solution: { tool_graph: graph },
+          outcome: {
+            success,
+            result_summary: "",
+            tools_executed: graph.nodes.length,
+            loops_triggered: 0,
+            total_time_ms: 0,
+            user_satisfaction: success ? satisfaction : 0,
+            error_reason: success ? "" : errorReason,
+            details: {},
+          },
+          metadata: {
+            case_id: crypto.randomUUID(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            used_count: 0,
+            avg_satisfaction: 0,
+            source: "monitor_ui",
+            version: 1,
+            tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+          },
+        };
+        const res = await fetch("/api/chaeshin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newCase),
+        });
+        if (!res.ok) throw new Error();
+        toast.success("새 케이스가 생성되었습니다");
+      }
+
+      // Close or navigate back
+      if (window.opener) {
+        window.close();
+      } else {
+        router.push("/");
+      }
+    } catch {
+      toast.error("저장에 실패했습니다");
+    } finally {
+      setSaving(false);
     }
-  }, [nodes, edges, baseGraph, caseId]);
+  }, [nodes, edges, baseGraph, caseId, mode, request, category, keywords, tags, success, satisfaction, errorReason, router]);
 
   const handleBack = () => {
     if (window.opener) {
@@ -184,65 +257,141 @@ function GraphBuilderInner() {
   };
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col bg-white">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-white shrink-0">
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b shrink-0">
         <Button variant="ghost" size="sm" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           돌아가기
         </Button>
-        <div className="flex-1">
-          <h1 className="text-lg font-bold">그래프 빌더</h1>
-          <p className="text-xs text-muted-foreground">
-            {caseId ? `케이스 수정: ${caseId.slice(0, 8)}...` : "새 Tool Graph 생성"}
-          </p>
+
+        {/* Tab buttons */}
+        <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => setTab("graph")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              tab === "graph"
+                ? "bg-white text-gray-900 font-medium shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            그래프
+            {nodes.length > 0 && (
+              <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 rounded-full">{nodes.length}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab("info")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors ${
+              tab === "info"
+                ? "bg-white text-gray-900 font-medium shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            기본 정보
+          </button>
         </div>
-        <Button onClick={handleSave}>
+
+        <div className="flex-1" />
+
+        <Button onClick={handleSave} disabled={saving}>
           <Save className="h-4 w-4 mr-1.5" />
-          저장
+          {saving ? "저장 중..." : caseId ? "수정 저장" : "케이스 생성"}
         </Button>
       </div>
 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
-        {/* Canvas */}
-        <div className="flex-1" onDragOver={onDragOver} onDrop={onDrop}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            nodeTypes={nodeTypes}
-            fitView
-            deleteKeyCode="Backspace"
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background gap={16} size={1} />
-            <Controls />
-            <MiniMap
-              nodeStrokeColor={(n) => (n.type === "action" ? "#ef4444" : "#059669")}
-              nodeColor={(n) => (n.type === "action" ? "#fef2f2" : "#f0fdf4")}
-              style={{ height: 80, width: 120 }}
-            />
-            {nodes.length === 0 && (
-              <Panel position="top-center">
-                <div className="bg-white/90 border rounded-lg px-6 py-4 text-center shadow-sm">
-                  <p className="text-sm text-muted-foreground">오른쪽 팔레트에서 도구를 드래그하거나 + 버튼을 클릭하세요</p>
-                </div>
-              </Panel>
-            )}
-          </ReactFlow>
-        </div>
+        {tab === "graph" ? (
+          <>
+            {/* Canvas */}
+            <div className="flex-1" onDragOver={onDragOver} onDrop={onDrop}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                nodeTypes={nodeTypes}
+                fitView
+                deleteKeyCode="Backspace"
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background gap={16} size={1} />
+                <Controls />
+                <MiniMap
+                  nodeStrokeColor={(n) => (n.type === "action" ? "#ef4444" : "#059669")}
+                  nodeColor={(n) => (n.type === "action" ? "#fef2f2" : "#f0fdf4")}
+                  style={{ height: 80, width: 120 }}
+                />
+                {nodes.length === 0 && (
+                  <Panel position="top-center">
+                    <div className="bg-white border rounded-lg px-6 py-4 text-center shadow-sm mt-4">
+                      <p className="text-sm font-medium text-gray-700">오른쪽 팔레트에서 도구를 드래그하거나 + 버튼을 클릭하세요</p>
+                      <p className="text-xs text-gray-400 mt-1">도구가 없으면 &quot;도구 관리&quot;에서 먼저 등록하세요</p>
+                    </div>
+                  </Panel>
+                )}
+              </ReactFlow>
+            </div>
 
-        {/* Right panel: Tool palette */}
-        <div className="w-[280px] shrink-0">
-          <ToolPalette
-            tools={tools}
-            onAddNode={handleAddNodeFromTool}
-            onManageTools={() => setShowToolManage(true)}
-          />
-        </div>
+            {/* Right panel: Tool palette */}
+            <div className="w-[280px] shrink-0">
+              <ToolPalette
+                tools={tools}
+                onAddNode={handleAddNodeFromTool}
+                onManageTools={() => setShowToolManage(true)}
+              />
+            </div>
+          </>
+        ) : (
+          /* Info tab */
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-xl mx-auto p-8 space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">요청 (Request) *</label>
+                <Input value={request} onChange={(e) => setRequest(e.target.value)} placeholder="김치찌개 2인분 만들어줘" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">카테고리</label>
+                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="찌개류" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">만족도 (0~1)</label>
+                  <Input type="number" min={0} max={1} step={0.05} value={satisfaction} onChange={(e) => setSatisfaction(Number(e.target.value))} />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">키워드 (쉼표 구분)</label>
+                <Input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="김치, 찌개, 묵은지" />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">태그 (쉼표 구분)</label>
+                <Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="한식, 찌개" />
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center gap-2">
+                <Checkbox id="builder-success" checked={success} onCheckedChange={(v) => setSuccess(!!v)} />
+                <label htmlFor="builder-success" className="text-sm text-gray-700">성공 케이스</label>
+              </div>
+
+              {!success && (
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">실패 사유</label>
+                  <Input value={errorReason} onChange={(e) => setErrorReason(e.target.value)} placeholder="API rate limit 초과" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tool management dialog */}
@@ -260,7 +409,7 @@ function GraphBuilderInner() {
 
 export default function GraphBuilderPage() {
   return (
-    <Suspense fallback={<div className="h-screen flex items-center justify-center text-muted-foreground">로딩 중...</div>}>
+    <Suspense fallback={<div className="h-screen flex items-center justify-center text-gray-400">로딩 중...</div>}>
       <ReactFlowProvider>
         <GraphBuilderInner />
       </ReactFlowProvider>

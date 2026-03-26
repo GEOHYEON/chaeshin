@@ -48,7 +48,7 @@ export function ToolPalette({ tools, onAddNode, onManageTools }: ToolPaletteProp
   };
 
   return (
-    <div className="h-full flex flex-col border-l bg-gray-50/50">
+    <div className="h-full flex flex-col border-l bg-gray-50">
       {/* Header */}
       <div className="p-3 border-b space-y-2">
         <div className="flex items-center justify-between">
