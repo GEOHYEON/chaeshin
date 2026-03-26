@@ -10,6 +10,110 @@ The name comes from 교자채신(敎子採薪) — *"Don't give firewood; teach 
 
 ---
 
+## Integrations — One Line Setup
+
+Both platforms share `~/.chaeshin/cases.json` — cases saved by Claude Code can be reused by OpenClaw, and vice versa.
+
+<p align="center">
+  <img src="assets/integrations.svg" alt="Chaeshin Integration Architecture — Claude Code & OpenClaw" width="820"/>
+</p>
+
+### Claude Code
+
+```bash
+pip install chaeshin && chaeshin setup claude-code
+```
+
+This registers a Chaeshin [MCP](https://modelcontextprotocol.io/) server with Claude Code. Four new tools become available:
+
+| Tool | Description |
+|------|-------------|
+| `chaeshin_retrieve` | Search for similar past cases by natural language query |
+| `chaeshin_retain` | Save a successful tool execution graph for future reuse |
+| `chaeshin_anticipate` | Get proactive suggestions based on current context |
+| `chaeshin_stats` | View case store statistics |
+
+Before improvising a multi-step task, Claude checks if a similar successful pattern exists. After completing a task, it saves the execution graph for next time.
+
+<details>
+<summary>Manual setup (if <code>claude</code> CLI is not available)</summary>
+
+Add to `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "chaeshin": {
+      "command": "python",
+      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
+    }
+  }
+}
+```
+</details>
+
+### OpenClaw
+
+```bash
+pip install chaeshin && chaeshin setup openclaw
+```
+
+This installs a `SKILL.md` into `~/.openclaw/workspace/skills/chaeshin/`. Your OpenClaw agent starts using tool graph memory — retrieving past patterns before executing, and retaining successful ones.
+
+The bridge CLI provides JSON-based access for OpenClaw's subprocess model:
+
+```bash
+# Search for similar cases
+python -m chaeshin.integrations.openclaw.bridge retrieve "deploy to staging"
+
+# Save a successful pattern
+python -m chaeshin.integrations.openclaw.bridge retain \
+    --request "deploy to staging" \
+    --graph '{"nodes":[...],"edges":[...]}'
+
+# View statistics
+python -m chaeshin.integrations.openclaw.bridge stats
+```
+
+### Standalone (any agent)
+
+```python
+from chaeshin import CaseStore, ProblemFeatures
+
+store = CaseStore()
+store.load_json(open("cases.json").read())
+
+# Retrieve similar past case
+results = store.retrieve(ProblemFeatures(request="send daily PR summary to slack"))
+
+# Use the tool graph from the best match
+if results:
+    graph = results[0][0].solution.tool_graph
+    # execute graph...
+```
+
+### Project Structure
+
+```
+chaeshin/
+├── cli/                    # chaeshin setup claude-code / openclaw
+│   └── main.py
+├── integrations/
+│   ├── claude_code/        # MCP server (stdio protocol)
+│   │   └── mcp_server.py
+│   ├── openclaw/           # SKILL.md + bridge CLI (subprocess)
+│   │   ├── SKILL.md
+│   │   └── bridge.py
+│   ├── openai.py           # LLM + embedding adapter
+│   └── chroma.py           # VectorDB case store
+├── schema.py               # Core data types
+├── case_store.py            # CBR retrieve / retain
+├── graph_executor.py        # Tool graph runner
+└── planner.py               # LLM-based graph create / adapt / replan
+```
+
+---
+
 ## Why Chaeshin?
 
 Most LLM agents either improvise tool calls on the fly (ReAct-style) or follow rigid pipelines hardcoded by developers. Both approaches have limitations:
@@ -121,108 +225,6 @@ uv run python -m examples.cooking.app
 Opens a browser UI where you can enter any cooking request and watch the CBR pipeline execute step by step.
 
 See the [Quick Start Guide](docs/quickstart.md) for a step-by-step walkthrough.
-
-## Integrations — One Line Setup
-
-Both platforms share `~/.chaeshin/cases.json` — cases saved by Claude Code can be reused by OpenClaw, and vice versa.
-
-<p align="center">
-  <img src="assets/integrations.svg" alt="Chaeshin Integration Architecture — Claude Code & OpenClaw" width="820"/>
-</p>
-
-### Claude Code
-
-```bash
-pip install chaeshin && chaeshin setup claude-code
-```
-
-This registers a Chaeshin [MCP](https://modelcontextprotocol.io/) server with Claude Code. Four new tools become available:
-
-| Tool | Description |
-|------|-------------|
-| `chaeshin_retrieve` | Search for similar past cases by natural language query |
-| `chaeshin_retain` | Save a successful tool execution graph for future reuse |
-| `chaeshin_anticipate` | Get proactive suggestions based on current context |
-| `chaeshin_stats` | View case store statistics |
-
-Before improvising a multi-step task, Claude checks if a similar successful pattern exists. After completing a task, it saves the execution graph for next time.
-
-<details>
-<summary>Manual setup (if <code>claude</code> CLI is not available)</summary>
-
-Add to `~/.claude.json`:
-
-```json
-{
-  "mcpServers": {
-    "chaeshin": {
-      "command": "python",
-      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
-    }
-  }
-}
-```
-</details>
-
-### OpenClaw
-
-```bash
-pip install chaeshin && chaeshin setup openclaw
-```
-
-This installs a `SKILL.md` into `~/.openclaw/workspace/skills/chaeshin/`. Your OpenClaw agent starts using tool graph memory — retrieving past patterns before executing, and retaining successful ones.
-
-The bridge CLI provides JSON-based access for OpenClaw's subprocess model:
-
-```bash
-# Search for similar cases
-python -m chaeshin.integrations.openclaw.bridge retrieve "deploy to staging"
-
-# Save a successful pattern
-python -m chaeshin.integrations.openclaw.bridge retain \
-    --request "deploy to staging" \
-    --graph '{"nodes":[...],"edges":[...]}'
-
-# View statistics
-python -m chaeshin.integrations.openclaw.bridge stats
-```
-
-### Standalone (any agent)
-
-```python
-from chaeshin import CaseStore, ProblemFeatures
-
-store = CaseStore()
-store.load_json(open("cases.json").read())
-
-# Retrieve similar past case
-results = store.retrieve(ProblemFeatures(request="send daily PR summary to slack"))
-
-# Use the tool graph from the best match
-if results:
-    graph = results[0][0].solution.tool_graph
-    # execute graph...
-```
-
-### Project Structure
-
-```
-chaeshin/
-├── cli/                    # chaeshin setup claude-code / openclaw
-│   └── main.py
-├── integrations/
-│   ├── claude_code/        # MCP server (stdio protocol)
-│   │   └── mcp_server.py
-│   ├── openclaw/           # SKILL.md + bridge CLI (subprocess)
-│   │   ├── SKILL.md
-│   │   └── bridge.py
-│   ├── openai.py           # LLM + embedding adapter
-│   └── chroma.py           # VectorDB case store
-├── schema.py               # Core data types
-├── case_store.py            # CBR retrieve / retain
-├── graph_executor.py        # Tool graph runner
-└── planner.py               # LLM-based graph create / adapt / replan
-```
 
 ## Architecture
 

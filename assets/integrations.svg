@@ -1,31 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="'Inter', 'Helvetica Neue', Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="Segoe UI, Helvetica, Arial, sans-serif">
   <defs>
     <linearGradient id="claudeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#D97757;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#C4613F;stop-opacity:1"/>
+      <stop offset="0%" style="stop-color:#D97757"/>
+      <stop offset="100%" style="stop-color:#C4613F"/>
     </linearGradient>
     <linearGradient id="clawGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366F1;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#4F46E5;stop-opacity:1"/>
-    </linearGradient>
-    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#059669;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#047857;stop-opacity:1"/>
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#4F46E5"/>
     </linearGradient>
     <linearGradient id="storeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#F59E0B;stop-opacity:1"/>
-      <stop offset="100%" style="stop-color:#D97706;stop-opacity:1"/>
+      <stop offset="0%" style="stop-color:#F59E0B"/>
+      <stop offset="100%" style="stop-color:#D97706"/>
     </linearGradient>
     <filter id="shadow" x="-4%" y="-4%" width="108%" height="112%">
       <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.10"/>
     </filter>
-    <filter id="shadowSm" x="-4%" y="-4%" width="108%" height="112%">
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.08"/>
-    </filter>
-    <!-- Arrow marker -->
-    <marker id="arrowGray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#94A3B8"/>
-    </marker>
     <marker id="arrowAmber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <path d="M0,0 L8,3 L0,6 Z" fill="#D97706"/>
     </marker>
@@ -36,107 +25,99 @@
 
   <!-- Title -->
   <text x="450" y="38" text-anchor="middle" font-size="18" font-weight="700" fill="#1E293B">Chaeshin Integration Architecture</text>
-  <text x="450" y="58" text-anchor="middle" font-size="12" fill="#64748B">One shared case store — two platforms, one memory</text>
+  <text x="450" y="58" text-anchor="middle" font-size="12" fill="#64748B">One shared case store &#8212; two platforms, one memory</text>
 
-  <!-- ════════════════════════════════════════════════════ -->
-  <!-- LEFT: Claude Code -->
-  <!-- ════════════════════════════════════════════════════ -->
+  <!-- ══════════ LEFT: Claude Code ══════════ -->
   <g filter="url(#shadow)">
-    <rect x="40" y="88" width="310" height="280" rx="14" fill="#FFF" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="40" y="88" width="360" height="280" rx="14" fill="#FFF" stroke="#E2E8F0" stroke-width="1"/>
   </g>
   <!-- Header bar -->
-  <rect x="40" y="88" width="310" height="52" rx="14" fill="url(#claudeGrad)"/>
-  <rect x="40" y="118" width="310" height="22" fill="url(#claudeGrad)"/>
-  <!-- Claude Code logo mark (sparkle) -->
-  <g transform="translate(62, 103)">
-    <path d="M12 2 L14.5 8.5 L21 11 L14.5 13.5 L12 20 L9.5 13.5 L3 11 L9.5 8.5 Z" fill="#FFF" opacity="0.95" transform="scale(0.82)"/>
+  <rect x="40" y="88" width="360" height="52" rx="14" fill="url(#claudeGrad)"/>
+  <rect x="40" y="118" width="360" height="22" fill="url(#claudeGrad)"/>
+  <!-- Sparkle icon -->
+  <g transform="translate(60, 102)">
+    <path d="M10 1.6 L12 6.8 L17.2 8.8 L12 10.8 L10 16 L8 10.8 L2.8 8.8 L8 6.8 Z" fill="#FFF" opacity="0.95"/>
   </g>
-  <text x="88" y="120" font-size="16" font-weight="700" fill="#FFF">Claude Code</text>
-  <text x="275" y="120" font-size="10" font-weight="500" fill="rgba(255,255,255,0.75)">MCP Server</text>
+  <text x="86" y="121" font-size="17" font-weight="700" fill="#FFF">Claude Code</text>
+  <text x="330" y="121" font-size="10" font-weight="500" fill="#FFF" opacity="0.8">MCP Server</text>
 
   <!-- Setup command -->
-  <rect x="56" y="155" width="278" height="28" rx="6" fill="#FFF7ED" stroke="#FDBA74" stroke-width="0.5"/>
-  <text x="66" y="173" font-size="11" font-family="'SF Mono', 'Fira Code', monospace" fill="#9A3412">pip install chaeshin &amp;&amp; chaeshin setup claude-code</text>
+  <rect x="56" y="156" width="328" height="28" rx="6" fill="#FFF7ED" stroke="#FDBA74" stroke-width="0.5"/>
+  <text x="66" y="175" font-size="10.5" font-family="Consolas, Monaco, monospace" fill="#9A3412">pip install chaeshin &amp;&amp; chaeshin setup claude-code</text>
 
   <!-- Tool list -->
   <g transform="translate(56, 198)">
-    <rect width="278" height="155" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
-    <text x="12" y="20" font-size="11" font-weight="600" fill="#475569">MCP Tools</text>
+    <rect width="328" height="155" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
+    <text x="14" y="20" font-size="11" font-weight="600" fill="#475569">MCP Tools</text>
 
-    <!-- Tool 1 -->
-    <rect x="12" y="32" width="254" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <circle cx="24" cy="44" r="4" fill="#059669"/>
-    <text x="34" y="48" font-size="10.5" font-weight="600" font-family="'SF Mono', 'Fira Code', monospace" fill="#1E293B">chaeshin_retrieve</text>
-    <text x="170" y="48" font-size="9.5" fill="#64748B">search past cases</text>
+    <rect x="14" y="32" width="300" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <circle cx="26" cy="44" r="4" fill="#059669"/>
+    <text x="36" y="48" font-size="10.5" font-weight="600" font-family="Consolas, Monaco, monospace" fill="#1E293B">chaeshin_retrieve</text>
+    <text x="195" y="48" font-size="10" fill="#64748B">search past cases</text>
 
-    <!-- Tool 2 -->
-    <rect x="12" y="60" width="254" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <circle cx="24" cy="72" r="4" fill="#059669"/>
-    <text x="34" y="76" font-size="10.5" font-weight="600" font-family="'SF Mono', 'Fira Code', monospace" fill="#1E293B">chaeshin_retain</text>
-    <text x="158" y="76" font-size="9.5" fill="#64748B">save patterns</text>
+    <rect x="14" y="60" width="300" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <circle cx="26" cy="72" r="4" fill="#059669"/>
+    <text x="36" y="76" font-size="10.5" font-weight="600" font-family="Consolas, Monaco, monospace" fill="#1E293B">chaeshin_retain</text>
+    <text x="180" y="76" font-size="10" fill="#64748B">save patterns</text>
 
-    <!-- Tool 3 -->
-    <rect x="12" y="88" width="254" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <circle cx="24" cy="100" r="4" fill="#059669"/>
-    <text x="34" y="104" font-size="10.5" font-weight="600" font-family="'SF Mono', 'Fira Code', monospace" fill="#1E293B">chaeshin_anticipate</text>
-    <text x="178" y="104" font-size="9.5" fill="#64748B">proactive hints</text>
+    <rect x="14" y="88" width="300" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <circle cx="26" cy="100" r="4" fill="#059669"/>
+    <text x="36" y="104" font-size="10.5" font-weight="600" font-family="Consolas, Monaco, monospace" fill="#1E293B">chaeshin_anticipate</text>
+    <text x="205" y="104" font-size="10" fill="#64748B">proactive hints</text>
 
-    <!-- Tool 4 -->
-    <rect x="12" y="116" width="254" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <circle cx="24" cy="128" r="4" fill="#059669"/>
-    <text x="34" y="132" font-size="10.5" font-weight="600" font-family="'SF Mono', 'Fira Code', monospace" fill="#1E293B">chaeshin_stats</text>
-    <text x="152" y="132" font-size="9.5" fill="#64748B">store statistics</text>
+    <rect x="14" y="116" width="300" height="24" rx="5" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <circle cx="26" cy="128" r="4" fill="#059669"/>
+    <text x="36" y="132" font-size="10.5" font-weight="600" font-family="Consolas, Monaco, monospace" fill="#1E293B">chaeshin_stats</text>
+    <text x="170" y="132" font-size="10" fill="#64748B">store statistics</text>
   </g>
 
-  <!-- ════════════════════════════════════════════════════ -->
-  <!-- RIGHT: OpenClaw -->
-  <!-- ════════════════════════════════════════════════════ -->
+  <!-- ══════════ RIGHT: OpenClaw ══════════ -->
   <g filter="url(#shadow)">
-    <rect x="550" y="88" width="310" height="280" rx="14" fill="#FFF" stroke="#E2E8F0" stroke-width="1"/>
+    <rect x="500" y="88" width="360" height="280" rx="14" fill="#FFF" stroke="#E2E8F0" stroke-width="1"/>
   </g>
   <!-- Header bar -->
-  <rect x="550" y="88" width="310" height="52" rx="14" fill="url(#clawGrad)"/>
-  <rect x="550" y="118" width="310" height="22" fill="url(#clawGrad)"/>
-  <!-- OpenClaw logo mark (claw/lobster) -->
-  <g transform="translate(572, 102)">
-    <text font-size="18" fill="#FFF" opacity="0.95">🦞</text>
+  <rect x="500" y="88" width="360" height="52" rx="14" fill="url(#clawGrad)"/>
+  <rect x="500" y="118" width="360" height="22" fill="url(#clawGrad)"/>
+  <!-- Claw icon (pure SVG paths) -->
+  <g transform="translate(522, 104)" fill="#FFF" opacity="0.95">
+    <path d="M4,12 Q2,8 4,4 Q5,2 7,4 L8,7 Q6,9 7,12 Z"/>
+    <path d="M16,12 Q18,8 16,4 Q15,2 13,4 L12,7 Q14,9 13,12 Z"/>
+    <path d="M7,12 L8,16 L12,16 L13,12 Q11,14 10,14 Q9,14 7,12 Z"/>
   </g>
-  <text x="598" y="120" font-size="16" font-weight="700" fill="#FFF">OpenClaw</text>
-  <text x="792" y="120" font-size="10" font-weight="500" fill="rgba(255,255,255,0.75)">Skill + Bridge</text>
+  <text x="546" y="121" font-size="17" font-weight="700" fill="#FFF">OpenClaw</text>
+  <text x="790" y="121" font-size="10" font-weight="500" fill="#FFF" opacity="0.8">Skill + Bridge</text>
 
   <!-- Setup command -->
-  <rect x="566" y="155" width="278" height="28" rx="6" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="0.5"/>
-  <text x="576" y="173" font-size="11" font-family="'SF Mono', 'Fira Code', monospace" fill="#3730A3">pip install chaeshin &amp;&amp; chaeshin setup openclaw</text>
+  <rect x="516" y="156" width="328" height="28" rx="6" fill="#EEF2FF" stroke="#A5B4FC" stroke-width="0.5"/>
+  <text x="526" y="175" font-size="10.5" font-family="Consolas, Monaco, monospace" fill="#3730A3">pip install chaeshin &amp;&amp; chaeshin setup openclaw</text>
 
   <!-- Skill card -->
-  <g transform="translate(566, 198)">
-    <rect width="278" height="68" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
-    <text x="12" y="20" font-size="11" font-weight="600" fill="#475569">SKILL.md</text>
-    <text x="12" y="38" font-size="10" fill="#64748B">→ ~/.openclaw/workspace/skills/chaeshin/</text>
-    <text x="12" y="54" font-size="10" fill="#64748B">CBR memory layer — auto-loaded by OpenClaw</text>
+  <g transform="translate(516, 198)">
+    <rect width="328" height="68" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
+    <text x="14" y="20" font-size="11" font-weight="600" fill="#475569">SKILL.md</text>
+    <text x="14" y="38" font-size="10" fill="#64748B">~/.openclaw/workspace/skills/chaeshin/</text>
+    <text x="14" y="54" font-size="10" fill="#64748B">CBR memory layer &#8212; auto-loaded by OpenClaw</text>
   </g>
 
   <!-- Bridge CLI -->
-  <g transform="translate(566, 278)">
-    <rect width="278" height="75" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
-    <text x="12" y="20" font-size="11" font-weight="600" fill="#475569">Bridge CLI (subprocess)</text>
+  <g transform="translate(516, 278)">
+    <rect width="328" height="75" rx="8" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="0.5"/>
+    <text x="14" y="20" font-size="11" font-weight="600" fill="#475569">Bridge CLI (subprocess)</text>
 
-    <rect x="12" y="30" width="254" height="18" rx="4" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <text x="18" y="43" font-size="9.5" font-family="'SF Mono', 'Fira Code', monospace" fill="#4338CA">bridge retrieve "query"</text>
+    <rect x="14" y="30" width="300" height="18" rx="4" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <text x="20" y="43" font-size="10" font-family="Consolas, Monaco, monospace" fill="#4338CA">bridge retrieve "query"</text>
 
-    <rect x="12" y="52" width="254" height="18" rx="4" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
-    <text x="18" y="65" font-size="9.5" font-family="'SF Mono', 'Fira Code', monospace" fill="#4338CA">bridge retain --request "..." --graph '{...}'</text>
+    <rect x="14" y="52" width="300" height="18" rx="4" fill="#FFF" stroke="#F1F5F9" stroke-width="0.5"/>
+    <text x="20" y="65" font-size="10" font-family="Consolas, Monaco, monospace" fill="#4338CA">bridge retain --request "..." --graph '{...}'</text>
   </g>
 
-  <!-- ════════════════════════════════════════════════════ -->
-  <!-- CENTER: Shared Cases Store -->
-  <!-- ════════════════════════════════════════════════════ -->
+  <!-- ══════════ CENTER: Shared Cases Store ══════════ -->
   <g filter="url(#shadow)">
     <rect x="320" y="410" width="260" height="90" rx="14" fill="#FFF" stroke="#E2E8F0" stroke-width="1"/>
   </g>
   <rect x="320" y="410" width="260" height="40" rx="14" fill="url(#storeGrad)"/>
   <rect x="320" y="434" width="260" height="16" fill="url(#storeGrad)"/>
-  <!-- DB icon -->
+  <!-- DB icon (pure SVG) -->
   <g transform="translate(338, 420)">
     <ellipse cx="8" cy="3" rx="8" ry="3" fill="none" stroke="#FFF" stroke-width="1.5"/>
     <path d="M0,3 v8 c0,1.66 3.58,3 8,3 s8-1.34,8-3 V3" fill="none" stroke="#FFF" stroke-width="1.5"/>
@@ -144,22 +125,20 @@
   </g>
   <text x="362" y="436" font-size="14" font-weight="700" fill="#FFF">Shared Case Store</text>
 
-  <text x="340" y="472" font-size="11" font-family="'SF Mono', 'Fira Code', monospace" fill="#92400E">~/.chaeshin/cases.json</text>
-  <text x="340" y="488" font-size="10" fill="#78716C">Cross-platform · Retrieve &amp; Retain</text>
+  <text x="340" y="472" font-size="11" font-family="Consolas, Monaco, monospace" fill="#92400E">~/.chaeshin/cases.json</text>
+  <text x="340" y="488" font-size="10" fill="#78716C">Cross-platform &#183; Retrieve &amp; Retain</text>
 
-  <!-- ════════════════════════════════════════════════════ -->
-  <!-- Connectors -->
-  <!-- ════════════════════════════════════════════════════ -->
-  <!-- Claude Code → Store -->
-  <path d="M195,368 L195,395 Q195,410 210,418 L320,440" fill="none" stroke="#D97757" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arrowAmber)"/>
-  <rect x="160" y="388" width="60" height="18" rx="4" fill="#FFF7ED"/>
-  <text x="190" y="400" text-anchor="middle" font-size="9" font-weight="500" fill="#9A3412">stdio</text>
+  <!-- ══════════ Connectors ══════════ -->
+  <!-- Claude Code -> Store -->
+  <path d="M220,368 L220,395 Q220,412 235,420 L320,442" fill="none" stroke="#D97757" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arrowAmber)"/>
+  <rect x="185" y="388" width="55" height="18" rx="4" fill="#FFF7ED"/>
+  <text x="212" y="400" text-anchor="middle" font-size="9" font-weight="600" fill="#9A3412">stdio</text>
 
-  <!-- OpenClaw → Store -->
-  <path d="M705,368 L705,395 Q705,410 690,418 L580,440" fill="none" stroke="#6366F1" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arrowAmber)"/>
-  <rect x="680" y="388" width="60" height="18" rx="4" fill="#EEF2FF"/>
-  <text x="710" y="400" text-anchor="middle" font-size="9" font-weight="500" fill="#3730A3">JSON</text>
+  <!-- OpenClaw -> Store -->
+  <path d="M680,368 L680,395 Q680,412 665,420 L580,442" fill="none" stroke="#6366F1" stroke-width="2" stroke-dasharray="6 3" marker-end="url(#arrowAmber)"/>
+  <rect x="660" y="388" width="50" height="18" rx="4" fill="#EEF2FF"/>
+  <text x="685" y="400" text-anchor="middle" font-size="9" font-weight="600" fill="#3730A3">JSON</text>
 
   <!-- Bidirectional label -->
-  <text x="450" y="404" text-anchor="middle" font-size="10" font-weight="600" fill="#D97706">⇄ same cases.json ⇄</text>
+  <text x="450" y="404" text-anchor="middle" font-size="10" font-weight="600" fill="#D97706">&#8644; same cases.json &#8644;</text>
 </svg>
