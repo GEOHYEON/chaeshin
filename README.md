@@ -6,7 +6,7 @@
 
 The name comes from 교자채신(敎子採薪) — *"Don't give firewood; teach how to gather it."*
 
-[한국어](docs/ko/README.md)
+[한국어](docs/ko/README.md) | [中文](docs/zh/README.md) | [日本語](docs/ja/README.md) | [Español](docs/es/README.md) | [Français](docs/fr/README.md) | [Deutsch](docs/de/README.md)
 
 ---
 

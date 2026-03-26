@@ -6,7 +6,7 @@
 
 교자채신(敎子採薪) — *나무를 주지 말고, 나무 모으는 법을 가르쳐라.*
 
-[English](../../README.md)
+[English](../../README.md) | [中文](../zh/README.md) | [日本語](../ja/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md)
 
 ---
 
