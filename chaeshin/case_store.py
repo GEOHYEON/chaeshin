@@ -123,7 +123,11 @@ class CaseStore:
         problem: ProblemFeatures,
         top_k: int,
     ) -> List[Tuple[Case, float]]:
-        """임베딩 기반 유사도 검색."""
+        """임베딩 기반 유사도 검색.
+
+        v2: feedback_count 가중치 반영.
+        final_score = similarity * 0.7 + feedback_weight * 0.3
+        """
         query_text = f"{problem.request} {' '.join(problem.keywords)}"
         query_vec = self.embed_fn(query_text)
 
@@ -134,7 +138,13 @@ class CaseStore:
                 continue
 
             sim = self._cosine_similarity(query_vec, self._embeddings[case_id])
-            scored.append((case, round(sim, 3)))
+
+            # v2: 피드백 가중치 — 피드백 많은 케이스 우선
+            fb_count = getattr(case.metadata, "feedback_count", 0)
+            feedback_weight = min(fb_count / 10.0, 1.0) if fb_count > 0 else 0.0
+            final_score = sim * 0.7 + feedback_weight * 0.3
+
+            scored.append((case, round(final_score, 3)))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
@@ -175,11 +185,18 @@ class CaseStore:
 
         # 임베딩 생성 (embed_fn이 있을 때)
         if self.embed_fn:
-            text = (
-                f"{case.problem_features.request} "
-                f"{' '.join(case.problem_features.keywords)}"
-            )
-            self._embeddings[case.metadata.case_id] = self.embed_fn(text)
+            try:
+                text = (
+                    f"{case.problem_features.request} "
+                    f"{' '.join(case.problem_features.keywords)}"
+                )
+                self._embeddings[case.metadata.case_id] = self.embed_fn(text)
+            except Exception as e:
+                logger.warning(
+                    "embedding_failed",
+                    case_id=case.metadata.case_id,
+                    error=str(e),
+                )
 
         return case.metadata.case_id
 
@@ -224,14 +241,16 @@ class CaseStore:
         self,
         problem: ProblemFeatures,
         top_k: int = 3,
+        top_k_failures: int = 3,
         warning_threshold: float = 0.5,
     ) -> Dict[str, Any]:
-        """성공 케이스 + 안티패턴 경고를 함께 반환.
+        """성공 케이스 + 실패 케이스를 각각 N건씩 반환.
 
         Args:
             problem: 현재 문제 정의
             top_k: 성공 케이스 상위 K개
-            warning_threshold: 이 유사도 이상인 실패 케이스만 경고
+            top_k_failures: 실패 케이스 상위 K개
+            warning_threshold: 이 유사도 이상인 실패 케이스만 반환
 
         Returns:
             {"cases": [(Case, score), ...], "warnings": [(Case, score), ...]}
@@ -253,7 +272,7 @@ class CaseStore:
 
         return {
             "cases": successes[:top_k],
-            "warnings": failures[:3],
+            "warnings": failures[:top_k_failures],
         }
 
     def promote_failure(
@@ -297,6 +316,132 @@ class CaseStore:
 
         # 성공 케이스 저장
         return self.retain(successful_case)
+
+    # ── v2: Hierarchy (계층 연쇄 로드) ──────────────────────────────────
+
+    def get_case_by_id(self, case_id: str) -> Optional[Case]:
+        """case_id로 케이스 조회."""
+        for case in self.cases:
+            if case.metadata.case_id == case_id:
+                return case
+        return None
+
+    def get_children(self, case_id: str) -> List[Case]:
+        """하위 레이어 케이스들 반환."""
+        parent = self.get_case_by_id(case_id)
+        if not parent:
+            return []
+        child_ids = getattr(parent.metadata, "child_case_ids", [])
+        children = []
+        for cid in child_ids:
+            child = self.get_case_by_id(cid)
+            if child:
+                children.append(child)
+        return children
+
+    def get_children_recursive(self, case_id: str) -> List[Case]:
+        """하위 레이어 케이스를 재귀적으로 전부 반환 (BFS)."""
+        result = []
+        queue = list(getattr(self.get_case_by_id(case_id), "metadata", CaseMetadata()).child_case_ids or [])
+        visited = set()
+        while queue:
+            cid = queue.pop(0)
+            if cid in visited:
+                continue
+            visited.add(cid)
+            child = self.get_case_by_id(cid)
+            if child:
+                result.append(child)
+                queue.extend(getattr(child.metadata, "child_case_ids", []))
+        return result
+
+    def get_parent(self, case_id: str) -> Optional[Case]:
+        """상위 레이어 케이스 반환."""
+        case = self.get_case_by_id(case_id)
+        if not case:
+            return None
+        parent_id = getattr(case.metadata, "parent_case_id", "")
+        if not parent_id:
+            return None
+        return self.get_case_by_id(parent_id)
+
+    def get_ancestry(self, case_id: str) -> List[Case]:
+        """루트까지의 조상 케이스 체인 반환 (자신 제외, 부모→조부모 순)."""
+        result = []
+        current = self.get_case_by_id(case_id)
+        visited = set()
+        while current:
+            parent_id = getattr(current.metadata, "parent_case_id", "")
+            if not parent_id or parent_id in visited:
+                break
+            visited.add(parent_id)
+            parent = self.get_case_by_id(parent_id)
+            if parent:
+                result.append(parent)
+                current = parent
+            else:
+                break
+        return result
+
+    # ── v2: Feedback (피드백 반영) ────────────────────────────────────
+
+    def add_feedback(
+        self,
+        case_id: str,
+        feedback: str,
+        feedback_type: str = "modify",
+    ) -> Optional[Case]:
+        """케이스에 피드백을 기록.
+
+        Args:
+            case_id: 대상 케이스 ID
+            feedback: 피드백 내용 (자연어)
+            feedback_type: escalate / modify / simplify / correct / reject
+
+        Returns:
+            업데이트된 Case (없으면 None)
+        """
+        case = self.get_case_by_id(case_id)
+        if not case:
+            logger.warning("feedback_case_not_found", case_id=case_id)
+            return None
+
+        case.metadata.feedback_count = getattr(case.metadata, "feedback_count", 0) + 1
+        fb_log = getattr(case.metadata, "feedback_log", [])
+        fb_log.append(f"[{feedback_type}] {feedback}")
+        case.metadata.feedback_log = fb_log
+        case.metadata.updated_at = datetime.now().isoformat()
+
+        logger.info(
+            "feedback_added",
+            case_id=case_id,
+            feedback_type=feedback_type,
+            feedback_count=case.metadata.feedback_count,
+        )
+        return case
+
+    def link_parent_child(self, parent_case_id: str, child_case_id: str, parent_node_id: str = ""):
+        """부모-자식 관계 설정.
+
+        parent의 child_case_ids에 child를 추가하고,
+        child의 parent_case_id/parent_node_id를 설정.
+        """
+        parent = self.get_case_by_id(parent_case_id)
+        child = self.get_case_by_id(child_case_id)
+        if not parent or not child:
+            logger.warning("link_failed", parent=parent_case_id, child=child_case_id)
+            return
+
+        child_ids = getattr(parent.metadata, "child_case_ids", [])
+        if child_case_id not in child_ids:
+            child_ids.append(child_case_id)
+            parent.metadata.child_case_ids = child_ids
+
+        child.metadata.parent_case_id = parent_case_id
+        if parent_node_id:
+            child.metadata.parent_node_id = parent_node_id
+
+        logger.info("linked", parent=parent_case_id, child=child_case_id, node=parent_node_id)
 
     # ── Record Usage ──────────────────────────────────────────────────
 

@@ -27,9 +27,10 @@ from chaeshin.schema import (
 )
 from chaeshin.graph_executor import GraphExecutor
 from chaeshin.case_store import CaseStore
-from chaeshin.planner import GraphPlanner
+from chaeshin.planner import GraphPlanner, TaskTree
 
 __all__ = [
+    # Schema
     "ToolDef",
     "ToolParam",
     "GraphNode",
@@ -42,9 +43,11 @@ __all__ = [
     "Case",
     "ExecutionContext",
     "NodeState",
+    # Core
     "GraphExecutor",
     "CaseStore",
     "GraphPlanner",
+    "TaskTree",
 ]
 
 # Optional integrations — import 실패해도 코어에 영향 없음

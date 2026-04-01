@@ -198,7 +198,11 @@ class Outcome:
 
 @dataclass
 class CaseMetadata:
-    """케이스 관리 정보 — CBR의 (metadata)."""
+    """케이스 관리 정보 — CBR의 (metadata).
+
+    v2 확장: 계층적 분해를 위한 레이어/부모/자식 관계 필드,
+    피드백 추적 필드 추가. 모든 v2 필드는 기본값이 있어 하위 호환.
+    """
 
     case_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -208,6 +212,17 @@ class CaseMetadata:
     source: str = "user_session"
     version: int = 1
     tags: List[str] = field(default_factory=list)
+
+    # === v2: 계층 구조 ===
+    layer: str = ""                  # "L1", "L2", "L3", ... (빈 문자열이면 flat/레거시)
+    parent_case_id: str = ""         # 상위 레이어 케이스 ID
+    parent_node_id: str = ""         # 상위 케이스에서 이 케이스에 대응하는 노드 ID
+    child_case_ids: List[str] = field(default_factory=list)  # 하위 레이어 케이스 IDs
+
+    # === v2: 난이도 & 피드백 ===
+    difficulty: int = 0              # 이 케이스를 루트로 할 때의 분해 깊이
+    feedback_count: int = 0          # 유저 피드백 누적 횟수
+    feedback_log: List[str] = field(default_factory=list)  # 피드백 이력 요약
 
 
 @dataclass

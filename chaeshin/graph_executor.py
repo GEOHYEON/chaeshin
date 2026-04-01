@@ -169,12 +169,17 @@ class GraphExecutor:
         try:
             # params_hint + input_data를 합쳐서 인자 구성
             args = {**node.params_hint, **ns.input_data}
-            result_str = await tool_def.executor(args)
+            result_str = await asyncio.wait_for(tool_def.executor(args), timeout=300)
 
             # 결과 파싱
             try:
                 result = json.loads(result_str) if isinstance(result_str, str) else result_str
             except json.JSONDecodeError:
+                logger.warning(
+                    "json_parse_failed",
+                    node=node_id,
+                    raw_preview=result_str[:200] if isinstance(result_str, str) else str(result_str)[:200],
+                )
                 result = {"raw": result_str}
 
             ns.output_data = result
@@ -293,7 +298,15 @@ class GraphExecutor:
                 condition.strip(),
             )
             if not match:
-                logger.warning("unparseable_condition", condition=condition)
+                logger.warning(
+                    "unparseable_condition",
+                    condition=condition,
+                    hint="Expected format: 'nodeId.output.field == value'",
+                )
+                ctx.record_event(
+                    "condition_parse_failed", "",
+                    {"condition": condition},
+                )
                 return False
 
             node_id, field, operator, expected = match.groups()
@@ -305,31 +318,56 @@ class GraphExecutor:
                 return False
 
             actual = ns.output_data.get(field)
+
+            # None 처리
             if actual is None:
+                expected_lower = expected.lower()
+                if operator == "==" and expected_lower in ("none", "null"):
+                    return True
+                if operator == "!=" and expected_lower not in ("none", "null"):
+                    return True
                 return False
 
-            # 타입 변환
-            actual_str = str(actual).lower()
+            # boolean 명시적 파싱
             expected_lower = expected.lower()
+            if expected_lower in ("true", "false"):
+                expected_bool = expected_lower == "true"
+                if isinstance(actual, bool):
+                    actual_bool = actual
+                elif isinstance(actual, str):
+                    actual_bool = actual.lower() == "true"
+                else:
+                    actual_bool = bool(actual)
+                if operator == "==":
+                    return actual_bool == expected_bool
+                elif operator == "!=":
+                    return actual_bool != expected_bool
+                return False
 
-            # 비교
+            # 숫자 비교 시도
+            try:
+                a, e = float(actual), float(expected)
+                if operator == "==":
+                    return a == e
+                elif operator == "!=":
+                    return a != e
+                elif operator == ">":
+                    return a > e
+                elif operator == ">=":
+                    return a >= e
+                elif operator == "<":
+                    return a < e
+                elif operator == "<=":
+                    return a <= e
+            except (ValueError, TypeError):
+                pass
+
+            # 문자열 비교 fallback
+            actual_str = str(actual).lower()
             if operator == "==":
                 return actual_str == expected_lower
             elif operator == "!=":
                 return actual_str != expected_lower
-            elif operator in (">", ">=", "<", "<="):
-                try:
-                    a, e = float(actual), float(expected)
-                    if operator == ">":
-                        return a > e
-                    elif operator == ">=":
-                        return a >= e
-                    elif operator == "<":
-                        return a < e
-                    elif operator == "<=":
-                        return a <= e
-                except ValueError:
-                    return False
 
             return False
 
@@ -391,6 +429,130 @@ class GraphExecutor:
 
         sequential = [nid for nid in ready if nid not in parallel]
         return parallel, sequential
+
+    # ── v2: Layered Execution ────────────────────────────────────────
+
+    async def execute_layered(
+        self,
+        task_tree: Any,  # planner.TaskTree
+        on_checkpoint: Optional[Callable] = None,
+        on_layer_feedback: Optional[Callable] = None,
+    ) -> Dict[str, Any]:
+        """계층적 태스크 트리를 레이어별로 실행.
+
+        최하위(L1)부터 상위로 올라가며 실행.
+        각 레이어 완료 시 on_checkpoint 콜백으로 유저에게 보고.
+        유저가 피드백하면 on_layer_feedback 콜백으로 Reflection Agent에 전달.
+
+        Args:
+            task_tree: TaskTree (planner.py에서 생성)
+            on_checkpoint: async (layer_name, results, tree) → "continue" | "modify" | "stop"
+            on_layer_feedback: async (feedback_text) → modified TaskTree or None
+
+        Returns:
+            실행 결과 딕셔너리
+        """
+        results: Dict[str, Any] = {
+            "layers_executed": [],
+            "total_tools_run": 0,
+            "completed": False,
+            "checkpoints": [],
+        }
+
+        # 리프 노드(L1)부터 Bottom-up으로 수집
+        execution_order = self._build_execution_order(task_tree)
+
+        for layer_name, trees_in_layer in execution_order:
+            layer_results = []
+
+            for tree in trees_in_layer:
+                if tree.is_leaf:
+                    # 최하위 — 실제 tool call 실행
+                    ctx = await self.execute(tree.graph)
+                    layer_results.append({
+                        "request": tree.request,
+                        "layer": tree.layer,
+                        "context": ctx,
+                        "completed": ctx.completed,
+                    })
+                    results["total_tools_run"] += sum(
+                        1 for ns in ctx.node_states.values()
+                        if ns.status == NodeStatus.DONE
+                    )
+                else:
+                    # 상위 레이어 — 하위 결과를 종합
+                    layer_results.append({
+                        "request": tree.request,
+                        "layer": tree.layer,
+                        "aggregated": True,
+                        "children_count": len(tree.children),
+                    })
+
+            results["layers_executed"].append({
+                "layer": layer_name,
+                "results": [
+                    {"request": r["request"], "completed": r.get("completed", True)}
+                    for r in layer_results
+                ],
+            })
+
+            # 체크포인트 — 유저에게 보고
+            if on_checkpoint:
+                checkpoint_result = {
+                    "layer": layer_name,
+                    "tasks_done": len(layer_results),
+                    "remaining_layers": len(execution_order) - len(results["layers_executed"]),
+                }
+                results["checkpoints"].append(checkpoint_result)
+
+                action = await on_checkpoint(layer_name, layer_results, task_tree)
+
+                if action == "stop":
+                    results["completed"] = False
+                    results["stopped_at"] = layer_name
+                    return results
+                elif action == "modify" and on_layer_feedback:
+                    # 유저가 수정 요청 → Reflection에 위임
+                    modified_tree = await on_layer_feedback(
+                        f"Layer {layer_name} 수정 요청"
+                    )
+                    if modified_tree:
+                        # 수정된 트리로 남은 레이어 재실행
+                        task_tree = modified_tree
+                        execution_order = self._build_execution_order(task_tree)
+                        # 이미 실행된 레이어는 스킵 처리됨
+
+        results["completed"] = True
+        return results
+
+    def _build_execution_order(
+        self, tree: Any,
+    ) -> List[tuple]:
+        """TaskTree를 bottom-up 실행 순서로 변환.
+
+        Returns:
+            [(layer_name, [TaskTree, ...]), ...] — L1부터 최상위까지
+        """
+        layers: Dict[str, list] = {}
+        self._collect_by_layer(tree, layers)
+
+        # L1 → L2 → L3 순서로 정렬
+        sorted_layers = sorted(
+            layers.items(),
+            key=lambda x: int(x[0].replace("L", "")) if x[0].startswith("L") else 0,
+        )
+        return sorted_layers
+
+    def _collect_by_layer(self, tree: Any, acc: Dict[str, list]):
+        """TaskTree를 재귀적으로 순회하며 레이어별 수집."""
+        layer = tree.layer
+        if layer not in acc:
+            acc[layer] = []
+        acc[layer].append(tree)
+        for child in tree.children:
+            self._collect_by_layer(child, acc)
+
+    # ── Patient TODO ──────────────────────────────────────────────────
 
     async def _update_patient_todo(
         self, graph: ToolGraph, ctx: ExecutionContext,
