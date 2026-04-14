@@ -438,15 +438,241 @@ final_score = similarity * 0.7 + feedback_weight * 0.3
 
 ---
 
-## 7. 구현 우선순위
+## 7. 자동 에스컬레이션 — 실행 중 레이어를 넘나드는 수정
 
-| 순서 | 작업 | 예상 영향 |
+<p align="center">
+  <img src="../../assets/layered-execution.svg" alt="Layered Execution & Escalation — 요리 예시" width="820"/>
+</p>
+
+### 7-1. 문제 정의
+
+사람은 전체 그림(L3)을 먼저 짜두고, 세부(L1)를 실행하면서 필요하면 윗단계까지 거슬러 올라가서 전략을 바꾼다. Chaeshin v2도 이렇게 동작해야 한다.
+
+현재 문제: L1에서 replan이 실패해도 L1 안에서만 맴돌다 max_loops에 걸려 교착됨. Executor가 "위에 L2, L3가 있다"는 사실을 모르기 때문.
+
+### 7-2. 에스컬레이션 흐름
+
+```
+L1 노드 실패
+  │
+  ▼
+L1 replan 시도 (기존 로직 — LLM이 diff 생성)
+  │
+  ├─ 성공 → L1에서 계속 실행
+  │
+  └─ 실패 → LLM에 에스컬레이션 판단 요청
+              (이때 L1 실행 로그 전체 + 상위 레이어 정보를 넘김)
+              │
+              ├─ LLM: "L1에서 해결 가능" → L1 replan 재시도 (다른 방법으로)
+              │
+              └─ LLM: "escalate to L2" → L2 체크포인트 강제 발동
+                        │
+                        ▼
+                  L2 replan 시도 (L1 실패 로그 전체를 컨텍스트로 포함)
+                        │
+                        ├─ 성공 → L2에서 L1들을 재구성, 다시 실행
+                        │
+                        └─ 실패 → LLM에 에스컬레이션 판단 요청
+                                    │
+                                    └─ "escalate to L3" → L3 체크포인트 강제 발동
+                                              │
+                                              ├─ 성공 → L3에서 L2/L1을 재구성
+                                              │
+                                              └─ 실패 → special_action: "ask_user"
+                                                         유저에게 전체 에스컬레이션 체인 보여줌
+```
+
+### 7-3. 에스컬레이션 페이로드 — 로그 전체 넘기기
+
+L1이 여러 개일 때, 실패한 L1뿐 아니라 형제 노드의 상태도 함께 넘겨야 상위 레이어가 전체 상황을 판단할 수 있다.
+
+```python
+@dataclass
+class EscalationPayload:
+    """에스컬레이션 시 상위 레이어에 전달하는 정보."""
+
+    escalated_from: str          # "L1"
+    escalated_to: str            # "L2"
+
+    failed: dict                 # 실패한 노드 상세
+    # {
+    #   "node": "L1-b",
+    #   "status": "failed",
+    #   "history": [...],          ← 실행 로그 전체 (ExecutionContext.history)
+    #   "replan_attempts": [...]   ← L1에서 시도한 diff들
+    # }
+
+    completed_siblings: list     # 이미 성공한 형제 노드들
+    # [
+    #   {"node": "L1-a", "status": "success", "history": [...]},
+    # ]
+
+    pending_siblings: list       # 아직 실행 안 한 형제 노드들
+    # ["L1-c", "L1-d"]
+```
+
+예시 — L2 "빌드 & 배포" 밑에 L1이 3개 있을 때:
+
+```
+L2: 빌드 & 배포
+  ├── L1-a: git pull     ✅ (성공 로그 5줄)
+  ├── L1-b: docker build ❌ (실패 로그 + replan 시도 2회 로그)
+  └── L1-c: push image   ⏳ (아직 실행 안 함)
+
+→ 에스컬레이션 페이로드:
+  escalated_from: "L1"
+  escalated_to: "L2"
+  failed:
+    node: "L1-b"
+    history: [
+      {event: "node_started", node_id: "n1", ...},
+      {event: "node_failed", node_id: "n1", data: {error: "port 8080 conflict"}},
+      {event: "replan_requested", data: {reason: "포트 충돌"}},
+      {event: "node_started", node_id: "n1-fix", ...},   ← replan으로 추가된 노드
+      {event: "node_failed", node_id: "n1-fix", data: {error: "port 8081 also in use"}},
+    ]
+    replan_attempts: [
+      {diff: {added_nodes: [{id: "n1-fix", tool: "change_port"}]}, result: "failed"},
+    ]
+  completed_siblings:
+    - {node: "L1-a", status: "success", history: [{...git pull 성공 로그...}]}
+  pending_siblings: ["L1-c"]
+```
+
+### 7-4. L2 replan 프롬프트
+
+상위 레이어가 에스컬레이션을 받았을 때, 아래 정보를 모두 포함해서 LLM에 replan을 요청한다:
+
+```
+[에스컬레이션 수신]
+현재 레이어: L2 (빌드 & 배포)
+현재 L2 그래프: {nodes, edges}
+
+하위 레이어(L1) 실행 상황:
+  ✅ L1-a (git pull): 성공
+  ❌ L1-b (docker build): 실패
+     - 실패 원인: 포트 8080, 8081 모두 충돌
+     - 시도한 수정: 포트 변경 (2회 실패)
+     - 전체 로그: [...]
+  ⏳ L1-c (push image): 미실행
+
+→ L2 수준에서 어떻게 수정할지 판단하세요:
+  1. L1-b의 접근 자체를 바꾸기 (예: docker 대신 다른 방법)
+  2. L2 그래프 구조 변경 (예: 노드 순서 변경, 새 노드 추가)
+  3. 이것도 L2에서 해결 불가 → escalate to L3
+```
+
+### 7-5. 유저에게 물어볼 때 — 전체 에스컬레이션 체인
+
+L3까지 올라갔는데도 해결 안 되면 `special_action: "ask_user"`. 이때 각 레이어에서 뭘 시도했고 왜 실패했는지를 구조화해서 보여준다:
+
+```
+"배포하고 테스트" 작업 중 문제 발생:
+
+[L1] docker build 실패 — 포트 8080 충돌
+  └ 시도: 포트 변경(8081) → 여전히 충돌
+
+[L2] 배포 전략 변경 시도 — docker-compose로 전환
+  └ 시도: compose 파일 생성 → 네트워크 설정 오류
+
+[L3] 전체 접근법 재검토 — 로컬 직접 실행으로 전환
+  └ 시도: venv 생성 → 의존성 충돌
+
+선택지:
+  1. 수동으로 포트 문제 해결 후 재시도
+  2. 다른 환경(staging 서버 등)에서 실행
+  3. 작업 취소
+```
+
+### 7-6. 에스컬레이션 후 케이스 저장
+
+에스컬레이션이 발생하면 **원래 케이스를 실패로 mark**하고, 수정된 케이스를 **새 케이스로 저장**한다. 이때 둘 사이의 계보를 추적한다.
+
+#### CaseMetadata 확장 필드
+
+```python
+@dataclass
+class CaseMetadata:
+    # ... 기존 v2 필드 ...
+
+    # === v2.1: 에스컬레이션 계보 ===
+    derived_from: str = ""                # 어떤 실패 케이스에서 개선된 건지
+    escalation_history: List[dict] = field(default_factory=list)
+    # [
+    #   {
+    #     "from_layer": "L1",
+    #     "to_layer": "L2",
+    #     "reason": "docker build 포트 충돌 — L1 replan 2회 실패",
+    #     "failed_node": "L1-b",
+    #     "replan_attempts": 2,
+    #   }
+    # ]
+```
+
+#### 저장 흐름
+
+```
+에스컬레이션 발생 → L2 replan 성공:
+
+1. 원래 L2 케이스 (case_id: "def") 업데이트:
+   success: false
+   error_reason: "L1 docker build 실패 → L2 replan 시도했으나 네트워크 오류"
+   escalation_history: [
+     {from_layer: "L1", to_layer: "L2", reason: "포트 충돌", ...}
+   ]
+   # 원래 graph은 그대로 보존 — 다음에 warning으로 활용
+
+2. 새 L2 케이스 (case_id: "xyz") 생성:
+   success: true
+   satisfaction: 0.85
+   derived_from: "def"     ← 이 실패에서 파생됨
+   escalation_history: [
+     {from_layer: "L1", to_layer: "L2", reason: "포트 충돌",
+      resolution: "docker-compose → 직접 실행으로 전환"}
+   ]
+```
+
+#### 검색 시 활용
+
+```
+chaeshin_retrieve(query="서비스 배포해줘")
+
+→ successes:
+    - "xyz" (직접 실행 방식, satisfaction 0.85)
+      └ derived_from: "def" (docker 방식, 실패)
+
+→ warnings:
+    - "def" (docker 방식, 실패)
+      └ error_reason: "포트 충돌 → L2 replan 실패"
+      └ escalation_history: [{from: L1, to: L2, ...}]
+
+→ LLM/유저 판단: "docker 방식은 전에 포트 충돌로 실패했으니, 직접 실행으로 가자"
+```
+
+---
+
+## 8. 구현 우선순위
+
+### Phase 1: 기존 v2 기능 (구현 완료)
+
+| 순서 | 작업 | 상태 |
 |---|---|---|
-| 1 | `schema.py` — CaseMetadata v2 필드 추가 | 하위 호환, 변경 적음 |
-| 2 | `case_store.py` — parent/children 연쇄 로드 | 핵심 기능 |
-| 3 | `mcp_server.py` — retain/retrieve 파라미터 확장 | MCP 인터페이스 |
-| 4 | `mcp_server.py` — `chaeshin_feedback` 추가 | 신규 tool |
-| 5 | `mcp_server.py` — `chaeshin_decompose` 추가 | 신규 tool |
-| 6 | `planner.py` — 계층적 분해 지원 | Decomposer Agent 핵심 |
-| 7 | `graph_executor.py` — 레이어별 실행 + 체크포인트 | Executor Agent 핵심 |
-| 8 | Reflection Agent 구현 (신규 파일) | 피드백 반영 핵심 |
+| 1 | `schema.py` — CaseMetadata v2 필드 추가 | ✅ |
+| 2 | `case_store.py` — parent/children 연쇄 로드, feedback | ✅ |
+| 3 | `mcp_server.py` — retain/retrieve 파라미터 확장 | ✅ |
+| 4 | `mcp_server.py` — `chaeshin_feedback`, `chaeshin_decompose` | ✅ |
+| 5 | `planner.py` — 계층적 분해(create_tree), apply_feedback | ✅ |
+| 6 | `graph_executor.py` — 레이어별 실행(execute_layered) + 체크포인트 | ✅ |
+| 7 | `agents/` — Orchestrator, Decomposer, Executor, Reflection | ✅ |
+
+### Phase 2: 자동 에스컬레이션 (v2.1)
+
+| 순서 | 작업 | 설명 |
+|---|---|---|
+| 1 | `schema.py` — `EscalationPayload`, `CaseMetadata`에 `derived_from`/`escalation_history` 추가 | 에스컬레이션 데이터 구조 |
+| 2 | `graph_executor.py` — L1 replan 실패 시 에스컬레이션 판단 로직 | LLM에 "escalate vs fix" 판단 요청 |
+| 3 | `graph_executor.py` — `execute_layered`에서 에스컬레이션 수신 처리 | 하위 레이어 실패 로그를 받아 상위 replan 트리거 |
+| 4 | `planner.py` — 에스컬레이션 전용 replan 프롬프트 | 하위 로그 전체 + 상위 그래프 컨텍스트 포함 |
+| 5 | `case_store.py` — 에스컬레이션 후 저장 로직 | 원래 케이스 실패 mark + 새 케이스 derived_from 연결 |
+| 6 | `mcp_server.py` — retain/retrieve에 derived_from, escalation_history 반영 | MCP 인터페이스 확장 |
+| 7 | L3 실패 시 ask_user — 전체 에스컬레이션 체인 구조화 출력 | 유저 판단용 정보 포맷 |
