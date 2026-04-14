@@ -51,6 +51,7 @@ dev = [
 
 [project.scripts]
 chaeshin = "chaeshin.cli.main:main"
+chaeshin-mcp = "chaeshin.integrations.claude_code.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/GEOHYEON/chaeshin"
