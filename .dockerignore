@@ -1,0 +1,12 @@
+chaeshin-monitor/node_modules
+chaeshin-monitor/.next
+.git
+.env
+*.md
+docs
+tests
+examples
+.github
+__pycache__
+*.pyc
+.venv
