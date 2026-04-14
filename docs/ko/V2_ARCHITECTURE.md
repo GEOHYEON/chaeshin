@@ -440,6 +440,10 @@ final_score = similarity * 0.7 + feedback_weight * 0.3
 
 ## 7. 자동 에스컬레이션 — 실행 중 레이어를 넘나드는 수정
 
+<p align="center">
+  <img src="../../assets/layered-execution.svg" alt="Layered Execution & Escalation — 요리 예시" width="820"/>
+</p>
+
 ### 7-1. 문제 정의
 
 사람은 전체 그림(L3)을 먼저 짜두고, 세부(L1)를 실행하면서 필요하면 윗단계까지 거슬러 올라가서 전략을 바꾼다. Chaeshin v2도 이렇게 동작해야 한다.
