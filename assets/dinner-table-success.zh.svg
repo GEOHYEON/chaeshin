@@ -1,0 +1,312 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1060" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .label { fill: #0f172a; }
+    .label-sm { fill: #0f172a; font-size: 9px; }
+    .label-sub { fill: #64748b; }
+    .desc { fill: #64748b; }
+
+    .layer-l3 { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .layer-l2 { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; }
+    .layer-l1 { fill: #dcfce7; stroke: #22c55e; stroke-width: 2; }
+
+    .node { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
+    .node-success { fill: #dcfce7; stroke: #22c55e; stroke-width: 1.5; }
+    .node-loop { fill: #fef9c3; stroke: #eab308; stroke-width: 1.5; }
+    .node-parallel { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; }
+
+    .arrow { stroke: #475569; stroke-width: 1.5; fill: none; }
+    .arrow-success { stroke: #22c55e; stroke-width: 1.5; fill: none; }
+    .arrow-loop { stroke: #eab308; stroke-width: 2; fill: none; stroke-dasharray: 6 3; }
+    .arrow-blue { stroke: #3b82f6; stroke-width: 1.5; fill: none; }
+    .arrow-parallel { stroke: #6366f1; stroke-width: 1.5; fill: none; stroke-dasharray: 4 2; }
+
+    .phase-box { fill: #f1f5f9; stroke: #cbd5e1; }
+    .phase-label { fill: #475569; font-weight: 600; }
+    .divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; }
+    .layer-tag-l3 { fill: #92400e; font-weight: 700; }
+    .layer-tag-l2 { fill: #1e40af; font-weight: 700; }
+    .layer-tag-l1 { fill: #166534; font-weight: 700; }
+    .fix-label { fill: #22c55e; font-weight: 600; }
+    .loop-label { fill: #a16207; font-weight: 600; }
+    .parallel-label { fill: #4f46e5; font-weight: 600; }
+
+    .retrieve-box { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 1.5; }
+    .retain-box { fill: #ecfdf5; stroke: #22c55e; stroke-width: 1.5; }
+    .output-box { fill: #f0f9ff; stroke: #0ea5e9; stroke-width: 1; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #e2e8f0; }
+      .subtitle { fill: #94a3b8; }
+      .label { fill: #e2e8f0; }
+      .label-sm { fill: #e2e8f0; }
+      .label-sub { fill: #94a3b8; }
+      .desc { fill: #64748b; }
+      .layer-l3 { fill: #422006; stroke: #d97706; }
+      .layer-l2 { fill: #172554; stroke: #3b82f6; }
+      .layer-l1 { fill: #052e16; stroke: #22c55e; }
+      .node { fill: #1e293b; stroke: #334155; }
+      .node-success { fill: #052e16; stroke: #22c55e; }
+      .node-loop { fill: #422006; stroke: #eab308; }
+      .node-parallel { fill: #1e1b4b; stroke: #6366f1; }
+      .arrow { stroke: #94a3b8; }
+      .arrow-success { stroke: #4ade80; }
+      .arrow-loop { stroke: #facc15; }
+      .arrow-blue { stroke: #60a5fa; }
+      .arrow-parallel { stroke: #818cf8; }
+      .phase-box { fill: #1e293b; stroke: #334155; }
+      .phase-label { fill: #94a3b8; }
+      .divider { stroke: #334155; }
+      .layer-tag-l3 { fill: #fcd34d; }
+      .layer-tag-l2 { fill: #93c5fd; }
+      .layer-tag-l1 { fill: #86efac; }
+      .fix-label { fill: #4ade80; }
+      .loop-label { fill: #fcd34d; }
+      .parallel-label { fill: #a5b4fc; }
+      .retrieve-box { fill: #2e1065; stroke: #8b5cf6; }
+      .retain-box { fill: #052e16; stroke: #22c55e; }
+      .output-box { fill: #0c4a6e; stroke: #0ea5e9; }
+    }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#475569"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arr-yellow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#eab308"/>
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="1060" class="bg"/>
+
+  <!-- ===== Title ===== -->
+  <text x="480" y="32" text-anchor="middle" font-size="22" font-weight="700" class="title">准备一桌晚餐 — 成功场景</text>
+  <text x="480" y="54" text-anchor="middle" font-size="13" class="subtitle">"3人份，孩子对虾过敏" — 检索 → 分解 → 执行 → 保存</text>
+
+  <!-- ===== PHASE 1: Retrieve ===== -->
+  <rect x="20" y="72" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="82" text-anchor="middle" font-size="9" class="phase-label">STEP 1 — 检索（搜索过去的案例）</text>
+
+  <rect x="40" y="96" width="880" height="54" rx="10" class="retrieve-box"/>
+  <text x="60" y="116" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="240" y="116" font-size="11" class="label-sub">query="晚餐 3人份 过敏"</text>
+  <text x="60" y="134" font-size="11" class="label-sub">结果: cases=[] warnings=[] — 未找到过去的案例。创建新图。</text>
+
+  <!-- ===== PHASE 2: Decompose ===== -->
+  <rect x="20" y="164" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="174" text-anchor="middle" font-size="9" class="phase-label">STEP 2 — 分解（L3 → L2 → L1 层级分解）</text>
+
+  <!-- L3 -->
+  <rect x="40" y="190" width="880" height="50" rx="12" class="layer-l3"/>
+  <text x="60" y="212" font-size="13" class="layer-tag-l3">L3 策略</text>
+  <text x="165" y="212" font-size="13" class="label">准备一桌晚餐（3人份）</text>
+  <text x="420" y="212" font-size="11" class="desc">难度=3 → 触发激活</text>
+
+  <rect x="640" y="198" width="120" height="28" rx="6" class="node"/>
+  <text x="700" y="216" text-anchor="middle" font-size="10" class="label">确定菜单</text>
+  <line x1="764" y1="212" x2="782" y2="212" class="arrow" marker-end="url(#arr)"/>
+  <rect x="786" y="198" width="100" height="28" rx="6" class="node"/>
+  <text x="836" y="216" text-anchor="middle" font-size="10" class="label">全部烹饪</text>
+
+  <!-- Arrows L3 → L2 -->
+  <line x1="700" y1="240" x2="220" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+  <line x1="836" y1="240" x2="540" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+  <line x1="836" y1="240" x2="820" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+
+  <!-- L2 boxes -->
+  <rect x="40" y="258" width="370" height="56" rx="10" class="layer-l2"/>
+  <text x="56" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="76" y="278" font-size="11" class="label">确定菜单</text>
+
+  <rect x="62" y="288" width="86" height="20" rx="5" class="node-parallel"/>
+  <text x="105" y="302" text-anchor="middle" font-size="8" class="label-sm">查冰箱</text>
+  <rect x="156" y="288" width="100" height="20" rx="5" class="node-parallel"/>
+  <text x="206" y="302" text-anchor="middle" font-size="8" class="label-sm">过敏检查</text>
+  <rect x="264" y="288" width="96" height="20" rx="5" class="node"/>
+  <text x="312" y="302" text-anchor="middle" font-size="8" class="label-sm">推荐菜单</text>
+  <text x="62" y="280" font-size="7" class="parallel-label">并行</text>
+
+  <rect x="425" y="258" width="230" height="56" rx="10" class="layer-l2"/>
+  <text x="441" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="461" y="278" font-size="11" class="label">烹饪（汤+主菜）</text>
+  <rect x="441" y="288" width="60" height="20" rx="5" class="node"/>
+  <text x="471" y="302" text-anchor="middle" font-size="8" class="label-sm">食谱</text>
+  <rect x="507" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="531" y="302" text-anchor="middle" font-size="8" class="label-sm">烹饪</text>
+  <rect x="561" y="288" width="48" height="20" rx="5" class="node-loop"/>
+  <text x="585" y="302" text-anchor="middle" font-size="8" class="label-sm">尝味</text>
+  <rect x="615" y="288" width="32" height="20" rx="5" class="node"/>
+  <text x="631" y="302" text-anchor="middle" font-size="8" class="label-sm">装盘</text>
+
+  <rect x="670" y="258" width="250" height="56" rx="10" class="layer-l2"/>
+  <text x="686" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="706" y="278" font-size="11" class="label">配菜+摆桌</text>
+  <rect x="686" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="710" y="302" text-anchor="middle" font-size="8" class="label-sm">备料</text>
+  <rect x="740" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="764" y="302" text-anchor="middle" font-size="8" class="label-sm">烹饪</text>
+  <rect x="794" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="818" y="302" text-anchor="middle" font-size="8" class="label-sm">装盘</text>
+  <rect x="848" y="288" width="62" height="20" rx="5" class="node"/>
+  <text x="879" y="302" text-anchor="middle" font-size="8" class="label-sm">摆桌</text>
+
+  <!-- ===== PHASE 3: Execute (Tool Graph) ===== -->
+  <line x1="40" y1="330" x2="920" y2="330" class="divider"/>
+  <rect x="20" y="338" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="348" text-anchor="middle" font-size="9" class="phase-label">STEP 3 — 执行（含并行组、循环、Edge条件的Tool Graph）</text>
+
+  <!-- Tool Graph area -->
+  <rect x="40" y="362" width="880" height="480" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- Row 1: n1 + n2 (parallel) -->
+  <text x="60" y="384" font-size="9" class="parallel-label">parallel_group[0]</text>
+  <rect x="140" y="374" width="140" height="36" rx="8" class="node-parallel"/>
+  <text x="210" y="389" text-anchor="middle" font-size="10" class="label">n1: 查冰箱</text>
+  <text x="210" y="403" text-anchor="middle" font-size="8" class="label-sub">12:00:00 — 12:00:01</text>
+
+  <rect x="320" y="374" width="160" height="36" rx="8" class="node-parallel"/>
+  <text x="400" y="389" text-anchor="middle" font-size="10" class="label">n2: 过敏检查</text>
+  <text x="400" y="403" text-anchor="middle" font-size="8" class="label-sub">12:00:00 — 12:00:01</text>
+
+  <!-- Output bubbles -->
+  <rect x="530" y="374" width="370" height="36" rx="6" class="output-box"/>
+  <text x="540" y="389" font-size="8" class="label-sm">n1 输出: {猪肉, 豆腐, 泡菜, 菠菜, 鸡蛋, 大酱, 土豆, 洋葱, ...}</text>
+  <text x="540" y="401" font-size="8" class="label-sm">n2 输出: {孩子: [虾], 严重过敏: false}</text>
+
+  <!-- Edge condition label -->
+  <text x="340" y="424" font-size="8" class="fix-label">edge: n2.output.严重过敏 == false → n3</text>
+
+  <!-- Arrow down -->
+  <line x1="300" y1="410" x2="300" y2="434" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 2: n3 suggest_menu -->
+  <rect x="220" y="436" width="160" height="36" rx="8" class="node-success"/>
+  <text x="300" y="451" text-anchor="middle" font-size="10" class="label">n3: 推荐菜单</text>
+  <text x="300" y="465" text-anchor="middle" font-size="8" class="label-sub">12:00:02 — 12:00:03</text>
+
+  <rect x="430" y="436" width="460" height="36" rx="6" class="output-box"/>
+  <text x="440" y="451" font-size="8" class="label-sm">输出: {汤: "大酱汤", 主菜: "辣炒猪肉",</text>
+  <text x="440" y="463" font-size="8" class="label-sm">         配菜: ["菠菜拌菜", "鸡蛋卷", "泡菜"]}</text>
+
+  <!-- 3 arrows down from n3 -->
+  <line x1="260" y1="472" x2="160" y2="494" class="arrow" marker-end="url(#arr)"/>
+  <line x1="300" y1="472" x2="400" y2="494" class="arrow" marker-end="url(#arr)"/>
+  <line x1="340" y1="472" x2="660" y2="494" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 3: Parallel cooking (3 branches) -->
+  <text x="60" y="508" font-size="9" class="parallel-label">parallel_group[1]</text>
+
+  <!-- Branch A: Soup -->
+  <rect x="60" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="160" y="513" text-anchor="middle" font-size="10" class="label">n6: 烹饪（大酱汤）</text>
+  <text x="160" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:26</text>
+
+  <!-- Branch B: Main -->
+  <rect x="300" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="400" y="513" text-anchor="middle" font-size="10" class="label">n7: 烹饪（辣炒猪肉）</text>
+  <text x="400" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:31</text>
+
+  <!-- Branch C: Sides -->
+  <rect x="560" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="660" y="513" text-anchor="middle" font-size="10" class="label">n9: 烹饪（配菜）</text>
+  <text x="660" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:16</text>
+
+  <!-- Arrows to taste -->
+  <line x1="160" y1="534" x2="160" y2="558" class="arrow" marker-end="url(#arr)"/>
+  <line x1="400" y1="534" x2="400" y2="558" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 4: Taste checks -->
+  <rect x="80" y="560" width="160" height="36" rx="8" class="node-loop"/>
+  <text x="160" y="575" text-anchor="middle" font-size="10" class="label">n10: 尝味（汤）</text>
+  <text x="160" y="589" text-anchor="middle" font-size="8" class="label-sub">12:00:26 — 12:00:27</text>
+
+  <rect x="320" y="560" width="160" height="36" rx="8" class="node-success"/>
+  <text x="400" y="575" text-anchor="middle" font-size="10" class="label">n11: 尝味（主菜）</text>
+  <text x="400" y="589" text-anchor="middle" font-size="8" class="label-sub">12:00:31 — 12:00:32</text>
+
+  <!-- Output for n10 first run -->
+  <rect x="530" y="560" width="360" height="36" rx="6" class="output-box"/>
+  <text x="540" y="575" font-size="8" class="loop-label">n10 第一次: {味道: "偏淡"} → 循环回n6!</text>
+  <text x="540" y="589" font-size="8" class="fix-label">n10 第二次: {味道: "OK"} → 进入n12</text>
+
+  <!-- LOOP arrow: n10 → n6 -->
+  <path d="M 80 578 C 50 578, 50 516, 80 516" class="arrow-loop" marker-end="url(#arr-yellow)"/>
+  <text x="54" y="548" font-size="8" class="loop-label" transform="rotate(-90, 54, 548)">循环</text>
+
+  <!-- Edge condition -->
+  <text x="270" y="612" font-size="8" class="loop-label">edge: n10.output.味道 == "偏淡" → n6 (max_loops: 2)</text>
+  <text x="270" y="624" font-size="8" class="fix-label">edge: n10.output.味道 == "OK" → n12</text>
+  <text x="524" y="612" font-size="8" class="fix-label">n11.output.味道 == "OK" → n12</text>
+
+  <!-- Arrows to n12 -->
+  <line x1="160" y1="596" x2="400" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="400" y1="596" x2="420" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="660" y1="534" x2="480" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <!-- Row 5: Plate -->
+  <rect x="340" y="642" width="160" height="36" rx="8" class="node-success"/>
+  <text x="420" y="657" text-anchor="middle" font-size="10" class="label">n12: 装盘（全部）</text>
+  <text x="420" y="671" text-anchor="middle" font-size="8" class="label-sub">12:00:33 — 12:00:35</text>
+
+  <rect x="540" y="642" width="350" height="36" rx="6" class="output-box"/>
+  <text x="550" y="657" font-size="8" class="label-sm">5道菜: 大酱汤 + 辣炒猪肉 + 菠菜拌菜 + 鸡蛋卷 + 泡菜</text>
+  <text x="550" y="669" font-size="8" class="label-sm">每道3人份 → 共15份装盘完成</text>
+
+  <!-- Arrow to n13 -->
+  <line x1="420" y1="678" x2="420" y2="698" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <!-- Row 6: Set table -->
+  <rect x="340" y="700" width="160" height="36" rx="8" class="node-success"/>
+  <text x="420" y="715" text-anchor="middle" font-size="10" class="label">n13: 摆桌</text>
+  <text x="420" y="729" text-anchor="middle" font-size="8" class="label-sub">12:00:35 — 12:00:36</text>
+
+  <rect x="540" y="700" width="350" height="36" rx="6" class="output-box"/>
+  <text x="550" y="715" font-size="8" class="label-sm">布局: 韩式标准（饭-汤-配菜）</text>
+  <text x="550" y="727" font-size="8" class="fix-label">缺少: [] — 完成!</text>
+
+  <!-- Execution summary -->
+  <rect x="60" y="752" width="840" height="40" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="480" y="769" text-anchor="middle" font-size="11" class="fix-label">执行完成: 15次工具调用 | 1次循环（大酱汤尝味） | 3个并行组 | 共36秒</text>
+  <text x="480" y="783" text-anchor="middle" font-size="10" class="label-sub">节点: n1→n2 (并行) → n3 → n6,n7,n9 (并行) → n10,n11 → n12 → n13</text>
+
+  <!-- ===== PHASE 4: Retain ===== -->
+  <line x1="40" y1="806" x2="920" y2="806" class="divider"/>
+  <rect x="20" y="814" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="824" text-anchor="middle" font-size="9" class="phase-label">STEP 4 — 保存（将成功案例保存以供复用）</text>
+
+  <rect x="40" y="840" width="880" height="80" rx="10" class="retain-box"/>
+  <text x="60" y="860" font-size="12" font-weight="600" fill="#059669">chaeshin_retain — 成功案例已保存</text>
+  <text x="60" y="878" font-size="10" class="label">case_id: "dinner_full_table_001" | category: "home_cooking" | satisfaction: 0.92</text>
+  <text x="60" y="894" font-size="10" class="label-sub">keywords: [晚餐, 满桌, 3人份, 过敏, 大酱, 辣炒猪肉, 配菜]</text>
+  <text x="60" y="910" font-size="10" class="label-sub">graph: 13个节点, 17条边, 3个并行组, max_loops: 2</text>
+
+  <!-- ===== PHASE 5: Next time ===== -->
+  <rect x="20" y="936" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="946" text-anchor="middle" font-size="9" class="phase-label">下次 — "今晚准备4人份晚餐"</text>
+
+  <rect x="40" y="960" width="420" height="80" rx="10" class="retrieve-box"/>
+  <text x="60" y="980" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="60" y="998" font-size="10" class="label">匹配: dinner_full_table_001 (相似度: 0.87)</text>
+  <text x="60" y="1014" font-size="10" class="label-sub">category(+0.4) + keywords(+0.35) + success(+0.1) + satisfaction(+0.02)</text>
+  <text x="60" y="1030" font-size="10" class="fix-label">相似度 0.87 > 0.7 阈值 → 复用!</text>
+
+  <line x1="465" y1="1000" x2="495" y2="1000" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="500" y="960" width="420" height="80" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="520" y="980" font-size="12" font-weight="600" class="fix-label">适配现有图</text>
+  <text x="520" y="998" font-size="10" class="label">变更: 人数3→4, 重新检查过敏</text>
+  <text x="520" y="1014" font-size="10" class="label-sub">保持: 相同菜单结构, 相同烹饪流程</text>
+  <text x="520" y="1030" font-size="10" class="fix-label">无需从头构建!</text>
+</svg>

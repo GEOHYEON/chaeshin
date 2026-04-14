@@ -200,6 +200,24 @@ uv run python -m examples.cooking.app
 
 See the [Quick Start Guide](docs/quickstart.md) for a step-by-step walkthrough.
 
+## Full Example — Setting a Dinner Table
+
+A detailed walkthrough of Chaeshin's full cycle (Retrieve → Decompose → Execute → Retain) using a "prepare dinner for 3" scenario — including parallel execution, taste-check loops, and failure escalation.
+
+<p align="center">
+  <img src="assets/dinner-table-success.svg" alt="Dinner Table — Success Scenario" width="820"/>
+</p>
+
+<p align="center">
+  <img src="assets/dinner-table-failure.svg" alt="Dinner Table — Failure Scenario" width="820"/>
+</p>
+
+Read the full scenario with step-by-step explanations:
+[English](examples/dinner-table/scenario_en.md) ·
+[한국어](examples/dinner-table/scenario_ko.md) ·
+[日本語](examples/dinner-table/scenario_ja.md) ·
+[中文](examples/dinner-table/scenario_zh.md)
+
 ## Architecture
 
 <p align="center">

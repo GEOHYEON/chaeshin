@@ -1,0 +1,312 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1060" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .label { fill: #0f172a; }
+    .label-sm { fill: #0f172a; font-size: 9px; }
+    .label-sub { fill: #64748b; }
+    .desc { fill: #64748b; }
+
+    .layer-l3 { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .layer-l2 { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; }
+    .layer-l1 { fill: #dcfce7; stroke: #22c55e; stroke-width: 2; }
+
+    .node { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
+    .node-success { fill: #dcfce7; stroke: #22c55e; stroke-width: 1.5; }
+    .node-loop { fill: #fef9c3; stroke: #eab308; stroke-width: 1.5; }
+    .node-parallel { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; }
+
+    .arrow { stroke: #475569; stroke-width: 1.5; fill: none; }
+    .arrow-success { stroke: #22c55e; stroke-width: 1.5; fill: none; }
+    .arrow-loop { stroke: #eab308; stroke-width: 2; fill: none; stroke-dasharray: 6 3; }
+    .arrow-blue { stroke: #3b82f6; stroke-width: 1.5; fill: none; }
+    .arrow-parallel { stroke: #6366f1; stroke-width: 1.5; fill: none; stroke-dasharray: 4 2; }
+
+    .phase-box { fill: #f1f5f9; stroke: #cbd5e1; }
+    .phase-label { fill: #475569; font-weight: 600; }
+    .divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; }
+    .layer-tag-l3 { fill: #92400e; font-weight: 700; }
+    .layer-tag-l2 { fill: #1e40af; font-weight: 700; }
+    .layer-tag-l1 { fill: #166534; font-weight: 700; }
+    .fix-label { fill: #22c55e; font-weight: 600; }
+    .loop-label { fill: #a16207; font-weight: 600; }
+    .parallel-label { fill: #4f46e5; font-weight: 600; }
+
+    .retrieve-box { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 1.5; }
+    .retain-box { fill: #ecfdf5; stroke: #22c55e; stroke-width: 1.5; }
+    .output-box { fill: #f0f9ff; stroke: #0ea5e9; stroke-width: 1; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #e2e8f0; }
+      .subtitle { fill: #94a3b8; }
+      .label { fill: #e2e8f0; }
+      .label-sm { fill: #e2e8f0; }
+      .label-sub { fill: #94a3b8; }
+      .desc { fill: #64748b; }
+      .layer-l3 { fill: #422006; stroke: #d97706; }
+      .layer-l2 { fill: #172554; stroke: #3b82f6; }
+      .layer-l1 { fill: #052e16; stroke: #22c55e; }
+      .node { fill: #1e293b; stroke: #334155; }
+      .node-success { fill: #052e16; stroke: #22c55e; }
+      .node-loop { fill: #422006; stroke: #eab308; }
+      .node-parallel { fill: #1e1b4b; stroke: #6366f1; }
+      .arrow { stroke: #94a3b8; }
+      .arrow-success { stroke: #4ade80; }
+      .arrow-loop { stroke: #facc15; }
+      .arrow-blue { stroke: #60a5fa; }
+      .arrow-parallel { stroke: #818cf8; }
+      .phase-box { fill: #1e293b; stroke: #334155; }
+      .phase-label { fill: #94a3b8; }
+      .divider { stroke: #334155; }
+      .layer-tag-l3 { fill: #fcd34d; }
+      .layer-tag-l2 { fill: #93c5fd; }
+      .layer-tag-l1 { fill: #86efac; }
+      .fix-label { fill: #4ade80; }
+      .loop-label { fill: #fcd34d; }
+      .parallel-label { fill: #a5b4fc; }
+      .retrieve-box { fill: #2e1065; stroke: #8b5cf6; }
+      .retain-box { fill: #052e16; stroke: #22c55e; }
+      .output-box { fill: #0c4a6e; stroke: #0ea5e9; }
+    }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#475569"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arr-yellow" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#eab308"/>
+    </marker>
+    <marker id="arr-purple" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#6366f1"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="1060" class="bg"/>
+
+  <!-- ===== Title ===== -->
+  <text x="480" y="32" text-anchor="middle" font-size="22" font-weight="700" class="title">夕食の献立 — 成功シナリオ</text>
+  <text x="480" y="54" text-anchor="middle" font-size="13" class="subtitle">3人分、子供がエビアレルギー — 検索 → 分解 → 実行 → 保存</text>
+
+  <!-- ===== PHASE 1: Retrieve ===== -->
+  <rect x="20" y="72" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="82" text-anchor="middle" font-size="9" class="phase-label">STEP 1 — 検索（過去ケース照会）</text>
+
+  <rect x="40" y="96" width="880" height="54" rx="10" class="retrieve-box"/>
+  <text x="60" y="116" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="240" y="116" font-size="11" class="label-sub">query="夕食の献立 3人分 アレルギー"</text>
+  <text x="60" y="134" font-size="11" class="label-sub">結果: cases=[] warnings=[] — 過去ケースなし。新規グラフを作成。</text>
+
+  <!-- ===== PHASE 2: Decompose ===== -->
+  <rect x="20" y="164" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="174" text-anchor="middle" font-size="9" class="phase-label">STEP 2 — 分解（L3 → L2 → L1 階層分解）</text>
+
+  <!-- L3 -->
+  <rect x="40" y="190" width="880" height="50" rx="12" class="layer-l3"/>
+  <text x="60" y="212" font-size="13" class="layer-tag-l3">L3 戦略</text>
+  <text x="165" y="212" font-size="13" class="label">夕食の献立を整える（3人分）</text>
+  <text x="420" y="212" font-size="11" class="desc">難易度=3 → トリガー発動</text>
+
+  <rect x="640" y="198" width="120" height="28" rx="6" class="node"/>
+  <text x="700" y="216" text-anchor="middle" font-size="10" class="label">メニュー決定</text>
+  <line x1="764" y1="212" x2="782" y2="212" class="arrow" marker-end="url(#arr)"/>
+  <rect x="786" y="198" width="100" height="28" rx="6" class="node"/>
+  <text x="836" y="216" text-anchor="middle" font-size="10" class="label">全品調理</text>
+
+  <!-- Arrows L3 → L2 -->
+  <line x1="700" y1="240" x2="220" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+  <line x1="836" y1="240" x2="540" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+  <line x1="836" y1="240" x2="820" y2="254" class="arrow-blue" marker-end="url(#arr-blue)"/>
+
+  <!-- L2 boxes -->
+  <rect x="40" y="258" width="370" height="56" rx="10" class="layer-l2"/>
+  <text x="56" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="76" y="278" font-size="11" class="label">メニュー決定</text>
+
+  <rect x="62" y="288" width="86" height="20" rx="5" class="node-parallel"/>
+  <text x="105" y="302" text-anchor="middle" font-size="8" class="label-sm">冷蔵庫確認</text>
+  <rect x="156" y="288" width="100" height="20" rx="5" class="node-parallel"/>
+  <text x="206" y="302" text-anchor="middle" font-size="8" class="label-sm">アレルギー確認</text>
+  <rect x="264" y="288" width="96" height="20" rx="5" class="node"/>
+  <text x="312" y="302" text-anchor="middle" font-size="8" class="label-sm">メニュー提案</text>
+  <text x="62" y="280" font-size="7" class="parallel-label">並列</text>
+
+  <rect x="425" y="258" width="230" height="56" rx="10" class="layer-l2"/>
+  <text x="441" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="461" y="278" font-size="11" class="label">調理（汁物+メイン）</text>
+  <rect x="441" y="288" width="60" height="20" rx="5" class="node"/>
+  <text x="471" y="302" text-anchor="middle" font-size="8" class="label-sm">レシピ</text>
+  <rect x="507" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="531" y="302" text-anchor="middle" font-size="8" class="label-sm">調理</text>
+  <rect x="561" y="288" width="48" height="20" rx="5" class="node-loop"/>
+  <text x="585" y="302" text-anchor="middle" font-size="8" class="label-sm">味見</text>
+  <rect x="615" y="288" width="32" height="20" rx="5" class="node"/>
+  <text x="631" y="302" text-anchor="middle" font-size="8" class="label-sm">盛付</text>
+
+  <rect x="670" y="258" width="250" height="56" rx="10" class="layer-l2"/>
+  <text x="686" y="278" font-size="11" class="layer-tag-l2">L2</text>
+  <text x="706" y="278" font-size="11" class="label">副菜+配膳</text>
+  <rect x="686" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="710" y="302" text-anchor="middle" font-size="8" class="label-sm">下準備</text>
+  <rect x="740" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="764" y="302" text-anchor="middle" font-size="8" class="label-sm">調理</text>
+  <rect x="794" y="288" width="48" height="20" rx="5" class="node"/>
+  <text x="818" y="302" text-anchor="middle" font-size="8" class="label-sm">盛付</text>
+  <rect x="848" y="288" width="62" height="20" rx="5" class="node"/>
+  <text x="879" y="302" text-anchor="middle" font-size="8" class="label-sm">配膳</text>
+
+  <!-- ===== PHASE 3: Execute (Tool Graph) ===== -->
+  <line x1="40" y1="330" x2="920" y2="330" class="divider"/>
+  <rect x="20" y="338" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="348" text-anchor="middle" font-size="9" class="phase-label">STEP 3 — 実行（並列グループ、ループ、Edge条件付きTool Graph）</text>
+
+  <!-- Tool Graph area -->
+  <rect x="40" y="362" width="880" height="480" rx="12" fill="none" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- Row 1: n1 + n2 (parallel) -->
+  <text x="60" y="384" font-size="9" class="parallel-label">parallel_group[0]</text>
+  <rect x="140" y="374" width="140" height="36" rx="8" class="node-parallel"/>
+  <text x="210" y="389" text-anchor="middle" font-size="10" class="label">n1: 冷蔵庫確認</text>
+  <text x="210" y="403" text-anchor="middle" font-size="8" class="label-sub">12:00:00 — 12:00:01</text>
+
+  <rect x="320" y="374" width="160" height="36" rx="8" class="node-parallel"/>
+  <text x="400" y="389" text-anchor="middle" font-size="10" class="label">n2: アレルギー確認</text>
+  <text x="400" y="403" text-anchor="middle" font-size="8" class="label-sub">12:00:00 — 12:00:01</text>
+
+  <!-- Output bubbles -->
+  <rect x="530" y="374" width="370" height="36" rx="6" class="output-box"/>
+  <text x="540" y="389" font-size="8" class="label-sm">n1 出力: {豚肉, 豆腐, キムチ, ほうれん草, 卵, 味噌, じゃがいも, 玉ねぎ, ...}</text>
+  <text x="540" y="401" font-size="8" class="label-sm">n2 出力: {子供: [エビ], 重篤アレルギー: false}</text>
+
+  <!-- Edge condition label -->
+  <text x="340" y="424" font-size="8" class="fix-label">edge: n2.output.重篤アレルギー == false → n3</text>
+
+  <!-- Arrow down -->
+  <line x1="300" y1="410" x2="300" y2="434" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 2: n3 suggest_menu -->
+  <rect x="220" y="436" width="160" height="36" rx="8" class="node-success"/>
+  <text x="300" y="451" text-anchor="middle" font-size="10" class="label">n3: メニュー提案</text>
+  <text x="300" y="465" text-anchor="middle" font-size="8" class="label-sub">12:00:02 — 12:00:03</text>
+
+  <rect x="430" y="436" width="460" height="36" rx="6" class="output-box"/>
+  <text x="440" y="451" font-size="8" class="label-sm">出力: {汁物: "味噌チゲ", メイン: "生姜焼き",</text>
+  <text x="440" y="463" font-size="8" class="label-sm">         副菜: ["ほうれん草ナムル", "卵焼き", "キムチ"]}</text>
+
+  <!-- 3 arrows down from n3 -->
+  <line x1="260" y1="472" x2="160" y2="494" class="arrow" marker-end="url(#arr)"/>
+  <line x1="300" y1="472" x2="400" y2="494" class="arrow" marker-end="url(#arr)"/>
+  <line x1="340" y1="472" x2="660" y2="494" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 3: Parallel cooking (3 branches) -->
+  <text x="60" y="508" font-size="9" class="parallel-label">parallel_group[1]</text>
+
+  <!-- Branch A: Soup -->
+  <rect x="60" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="160" y="513" text-anchor="middle" font-size="10" class="label">n6: 調理（味噌チゲ）</text>
+  <text x="160" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:26</text>
+
+  <!-- Branch B: Main -->
+  <rect x="300" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="400" y="513" text-anchor="middle" font-size="10" class="label">n7: 調理（生姜焼き）</text>
+  <text x="400" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:31</text>
+
+  <!-- Branch C: Sides -->
+  <rect x="560" y="498" width="200" height="36" rx="8" class="node-success"/>
+  <text x="660" y="513" text-anchor="middle" font-size="10" class="label">n9: 調理（副菜）</text>
+  <text x="660" y="527" text-anchor="middle" font-size="8" class="label-sub">12:00:06 — 12:00:16</text>
+
+  <!-- Arrows to taste -->
+  <line x1="160" y1="534" x2="160" y2="558" class="arrow" marker-end="url(#arr)"/>
+  <line x1="400" y1="534" x2="400" y2="558" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- Row 4: Taste checks -->
+  <rect x="80" y="560" width="160" height="36" rx="8" class="node-loop"/>
+  <text x="160" y="575" text-anchor="middle" font-size="10" class="label">n10: 味見（汁物）</text>
+  <text x="160" y="589" text-anchor="middle" font-size="8" class="label-sub">12:00:26 — 12:00:27</text>
+
+  <rect x="320" y="560" width="160" height="36" rx="8" class="node-success"/>
+  <text x="400" y="575" text-anchor="middle" font-size="10" class="label">n11: 味見（メイン）</text>
+  <text x="400" y="589" text-anchor="middle" font-size="8" class="label-sub">12:00:31 — 12:00:32</text>
+
+  <!-- Output for n10 first run -->
+  <rect x="530" y="560" width="360" height="36" rx="6" class="output-box"/>
+  <text x="540" y="575" font-size="8" class="loop-label">n10 1回目: {味: "薄い"} → n6へループ!</text>
+  <text x="540" y="589" font-size="8" class="fix-label">n10 2回目: {味: "OK"} → n12へ進行</text>
+
+  <!-- LOOP arrow: n10 → n6 -->
+  <path d="M 80 578 C 50 578, 50 516, 80 516" class="arrow-loop" marker-end="url(#arr-yellow)"/>
+  <text x="54" y="548" font-size="8" class="loop-label" transform="rotate(-90, 54, 548)">ループ</text>
+
+  <!-- Edge condition -->
+  <text x="270" y="612" font-size="8" class="loop-label">edge: n10.output.味 == "薄い" → n6 (max_loops: 2)</text>
+  <text x="270" y="624" font-size="8" class="fix-label">edge: n10.output.味 == "OK" → n12</text>
+  <text x="524" y="612" font-size="8" class="fix-label">n11.output.味 == "OK" → n12</text>
+
+  <!-- Arrows to n12 -->
+  <line x1="160" y1="596" x2="400" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="400" y1="596" x2="420" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="660" y1="534" x2="480" y2="640" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <!-- Row 5: Plate -->
+  <rect x="340" y="642" width="160" height="36" rx="8" class="node-success"/>
+  <text x="420" y="657" text-anchor="middle" font-size="10" class="label">n12: 盛り付け（全品）</text>
+  <text x="420" y="671" text-anchor="middle" font-size="8" class="label-sub">12:00:33 — 12:00:35</text>
+
+  <rect x="540" y="642" width="350" height="36" rx="6" class="output-box"/>
+  <text x="550" y="657" font-size="8" class="label-sm">5品: 味噌チゲ + 生姜焼き + ほうれん草ナムル + 卵焼き + キムチ</text>
+  <text x="550" y="669" font-size="8" class="label-sm">各3人分 → 合計15皿盛り付け完了</text>
+
+  <!-- Arrow to n13 -->
+  <line x1="420" y1="678" x2="420" y2="698" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <!-- Row 6: Set table -->
+  <rect x="340" y="700" width="160" height="36" rx="8" class="node-success"/>
+  <text x="420" y="715" text-anchor="middle" font-size="10" class="label">n13: 配膳</text>
+  <text x="420" y="729" text-anchor="middle" font-size="8" class="label-sub">12:00:35 — 12:00:36</text>
+
+  <rect x="540" y="700" width="350" height="36" rx="6" class="output-box"/>
+  <text x="550" y="715" font-size="8" class="label-sm">配置: 韓国式標準（ご飯-汁物-おかず）</text>
+  <text x="550" y="727" font-size="8" class="fix-label">不足: [] — 完了!</text>
+
+  <!-- Execution summary -->
+  <rect x="60" y="752" width="840" height="40" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+  <text x="480" y="769" text-anchor="middle" font-size="11" class="fix-label">実行完了: 15回のツール呼出 | 1回ループ（味噌チゲ味見） | 3つの並列グループ | 合計36秒</text>
+  <text x="480" y="783" text-anchor="middle" font-size="10" class="label-sub">nodes: n1→n2 (並列) → n3 → n6,n7,n9 (並列) → n10,n11 → n12 → n13</text>
+
+  <!-- ===== PHASE 4: Retain ===== -->
+  <line x1="40" y1="806" x2="920" y2="806" class="divider"/>
+  <rect x="20" y="814" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="824" text-anchor="middle" font-size="9" class="phase-label">STEP 4 — 保存（成功ケースを再利用用に保存）</text>
+
+  <rect x="40" y="840" width="880" height="80" rx="10" class="retain-box"/>
+  <text x="60" y="860" font-size="12" font-weight="600" fill="#059669">chaeshin_retain — 成功ケース保存済み</text>
+  <text x="60" y="878" font-size="10" class="label">case_id: "dinner_full_table_001" | category: "home_cooking" | satisfaction: 0.92</text>
+  <text x="60" y="894" font-size="10" class="label-sub">keywords: [dinner, full_table, 3_servings, allergy, doenjang, jeyuk, side_dishes]</text>
+  <text x="60" y="910" font-size="10" class="label-sub">graph: 13 nodes, 17 edges, 3 parallel_groups, max_loops: 2</text>
+
+  <!-- ===== PHASE 5: Next time ===== -->
+  <rect x="20" y="936" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="946" text-anchor="middle" font-size="9" class="phase-label">次回 — "今夜4人分の夕食を用意して"</text>
+
+  <rect x="40" y="960" width="420" height="80" rx="10" class="retrieve-box"/>
+  <text x="60" y="980" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="60" y="998" font-size="10" class="label">マッチ: dinner_full_table_001 (類似度: 0.87)</text>
+  <text x="60" y="1014" font-size="10" class="label-sub">category(+0.4) + keywords(+0.35) + success(+0.1) + satisfaction(+0.02)</text>
+  <text x="60" y="1030" font-size="10" class="fix-label">類似度 0.87 > 0.7 閾値 → 再利用!</text>
+
+  <line x1="465" y1="1000" x2="495" y2="1000" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="500" y="960" width="420" height="80" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="520" y="980" font-size="12" font-weight="600" class="fix-label">既存グラフを適応</text>
+  <text x="520" y="998" font-size="10" class="label">変更: 人数3→4、アレルギー再確認</text>
+  <text x="520" y="1014" font-size="10" class="label-sub">維持: 同じメニュー構造、同じ調理フロー</text>
+  <text x="520" y="1030" font-size="10" class="fix-label">最初から作り直す必要なし!</text>
+</svg>

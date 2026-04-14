@@ -1,0 +1,278 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1100" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .label { fill: #0f172a; }
+    .label-sm { fill: #0f172a; font-size: 9px; }
+    .label-sub { fill: #64748b; }
+    .desc { fill: #64748b; }
+
+    .layer-l3 { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .layer-l2 { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; }
+    .layer-l1 { fill: #dcfce7; stroke: #22c55e; stroke-width: 2; }
+
+    .node { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
+    .node-success { fill: #dcfce7; stroke: #22c55e; stroke-width: 1.5; }
+    .node-fail { fill: #fee2e2; stroke: #ef4444; stroke-width: 1.5; }
+    .node-pending { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 4 2; }
+    .node-replan { fill: #fef9c3; stroke: #eab308; stroke-width: 1.5; }
+    .node-user { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .node-parallel { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; }
+
+    .arrow { stroke: #475569; stroke-width: 1.5; fill: none; }
+    .arrow-success { stroke: #22c55e; stroke-width: 1.5; fill: none; }
+    .arrow-fail { stroke: #ef4444; stroke-width: 2; fill: none; stroke-dasharray: 6 3; }
+    .arrow-blue { stroke: #3b82f6; stroke-width: 1.5; fill: none; }
+
+    .phase-box { fill: #f1f5f9; stroke: #cbd5e1; }
+    .phase-label { fill: #475569; font-weight: 600; }
+    .divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; }
+    .layer-tag-l3 { fill: #92400e; font-weight: 700; }
+    .layer-tag-l2 { fill: #1e40af; font-weight: 700; }
+    .layer-tag-l1 { fill: #166534; font-weight: 700; }
+    .fix-label { fill: #22c55e; font-weight: 600; }
+    .fail-label { fill: #ef4444; font-weight: 600; }
+    .warn-label { fill: #d97706; font-weight: 600; }
+    .parallel-label { fill: #4f46e5; font-weight: 600; }
+
+    .retrieve-box { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 1.5; }
+    .retain-box { fill: #ecfdf5; stroke: #22c55e; stroke-width: 1.5; }
+    .retain-fail-box { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; }
+    .output-box { fill: #f0f9ff; stroke: #0ea5e9; stroke-width: 1; }
+    .replan-box { fill: #fffbeb; stroke: #f59e0b; stroke-width: 1; }
+    .escalate-box { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #e2e8f0; }
+      .subtitle { fill: #94a3b8; }
+      .label { fill: #e2e8f0; }
+      .label-sm { fill: #e2e8f0; }
+      .label-sub { fill: #94a3b8; }
+      .desc { fill: #64748b; }
+      .layer-l3 { fill: #422006; stroke: #d97706; }
+      .layer-l2 { fill: #172554; stroke: #3b82f6; }
+      .layer-l1 { fill: #052e16; stroke: #22c55e; }
+      .node { fill: #1e293b; stroke: #334155; }
+      .node-success { fill: #052e16; stroke: #22c55e; }
+      .node-fail { fill: #450a0a; stroke: #ef4444; }
+      .node-pending { fill: #1e293b; stroke: #334155; }
+      .node-replan { fill: #422006; stroke: #eab308; }
+      .node-user { fill: #422006; stroke: #d97706; }
+      .node-parallel { fill: #1e1b4b; stroke: #6366f1; }
+      .arrow { stroke: #94a3b8; }
+      .arrow-success { stroke: #4ade80; }
+      .arrow-fail { stroke: #f87171; }
+      .arrow-blue { stroke: #60a5fa; }
+      .phase-box { fill: #1e293b; stroke: #334155; }
+      .phase-label { fill: #94a3b8; }
+      .divider { stroke: #334155; }
+      .layer-tag-l3 { fill: #fcd34d; }
+      .layer-tag-l2 { fill: #93c5fd; }
+      .layer-tag-l1 { fill: #86efac; }
+      .fix-label { fill: #4ade80; }
+      .fail-label { fill: #f87171; }
+      .warn-label { fill: #fcd34d; }
+      .parallel-label { fill: #a5b4fc; }
+      .retrieve-box { fill: #2e1065; stroke: #8b5cf6; }
+      .retain-box { fill: #052e16; stroke: #22c55e; }
+      .retain-fail-box { fill: #450a0a; stroke: #ef4444; }
+      .output-box { fill: #0c4a6e; stroke: #0ea5e9; }
+      .replan-box { fill: #422006; stroke: #d97706; }
+      .escalate-box { fill: #450a0a; stroke: #f87171; }
+    }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#475569"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#ef4444"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="1100" class="bg"/>
+
+  <!-- ===== Title ===== -->
+  <text x="480" y="32" text-anchor="middle" font-size="22" font-weight="700" class="title">Dinner Table — Failure Scenario</text>
+  <text x="480" y="54" text-anchor="middle" font-size="13" class="subtitle">"3 servings, but fridge is nearly empty" — Retrieve → Fail → Escalate → Recover → Retain</text>
+
+  <!-- ===== STEP 1: Retrieve ===== -->
+  <rect x="20" y="72" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="82" text-anchor="middle" font-size="9" class="phase-label">STEP 1 — Retrieve (Found a past case, but it won't fit)</text>
+
+  <rect x="40" y="96" width="880" height="54" rx="10" class="retrieve-box"/>
+  <text x="60" y="116" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="240" y="116" font-size="11" class="label-sub">query="dinner table 3 servings low ingredients"</text>
+  <text x="60" y="134" font-size="11" class="label">Match: dinner_full_table_001 (similarity: 0.78)</text>
+  <text x="500" y="134" font-size="11" class="warn-label">Adapting existing full-table graph...</text>
+
+  <!-- ===== STEP 2: Execute — Failure chain ===== -->
+  <line x1="40" y1="164" x2="920" y2="164" class="divider"/>
+  <rect x="20" y="170" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="180" text-anchor="middle" font-size="9" class="phase-label">STEP 2 — Execute Adapted Graph (L1 starts, then fails)</text>
+
+  <!-- n1: check_fridge -->
+  <rect x="60" y="198" width="220" height="36" rx="8" class="node-success"/>
+  <text x="170" y="213" text-anchor="middle" font-size="10" class="label">n1: check_fridge</text>
+  <text x="170" y="227" text-anchor="middle" font-size="8" class="fix-label">18:00:00 — 18:00:01 OK</text>
+
+  <rect x="320" y="198" width="340" height="36" rx="6" class="output-box"/>
+  <text x="330" y="213" font-size="9" class="fail-label">output: {ingredients: ["eggs", "kimchi", "green_onion", "soy_sauce"]}</text>
+  <text x="330" y="225" font-size="8" class="label-sub">Only 4 ingredients! Full table needs 8+</text>
+
+  <rect x="700" y="198" width="220" height="36" rx="8" class="node-success"/>
+  <text x="810" y="213" text-anchor="middle" font-size="10" class="label">n2: check_allergies</text>
+  <text x="810" y="227" text-anchor="middle" font-size="8" class="fix-label">No issues</text>
+
+  <!-- Arrow down -->
+  <line x1="300" y1="234" x2="300" y2="256" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- n3: suggest_menu — FAILS -->
+  <rect x="180" y="258" width="240" height="36" rx="8" class="node-fail"/>
+  <text x="300" y="273" text-anchor="middle" font-size="10" class="label">n3: suggest_menu — FAILED</text>
+  <text x="300" y="287" text-anchor="middle" font-size="8" class="fail-label">18:00:02 — 18:00:03</text>
+
+  <rect x="460" y="258" width="460" height="36" rx="6" class="escalate-box"/>
+  <text x="470" y="273" font-size="9" class="fail-label">error: "cannot_compose_full_table"</text>
+  <text x="470" y="285" font-size="8" class="label-sub">reason: "insufficient for soup and main" | possible: ["egg_roll", "kimchi_fried_rice"]</text>
+
+  <!-- Pending nodes (grayed out) -->
+  <rect x="100" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="160" y="327" text-anchor="middle" font-size="9" class="label-sub">n4: recipe (soup)</text>
+  <rect x="240" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="300" y="327" text-anchor="middle" font-size="9" class="label-sub">n5: recipe (main)</text>
+  <rect x="380" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="440" y="327" text-anchor="middle" font-size="9" class="label-sub">n8: prep (sides)</text>
+  <text x="540" y="327" font-size="9" class="fail-label">These nodes will never execute</text>
+
+  <!-- ===== STEP 3: L1 Replan ===== -->
+  <line x1="40" y1="350" x2="920" y2="350" class="divider"/>
+  <rect x="20" y="356" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="366" text-anchor="middle" font-size="9" class="phase-label">STEP 3 — L1 Replan (No matching edge at n3 → Planner generates diff)</text>
+
+  <rect x="40" y="382" width="440" height="80" rx="10" class="replan-box"/>
+  <text x="60" y="402" font-size="12" font-weight="600" class="warn-label">L1 Replan — Diff Patch</text>
+  <text x="60" y="420" font-size="9" class="label">+ added: n3-1 (suggest_menu mode="simple_meal")</text>
+  <text x="60" y="434" font-size="9" class="fail-label">- removed: n4 (recipe soup), n5 (recipe main), n8 (prep sides)</text>
+  <text x="60" y="448" font-size="9" class="label-sub">reasoning: "Full table impossible. Downgrade to simple meal."</text>
+
+  <!-- Arrow to n3-1 execution -->
+  <line x1="484" y1="420" x2="520" y2="420" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- n3-1 execution -->
+  <rect x="524" y="382" width="220" height="50" rx="8" class="node-replan"/>
+  <text x="634" y="402" text-anchor="middle" font-size="10" class="label">n3-1: suggest_menu (simple)</text>
+  <text x="634" y="418" text-anchor="middle" font-size="8" class="label-sub">output: {main: "kimchi_fried_rice",</text>
+  <text x="634" y="428" text-anchor="middle" font-size="8" class="label-sub">         side: ["egg_roll"]}</text>
+
+  <rect x="760" y="390" width="170" height="34" rx="6" class="output-box"/>
+  <text x="770" y="406" font-size="8" class="warn-label">warning: "no_soup"</text>
+  <text x="770" y="418" font-size="8" class="label-sub">Only 1 main + 1 side</text>
+
+  <!-- ===== STEP 4: L2 Escalation ===== -->
+  <line x1="40" y1="450" x2="920" y2="450" class="divider"/>
+  <rect x="20" y="456" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="466" text-anchor="middle" font-size="9" class="phase-label">STEP 4 — L2 Escalation (Replan result doesn't satisfy "full table" request)</text>
+
+  <rect x="40" y="482" width="440" height="74" rx="10" class="escalate-box"/>
+  <text x="60" y="502" font-size="12" font-weight="600" class="fail-label">L2 Checkpoint — Requirement Mismatch</text>
+  <text x="60" y="520" font-size="10" class="label">User asked: "full dinner table" (soup + main + 3+ sides)</text>
+  <text x="60" y="536" font-size="10" class="fail-label">Current plan: 1 main + 1 side (NOT a full table)</text>
+  <text x="60" y="548" font-size="9" class="label-sub">L1 replan cannot fix this — ESCALATE to L2</text>
+
+  <!-- Arrow -->
+  <line x1="484" y1="520" x2="520" y2="520" class="arrow-fail" marker-end="url(#arr-red)"/>
+  <text x="490" y="514" font-size="8" class="fail-label">escalate!</text>
+
+  <rect x="524" y="482" width="396" height="74" rx="10" class="replan-box"/>
+  <text x="544" y="502" font-size="12" font-weight="600" class="warn-label">L2 Replan — Options Generated</text>
+  <text x="544" y="520" font-size="10" class="label">A: Simple meal (NOT full table)</text>
+  <text x="544" y="536" font-size="10" class="label">B: Go grocery shopping first</text>
+  <text x="544" y="548" font-size="10" class="label">C: Order soup delivery + cook rest</text>
+
+  <!-- Arrow to ask_user -->
+  <text x="680" y="572" font-size="9" class="fail-label">L2 cannot self-resolve → ask user</text>
+  <line x1="680" y1="556" x2="480" y2="588" class="arrow-fail" marker-end="url(#arr-red)"/>
+
+  <!-- ===== STEP 5: Ask User ===== -->
+  <rect x="40" y="590" width="880" height="80" rx="10" class="node-user"/>
+  <text x="60" y="614" font-size="14" font-weight="700" class="layer-tag-l3">ask_user — Escalation Chain Shown</text>
+
+  <text x="60" y="636" font-size="10" class="label">[L1] suggest_menu failed — only 4 ingredients, can't compose full table</text>
+  <text x="80" y="650" font-size="9" class="label-sub">tried: downgrade to simple meal → still doesn't meet "full table"</text>
+  <text x="60" y="664" font-size="10" class="fix-label">User: "Just go with A. Keep it simple."</text>
+
+  <!-- ===== STEP 6: Downsized Execution ===== -->
+  <line x1="40" y1="684" x2="920" y2="684" class="divider"/>
+  <rect x="20" y="690" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="700" text-anchor="middle" font-size="9" class="phase-label">STEP 6 — Execute Downsized Graph (User chose option A)</text>
+
+  <!-- Parallel cooking -->
+  <text x="130" y="726" font-size="9" class="parallel-label">parallel</text>
+  <rect x="100" y="730" width="260" height="36" rx="8" class="node-success"/>
+  <text x="230" y="745" text-anchor="middle" font-size="10" class="label">cook: kimchi_fried_rice</text>
+  <text x="230" y="759" text-anchor="middle" font-size="8" class="fix-label">18:00:30 — 18:00:45 OK</text>
+
+  <rect x="400" y="730" width="200" height="36" rx="8" class="node-success"/>
+  <text x="500" y="745" text-anchor="middle" font-size="10" class="label">cook: egg_roll</text>
+  <text x="500" y="759" text-anchor="middle" font-size="8" class="fix-label">18:00:30 — 18:00:40 OK</text>
+
+  <!-- Arrow to plate -->
+  <line x1="300" y1="766" x2="380" y2="786" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="460" y1="766" x2="420" y2="786" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="320" y="788" width="160" height="36" rx="8" class="node-success"/>
+  <text x="400" y="803" text-anchor="middle" font-size="10" class="label">plate + set_table</text>
+  <text x="400" y="817" text-anchor="middle" font-size="8" class="fix-label">18:00:45 — 18:00:47 DONE</text>
+
+  <rect x="520" y="788" width="340" height="36" rx="6" class="output-box"/>
+  <text x="530" y="803" font-size="9" class="label">Simple meal complete: kimchi_fried_rice + egg_roll</text>
+  <text x="530" y="815" font-size="8" class="label-sub">layout: "done" | note: "simple_meal" | 5 nodes total</text>
+
+  <!-- ===== STEP 7: Retain (both) ===== -->
+  <line x1="40" y1="842" x2="920" y2="842" class="divider"/>
+  <rect x="20" y="850" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="860" text-anchor="middle" font-size="9" class="phase-label">STEP 7 — Retain (Save BOTH failure anti-pattern AND downsized success)</text>
+
+  <!-- Failure case -->
+  <rect x="40" y="876" width="430" height="88" rx="10" class="retain-fail-box"/>
+  <text x="60" y="896" font-size="12" font-weight="600" class="fail-label">Anti-Pattern Saved</text>
+  <text x="60" y="914" font-size="9" class="label">case: "full_table graph with only 4 ingredients"</text>
+  <text x="60" y="928" font-size="9" class="fail-label">error: "suggest_menu (n3) fails when ingredients &lt; 6"</text>
+  <text x="60" y="942" font-size="9" class="label-sub">success: false | satisfaction: 0.0</text>
+  <text x="60" y="956" font-size="9" class="label-sub">Prevents this same mistake from happening again</text>
+
+  <!-- Success case -->
+  <rect x="490" y="876" width="430" height="88" rx="10" class="retain-box"/>
+  <text x="510" y="896" font-size="12" font-weight="600" class="fix-label">Downsized Success Saved</text>
+  <text x="510" y="914" font-size="9" class="label">case: "simple meal when ingredients insufficient"</text>
+  <text x="510" y="928" font-size="9" class="label">graph: 5 nodes (cook x2 parallel → plate → set_table)</text>
+  <text x="510" y="942" font-size="9" class="label-sub">satisfaction: 0.70 | keywords: [dinner, simple, low_ingredients]</text>
+  <text x="510" y="956" font-size="9" class="label-sub">Ready for reuse when fridge is nearly empty</text>
+
+  <!-- ===== Next Time ===== -->
+  <rect x="20" y="980" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="990" text-anchor="middle" font-size="9" class="phase-label">NEXT TIME — "Make dinner tonight. Not much in the fridge."</text>
+
+  <rect x="40" y="1004" width="440" height="80" rx="10" class="retrieve-box"/>
+  <text x="60" y="1024" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="60" y="1042" font-size="10" class="fix-label">case: dinner_simple_001 (similarity: 0.82) — use simple meal graph</text>
+  <text x="60" y="1058" font-size="10" class="fail-label">warning: dinner_fail_001 — "Do NOT apply full-table graph"</text>
+  <text x="60" y="1074" font-size="10" class="label-sub">"when ingredients are limited, full-table fails at suggest_menu"</text>
+
+  <line x1="484" y1="1044" x2="520" y2="1044" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="524" y="1004" width="396" height="80" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="544" y="1024" font-size="12" font-weight="600" class="fix-label">Direct to Simple Meal</text>
+  <text x="544" y="1042" font-size="10" class="label">Start with simple meal graph from the beginning</text>
+  <text x="544" y="1058" font-size="10" class="fix-label">No escalation needed! One-shot completion.</text>
+  <text x="544" y="1074" font-size="10" class="label-sub">Anti-pattern warning prevented repeating the same failure</text>
+</svg>

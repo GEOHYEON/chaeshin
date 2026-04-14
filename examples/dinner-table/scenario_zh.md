@@ -3,6 +3,18 @@
 > 通过 **准备一桌晚餐** 这个日常生活中的例子，完整理解 Chaeshin 的 CBR（基于案例的推理）引擎的工作原理。
 > 包含成功场景和失败场景。
 
+## 示意图
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.zh.svg" alt="晚餐 — 成功场景" width="820"/>
+</p>
+<p align="center"><em>成功: 检索 → 分解 → 执行（并行+循环）→ 保存</em></p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.zh.svg" alt="晚餐 — 失败场景" width="820"/>
+</p>
+<p align="center"><em>失败: Retrieve → Fail → L1 Replan → L2 升级 → 用户 → 恢复 → Retain</em></p>
+
 ---
 
 ## 目录

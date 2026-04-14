@@ -3,6 +3,18 @@
 > A complete walkthrough of Chaeshin's CBR (Case-Based Reasoning) engine, illustrated through the everyday task of **preparing a full Korean dinner table**.
 > Includes both a success scenario and a failure scenario.
 
+## Diagrams
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.svg" alt="Dinner Table — Success Scenario" width="820"/>
+</p>
+<p align="center"><em>Success: Retrieve → Decompose → Execute (parallel + loops) → Retain</em></p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.svg" alt="Dinner Table — Failure Scenario" width="820"/>
+</p>
+<p align="center"><em>Failure: Retrieve → Fail → L1 Replan → L2 Escalation → User → Recover → Retain</em></p>
+
 ---
 
 ## Table of Contents

@@ -3,6 +3,18 @@
 > Chaeshinの CBR (Case-Based Reasoning) エンジンの動作を、**夕食の献立を整える**という日常的な例で完全に理解するためのウォークスルーです。
 > 成功シナリオと失敗シナリオの両方を含みます。
 
+## ダイアグラム
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.ja.svg" alt="夕食の献立 — 成功シナリオ" width="820"/>
+</p>
+<p align="center"><em>成功: 検索 → 分解 → 実行（並列＋ループ）→ 保存</em></p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.ja.svg" alt="夕食の献立 — 失敗シナリオ" width="820"/>
+</p>
+<p align="center"><em>失敗: Retrieve → Fail → L1 Replan → L2 エスカレーション → ユーザー → リカバリー → Retain</em></p>
+
 ---
 
 ## 目次

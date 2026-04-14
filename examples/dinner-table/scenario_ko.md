@@ -3,6 +3,18 @@
 > Chaeshin의 CBR(Case-Based Reasoning) 동작을 **저녁 한상 차리기**라는 일상적인 예시로 완전히 이해할 수 있는 워크스루입니다.
 > 성공 시나리오와 실패 시나리오 모두 포함되어 있습니다.
 
+## 다이어그램
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.ko.svg" alt="저녁 한상 — 성공 시나리오" width="820"/>
+</p>
+<p align="center"><em>성공 시나리오: 검색 → 분해 → 실행 (병렬+루프) → 저장</em></p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.ko.svg" alt="저녁 한상 — 실패 시나리오" width="820"/>
+</p>
+<p align="center"><em>실패 시나리오: Retrieve → Fail → L1 Replan → L2 Escalation → User → Recover → Retain</em></p>
+
 ---
 
 ## 목차

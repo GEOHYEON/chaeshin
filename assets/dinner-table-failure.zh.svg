@@ -1,0 +1,278 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1100" font-family="'Segoe UI', system-ui, -apple-system, sans-serif">
+  <style>
+    .bg { fill: #ffffff; }
+    .title { fill: #0f172a; }
+    .subtitle { fill: #64748b; }
+    .label { fill: #0f172a; }
+    .label-sm { fill: #0f172a; font-size: 9px; }
+    .label-sub { fill: #64748b; }
+    .desc { fill: #64748b; }
+
+    .layer-l3 { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .layer-l2 { fill: #dbeafe; stroke: #3b82f6; stroke-width: 2; }
+    .layer-l1 { fill: #dcfce7; stroke: #22c55e; stroke-width: 2; }
+
+    .node { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
+    .node-success { fill: #dcfce7; stroke: #22c55e; stroke-width: 1.5; }
+    .node-fail { fill: #fee2e2; stroke: #ef4444; stroke-width: 1.5; }
+    .node-pending { fill: #f1f5f9; stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 4 2; }
+    .node-replan { fill: #fef9c3; stroke: #eab308; stroke-width: 1.5; }
+    .node-user { fill: #fef3c7; stroke: #f59e0b; stroke-width: 2; }
+    .node-parallel { fill: #e0e7ff; stroke: #6366f1; stroke-width: 1.5; }
+
+    .arrow { stroke: #475569; stroke-width: 1.5; fill: none; }
+    .arrow-success { stroke: #22c55e; stroke-width: 1.5; fill: none; }
+    .arrow-fail { stroke: #ef4444; stroke-width: 2; fill: none; stroke-dasharray: 6 3; }
+    .arrow-blue { stroke: #3b82f6; stroke-width: 1.5; fill: none; }
+
+    .phase-box { fill: #f1f5f9; stroke: #cbd5e1; }
+    .phase-label { fill: #475569; font-weight: 600; }
+    .divider { stroke: #e2e8f0; stroke-width: 1; stroke-dasharray: 4 4; }
+    .layer-tag-l3 { fill: #92400e; font-weight: 700; }
+    .layer-tag-l2 { fill: #1e40af; font-weight: 700; }
+    .layer-tag-l1 { fill: #166534; font-weight: 700; }
+    .fix-label { fill: #22c55e; font-weight: 600; }
+    .fail-label { fill: #ef4444; font-weight: 600; }
+    .warn-label { fill: #d97706; font-weight: 600; }
+    .parallel-label { fill: #4f46e5; font-weight: 600; }
+
+    .retrieve-box { fill: #f5f3ff; stroke: #8b5cf6; stroke-width: 1.5; }
+    .retain-box { fill: #ecfdf5; stroke: #22c55e; stroke-width: 1.5; }
+    .retain-fail-box { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; }
+    .output-box { fill: #f0f9ff; stroke: #0ea5e9; stroke-width: 1; }
+    .replan-box { fill: #fffbeb; stroke: #f59e0b; stroke-width: 1; }
+    .escalate-box { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0f172a; }
+      .title { fill: #e2e8f0; }
+      .subtitle { fill: #94a3b8; }
+      .label { fill: #e2e8f0; }
+      .label-sm { fill: #e2e8f0; }
+      .label-sub { fill: #94a3b8; }
+      .desc { fill: #64748b; }
+      .layer-l3 { fill: #422006; stroke: #d97706; }
+      .layer-l2 { fill: #172554; stroke: #3b82f6; }
+      .layer-l1 { fill: #052e16; stroke: #22c55e; }
+      .node { fill: #1e293b; stroke: #334155; }
+      .node-success { fill: #052e16; stroke: #22c55e; }
+      .node-fail { fill: #450a0a; stroke: #ef4444; }
+      .node-pending { fill: #1e293b; stroke: #334155; }
+      .node-replan { fill: #422006; stroke: #eab308; }
+      .node-user { fill: #422006; stroke: #d97706; }
+      .node-parallel { fill: #1e1b4b; stroke: #6366f1; }
+      .arrow { stroke: #94a3b8; }
+      .arrow-success { stroke: #4ade80; }
+      .arrow-fail { stroke: #f87171; }
+      .arrow-blue { stroke: #60a5fa; }
+      .phase-box { fill: #1e293b; stroke: #334155; }
+      .phase-label { fill: #94a3b8; }
+      .divider { stroke: #334155; }
+      .layer-tag-l3 { fill: #fcd34d; }
+      .layer-tag-l2 { fill: #93c5fd; }
+      .layer-tag-l1 { fill: #86efac; }
+      .fix-label { fill: #4ade80; }
+      .fail-label { fill: #f87171; }
+      .warn-label { fill: #fcd34d; }
+      .parallel-label { fill: #a5b4fc; }
+      .retrieve-box { fill: #2e1065; stroke: #8b5cf6; }
+      .retain-box { fill: #052e16; stroke: #22c55e; }
+      .retain-fail-box { fill: #450a0a; stroke: #ef4444; }
+      .output-box { fill: #0c4a6e; stroke: #0ea5e9; }
+      .replan-box { fill: #422006; stroke: #d97706; }
+      .escalate-box { fill: #450a0a; stroke: #f87171; }
+    }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#475569"/>
+    </marker>
+    <marker id="arr-green" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#22c55e"/>
+    </marker>
+    <marker id="arr-red" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#ef4444"/>
+    </marker>
+    <marker id="arr-blue" viewBox="0 0 10 6" refX="10" refY="3" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 3 L 0 6 z" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="1100" class="bg"/>
+
+  <!-- ===== Title ===== -->
+  <text x="480" y="32" text-anchor="middle" font-size="22" font-weight="700" class="title">准备一桌晚餐 — 失败场景</text>
+  <text x="480" y="54" text-anchor="middle" font-size="13" class="subtitle">3人份，冰箱几乎空了 — 检索 → 失败 → 升级 → 恢复 → 保存</text>
+
+  <!-- ===== STEP 1: Retrieve ===== -->
+  <rect x="20" y="72" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="82" text-anchor="middle" font-size="9" class="phase-label">STEP 1 — 检索（找到过去案例，但不适用）</text>
+
+  <rect x="40" y="96" width="880" height="54" rx="10" class="retrieve-box"/>
+  <text x="60" y="116" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="240" y="116" font-size="11" class="label-sub">query="dinner table 3 servings low ingredients"</text>
+  <text x="60" y="134" font-size="11" class="label">匹配: dinner_full_table_001 (相似度: 0.78)</text>
+  <text x="500" y="134" font-size="11" class="warn-label">正在适配现有的一桌图...</text>
+
+  <!-- ===== STEP 2: Execute — Failure chain ===== -->
+  <line x1="40" y1="164" x2="920" y2="164" class="divider"/>
+  <rect x="20" y="170" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="180" text-anchor="middle" font-size="9" class="phase-label">STEP 2 — 执行适配后的图（L1开始后失败）</text>
+
+  <!-- n1: check_fridge -->
+  <rect x="60" y="198" width="220" height="36" rx="8" class="node-success"/>
+  <text x="170" y="213" text-anchor="middle" font-size="10" class="label">n1: 查冰箱</text>
+  <text x="170" y="227" text-anchor="middle" font-size="8" class="fix-label">18:00:00 — 18:00:01 OK</text>
+
+  <rect x="320" y="198" width="340" height="36" rx="6" class="output-box"/>
+  <text x="330" y="213" font-size="9" class="fail-label">output: {ingredients: ["eggs", "kimchi", "green_onion", "soy_sauce"]}</text>
+  <text x="330" y="225" font-size="8" class="label-sub">只有4种食材! 一桌需要8种以上</text>
+
+  <rect x="700" y="198" width="220" height="36" rx="8" class="node-success"/>
+  <text x="810" y="213" text-anchor="middle" font-size="10" class="label">n2: 过敏检查</text>
+  <text x="810" y="227" text-anchor="middle" font-size="8" class="fix-label">无问题</text>
+
+  <!-- Arrow down -->
+  <line x1="300" y1="234" x2="300" y2="256" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- n3: suggest_menu — FAILS -->
+  <rect x="180" y="258" width="240" height="36" rx="8" class="node-fail"/>
+  <text x="300" y="273" text-anchor="middle" font-size="10" class="label">n3: 推荐菜单 — 失败!</text>
+  <text x="300" y="287" text-anchor="middle" font-size="8" class="fail-label">18:00:02 — 18:00:03</text>
+
+  <rect x="460" y="258" width="460" height="36" rx="6" class="escalate-box"/>
+  <text x="470" y="273" font-size="9" class="fail-label">错误: 无法组成一桌</text>
+  <text x="470" y="285" font-size="8" class="label-sub">原因: 汤和主菜食材不足 | 可做: 鸡蛋卷, 泡菜炒饭</text>
+
+  <!-- Pending nodes (grayed out) -->
+  <rect x="100" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="160" y="327" text-anchor="middle" font-size="9" class="label-sub">n4: 食谱（汤）</text>
+  <rect x="240" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="300" y="327" text-anchor="middle" font-size="9" class="label-sub">n5: 食谱（主菜）</text>
+  <rect x="380" y="310" width="120" height="26" rx="6" class="node-pending"/>
+  <text x="440" y="327" text-anchor="middle" font-size="9" class="label-sub">n8: 备料（配菜）</text>
+  <text x="540" y="327" font-size="9" class="fail-label">这些节点不会执行</text>
+
+  <!-- ===== STEP 3: L1 Replan ===== -->
+  <line x1="40" y1="350" x2="920" y2="350" class="divider"/>
+  <rect x="20" y="356" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="366" text-anchor="middle" font-size="9" class="phase-label">STEP 3 — L1重新规划（n3无匹配Edge → Planner生成diff）</text>
+
+  <rect x="40" y="382" width="440" height="80" rx="10" class="replan-box"/>
+  <text x="60" y="402" font-size="12" font-weight="600" class="warn-label">L1重新规划 — Diff补丁</text>
+  <text x="60" y="420" font-size="9" class="label">+ 添加: n3-1 (suggest_menu mode="simple_meal")</text>
+  <text x="60" y="434" font-size="9" class="fail-label">- 移除: n4 (食谱 汤), n5 (食谱 主菜), n8 (备料 配菜)</text>
+  <text x="60" y="448" font-size="9" class="label-sub">判断: 一桌不可能，降级为简餐</text>
+
+  <!-- Arrow to n3-1 execution -->
+  <line x1="484" y1="420" x2="520" y2="420" class="arrow" marker-end="url(#arr)"/>
+
+  <!-- n3-1 execution -->
+  <rect x="524" y="382" width="220" height="50" rx="8" class="node-replan"/>
+  <text x="634" y="402" text-anchor="middle" font-size="10" class="label">n3-1: 推荐菜单（简餐）</text>
+  <text x="634" y="418" text-anchor="middle" font-size="8" class="label-sub">output: {main: "kimchi_fried_rice",</text>
+  <text x="634" y="428" text-anchor="middle" font-size="8" class="label-sub">         side: ["egg_roll"]}</text>
+
+  <rect x="760" y="390" width="170" height="34" rx="6" class="output-box"/>
+  <text x="770" y="406" font-size="8" class="warn-label">警告: 没有汤</text>
+  <text x="770" y="418" font-size="8" class="label-sub">仅主食1+配菜1</text>
+
+  <!-- ===== STEP 4: L2 Escalation ===== -->
+  <line x1="40" y1="450" x2="920" y2="450" class="divider"/>
+  <rect x="20" y="456" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="466" text-anchor="middle" font-size="9" class="phase-label">STEP 4 — L2升级（重新规划结果不满足"一桌"要求）</text>
+
+  <rect x="40" y="482" width="440" height="74" rx="10" class="escalate-box"/>
+  <text x="60" y="502" font-size="12" font-weight="600" class="fail-label">L2检查点 — 需求不匹配</text>
+  <text x="60" y="520" font-size="10" class="label">用户要求: "一桌饭菜"（汤+主菜+配菜3种以上）</text>
+  <text x="60" y="536" font-size="10" class="fail-label">当前计划: 主食1+配菜1（不是一桌!）</text>
+  <text x="60" y="548" font-size="9" class="label-sub">L1重新规划无法解决 — 升级到L2</text>
+
+  <!-- Arrow -->
+  <line x1="484" y1="520" x2="520" y2="520" class="arrow-fail" marker-end="url(#arr-red)"/>
+  <text x="490" y="514" font-size="8" class="fail-label">升级!</text>
+
+  <rect x="524" y="482" width="396" height="74" rx="10" class="replan-box"/>
+  <text x="544" y="502" font-size="12" font-weight="600" class="warn-label">L2重新规划 — 生成选项</text>
+  <text x="544" y="520" font-size="10" class="label">A: 简餐（不是一桌）</text>
+  <text x="544" y="536" font-size="10" class="label">B: 先去超市买菜</text>
+  <text x="544" y="548" font-size="10" class="label">C: 汤点外卖+其余自己做</text>
+
+  <!-- Arrow to ask_user -->
+  <text x="680" y="572" font-size="9" class="fail-label">L2也无法自行解决 → 询问用户</text>
+  <line x1="680" y1="556" x2="480" y2="588" class="arrow-fail" marker-end="url(#arr-red)"/>
+
+  <!-- ===== STEP 5: Ask User ===== -->
+  <rect x="40" y="590" width="880" height="80" rx="10" class="node-user"/>
+  <text x="60" y="614" font-size="14" font-weight="700" class="layer-tag-l3">ask_user — 升级链完整展示</text>
+
+  <text x="60" y="636" font-size="10" class="label">[L1] 推荐菜单失败 — 4种食材无法组成一桌</text>
+  <text x="80" y="650" font-size="9" class="label-sub">尝试: 降级为简餐 → 仍不满足"一桌"要求</text>
+  <text x="60" y="664" font-size="10" class="fix-label">用户: "就A吧。简单吃。"</text>
+
+  <!-- ===== STEP 6: Downsized Execution ===== -->
+  <line x1="40" y1="684" x2="920" y2="684" class="divider"/>
+  <rect x="20" y="690" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="700" text-anchor="middle" font-size="9" class="phase-label">STEP 6 — 执行缩小后的图（用户选择A）</text>
+
+  <!-- Parallel cooking -->
+  <text x="130" y="726" font-size="9" class="parallel-label">parallel</text>
+  <rect x="100" y="730" width="260" height="36" rx="8" class="node-success"/>
+  <text x="230" y="745" text-anchor="middle" font-size="10" class="label">烹饪: 泡菜炒饭</text>
+  <text x="230" y="759" text-anchor="middle" font-size="8" class="fix-label">18:00:30 — 18:00:45 OK</text>
+
+  <rect x="400" y="730" width="200" height="36" rx="8" class="node-success"/>
+  <text x="500" y="745" text-anchor="middle" font-size="10" class="label">烹饪: 鸡蛋卷</text>
+  <text x="500" y="759" text-anchor="middle" font-size="8" class="fix-label">18:00:30 — 18:00:40 OK</text>
+
+  <!-- Arrow to plate -->
+  <line x1="300" y1="766" x2="380" y2="786" class="arrow-success" marker-end="url(#arr-green)"/>
+  <line x1="460" y1="766" x2="420" y2="786" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="320" y="788" width="160" height="36" rx="8" class="node-success"/>
+  <text x="400" y="803" text-anchor="middle" font-size="10" class="label">装盘 + 摆桌</text>
+  <text x="400" y="817" text-anchor="middle" font-size="8" class="fix-label">18:00:45 — 18:00:47 DONE</text>
+
+  <rect x="520" y="788" width="340" height="36" rx="6" class="output-box"/>
+  <text x="530" y="803" font-size="9" class="label">简餐完成: 泡菜炒饭 + 鸡蛋卷</text>
+  <text x="530" y="815" font-size="8" class="label-sub">layout: "done" | note: "simple_meal" | 共5个节点</text>
+
+  <!-- ===== STEP 7: Retain (both) ===== -->
+  <line x1="40" y1="842" x2="920" y2="842" class="divider"/>
+  <rect x="20" y="850" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="860" text-anchor="middle" font-size="9" class="phase-label">STEP 7 — 保存（同时保存失败反模式和缩小后的成功）</text>
+
+  <!-- Failure case -->
+  <rect x="40" y="876" width="430" height="88" rx="10" class="retain-fail-box"/>
+  <text x="60" y="896" font-size="12" font-weight="600" class="fail-label">反模式已保存</text>
+  <text x="60" y="914" font-size="9" class="label">案例: 用4种食材套用一桌的图</text>
+  <text x="60" y="928" font-size="9" class="fail-label">错误: 食材少于6种时推荐菜单(n3)失败</text>
+  <text x="60" y="942" font-size="9" class="label-sub">success: false | satisfaction: 0.0</text>
+  <text x="60" y="956" font-size="9" class="label-sub">防止同样的错误再次发生</text>
+
+  <!-- Success case -->
+  <rect x="490" y="876" width="430" height="88" rx="10" class="retain-box"/>
+  <text x="510" y="896" font-size="12" font-weight="600" class="fix-label">缩小成功案例已保存</text>
+  <text x="510" y="914" font-size="9" class="label">案例: 食材不足时切换为简餐</text>
+  <text x="510" y="928" font-size="9" class="label">graph: 5个节点 (cook x2 parallel → plate → set_table)</text>
+  <text x="510" y="942" font-size="9" class="label-sub">satisfaction: 0.70 | keywords: [dinner, simple, low_ingredients]</text>
+  <text x="510" y="956" font-size="9" class="label-sub">冰箱几乎空时可复用</text>
+
+  <!-- ===== Next Time ===== -->
+  <rect x="20" y="980" width="920" height="14" class="phase-box" rx="7"/>
+  <text x="480" y="990" text-anchor="middle" font-size="9" class="phase-label">下次 — "今晚做饭。冰箱里没什么东西。"</text>
+
+  <rect x="40" y="1004" width="440" height="80" rx="10" class="retrieve-box"/>
+  <text x="60" y="1024" font-size="12" font-weight="600" fill="#7c3aed">chaeshin_retrieve</text>
+  <text x="60" y="1042" font-size="10" class="fix-label">案例: dinner_simple_001 (相似度: 0.82) — 使用简餐图</text>
+  <text x="60" y="1058" font-size="10" class="fail-label">警告: dinner_fail_001 — 不要套用一桌的图</text>
+  <text x="60" y="1074" font-size="10" class="label-sub">食材不足时一桌图在推荐菜单处失败</text>
+
+  <line x1="484" y1="1044" x2="520" y2="1044" class="arrow-success" marker-end="url(#arr-green)"/>
+
+  <rect x="524" y="1004" width="396" height="80" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+  <text x="544" y="1024" font-size="12" font-weight="600" class="fix-label">直接使用简餐</text>
+  <text x="544" y="1042" font-size="10" class="label">从一开始就使用简餐图</text>
+  <text x="544" y="1058" font-size="10" class="fix-label">无需升级! 一次完成</text>
+  <text x="544" y="1074" font-size="10" class="label-sub">反模式警告防止了重蹈覆辙</text>
+</svg>

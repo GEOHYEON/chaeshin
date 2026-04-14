@@ -319,7 +319,7 @@
   <text x="358" y="798" font-size="9" class="label-sub">error: "냄비 바닥 탐" | success: false</text>
 
   <!-- Derived case -->
-  <rect x="630" y="750" width="220" height="56" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" rx="10" filter="url(#sh)"/>
+  <rect x="630" y="750" width="220" height="56" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh)"/>
   <text x="648" y="770" font-size="11" class="layer-tag-l2">개선 케이스 저장</text>
   <text x="648" y="786" font-size="9" class="label">유저 해결 후 새 그래프 저장</text>
   <text x="648" y="798" font-size="9" class="label-sub">derived_from: "실패 케이스 ID"</text>
