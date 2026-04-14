@@ -11,7 +11,7 @@ Always call `chaeshin_retrieve` before starting any non-trivial task:
 - Bug fix, feature implementation, refactoring, deployment, CI fix, etc.
 - Pass the user's request as `query`, extract `keywords` from context
 - If a matching case exists (similarity > 0.7), follow that tool graph
-- If `warnings` are returned, **avoid** those patterns — they failed before
+- If `failures` are returned, **avoid** those patterns — they failed before
 
 ### Judging success vs failure — read user reactions
 

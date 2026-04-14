@@ -10,9 +10,23 @@ The name comes from 교자채신(敎子採薪) — *"Don't give firewood; teach 
 
 ---
 
-## Integrations — One Line Setup
+## Install
 
-Both platforms share `~/.chaeshin/cases.json` — cases saved by Claude Code can be reused by OpenClaw, and vice versa.
+```bash
+pip install chaeshin
+```
+
+Or with [uv](https://docs.astral.sh/uv/) (recommended):
+
+```bash
+uv pip install chaeshin
+```
+
+That's it. Now connect it to your agent:
+
+## Connect to Your Agent — One Line
+
+Both platforms share `~/.chaeshin/cases.json`, so cases saved by Claude Code can be reused by OpenClaw and vice versa.
 
 <p align="center">
   <img src="assets/integrations.svg" alt="Chaeshin Integration Architecture — Claude Code & OpenClaw" width="820"/>
@@ -21,19 +35,26 @@ Both platforms share `~/.chaeshin/cases.json` — cases saved by Claude Code can
 ### Claude Code
 
 ```bash
-pip install chaeshin && chaeshin setup claude-code
+chaeshin setup claude-code
 ```
 
-This registers a Chaeshin [MCP](https://modelcontextprotocol.io/) server with Claude Code. Four new tools become available:
+This single command does two things: registers a Chaeshin [MCP](https://modelcontextprotocol.io/) server and installs auto-learning rules (`CLAUDE.md`) in the current directory. Claude will automatically retrieve past patterns before multi-step tasks and save new ones after completing them.
+
+Three tools become available:
 
 | Tool | Description |
 |------|-------------|
-| `chaeshin_retrieve` | Search past cases — returns successes + anti-pattern warnings |
+| `chaeshin_retrieve` | Search past cases — returns successes and failures separately (configurable N each) |
 | `chaeshin_retain` | Save execution graphs (successes and failures) |
-| `chaeshin_anticipate` | Get proactive suggestions based on current context |
 | `chaeshin_stats` | View case store statistics |
 
-Before improvising a multi-step task, Claude checks if a similar pattern exists. Retrieve returns both successful cases to follow **and** warnings about past failures to avoid. After completing a task, it saves the execution graph. Failed executions are also saved with an error reason so the same mistake is not repeated.
+<details>
+<summary>With <code>uvx</code> (no global install needed)</summary>
+
+```bash
+uvx chaeshin setup claude-code --uvx
+```
+</details>
 
 <details>
 <summary>Manual setup (if <code>claude</code> CLI is not available)</summary>
@@ -44,8 +65,8 @@ Add to `~/.claude.json`:
 {
   "mcpServers": {
     "chaeshin": {
-      "command": "python",
-      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
+      "command": "uv",
+      "args": ["tool", "run", "chaeshin-mcp"]
     }
   }
 }
@@ -55,27 +76,20 @@ Add to `~/.claude.json`:
 ### OpenClaw
 
 ```bash
-pip install chaeshin && chaeshin setup openclaw
+chaeshin setup openclaw
 ```
 
-This installs a `SKILL.md` into `~/.openclaw/workspace/skills/chaeshin/`. Your OpenClaw agent starts using tool graph memory — retrieving past patterns before executing, and retaining successful ones.
+Installs a `SKILL.md` into `~/.openclaw/workspace/skills/chaeshin/`. Your OpenClaw agent starts using tool graph memory immediately.
 
-The bridge CLI provides JSON-based access for OpenClaw's subprocess model:
+### Claude Desktop
 
 ```bash
-# Search for similar cases
-python -m chaeshin.integrations.openclaw.bridge retrieve "deploy to staging"
-
-# Save a successful pattern
-python -m chaeshin.integrations.openclaw.bridge retain \
-    --request "deploy to staging" \
-    --graph '{"nodes":[...],"edges":[...]}'
-
-# View statistics
-python -m chaeshin.integrations.openclaw.bridge stats
+chaeshin setup claude-desktop --openai-key sk-...
 ```
 
-### Standalone (any agent)
+Auto-detects your OS, writes to `claude_desktop_config.json`, and sets up the `OPENAI_API_KEY` for vector embeddings. Restart Claude Desktop and you're done.
+
+### Any Agent (standalone)
 
 ```python
 from chaeshin import CaseStore, ProblemFeatures
@@ -83,34 +97,25 @@ from chaeshin import CaseStore, ProblemFeatures
 store = CaseStore()
 store.load_json(open("cases.json").read())
 
-# Retrieve similar past case
 results = store.retrieve(ProblemFeatures(request="send daily PR summary to slack"))
-
-# Use the tool graph from the best match
 if results:
     graph = results[0][0].solution.tool_graph
-    # execute graph...
 ```
 
-### Project Structure
+## Monitor — Visual Tool Graph Editor
 
+<p align="center">
+  <img src="assets/tool-graph.svg" alt="Tool Graph example — Kimchi Stew" width="720"/>
+</p>
+
+Chaeshin includes a web-based monitor (`chaeshin-monitor/`) built with Next.js and React Flow. You can visually inspect, create, and edit tool graphs stored in your case memory.
+
+```bash
+cd chaeshin-monitor
+pnpm install && pnpm dev
 ```
-chaeshin/
-├── cli/                    # chaeshin setup claude-code / openclaw
-│   └── main.py
-├── integrations/
-│   ├── claude_code/        # MCP server (stdio protocol)
-│   │   └── mcp_server.py
-│   ├── openclaw/           # SKILL.md + bridge CLI (subprocess)
-│   │   ├── SKILL.md
-│   │   └── bridge.py
-│   ├── openai.py           # LLM + embedding adapter
-│   └── chroma.py           # VectorDB case store
-├── schema.py               # Core data types
-├── case_store.py            # CBR retrieve / retain
-├── graph_executor.py        # Tool graph runner
-└── planner.py               # LLM-based graph create / adapt / replan
-```
+
+The Graph Builder page lets you drag-and-drop nodes, draw edges, set conditions, and export the result as a Chaeshin-compatible tool graph JSON. You can also import existing cases from `~/.chaeshin/cases.json` to review and refine them.
 
 ---
 
@@ -131,34 +136,28 @@ When a request comes in, Chaeshin searches for a similar past case, pulls out th
   <img src="assets/comparison.svg" alt="Plain LLM vs Chaeshin — cheese toast comparison" width="820"/>
 </p>
 
-## Core Concepts
+## How It Works
+
+### Auto-Learning
+
+After running `chaeshin setup claude-code`, Claude automatically:
+
+1. **Before** multi-step tasks → calls `chaeshin_retrieve` to check for past patterns
+2. **After** completing tasks → calls `chaeshin_retain` to save the execution graph
+3. **On failure** → saves the failed pattern with an error reason so it's never repeated
+
+You don't call retrieve/retain manually — Claude does it on its own. The more you use it, the smarter it gets.
+
+```
+Day 1:   Claude improvises everything from scratch
+Day 7:   20 cases saved — common patterns are reused
+Day 30:  100+ cases — Claude rarely improvises, follows proven patterns
+         Failed patterns are avoided automatically
+```
 
 ### Tool Graph
 
-Tool calls are structured as a **graph** (not just a DAG — loops are supported).
-
-<p align="center">
-  <img src="assets/tool-graph.svg" alt="Tool Graph example — Kimchi Stew" width="720"/>
-</p>
-
-### CBR Case
-
-Each case is a tuple of `(problem, solution, outcome, metadata)`:
-
-```python
-Case(
-    problem_features=ProblemFeatures(
-        request="Make kimchi stew",
-        category="stew",
-        keywords=["kimchi", "stew", "pork"],
-    ),
-    solution=Solution(
-        tool_graph=ToolGraph(nodes=[...], edges=[...])
-    ),
-    outcome=Outcome(success=True, user_satisfaction=0.90),
-    metadata=CaseMetadata(used_count=25, avg_satisfaction=0.88),
-)
-```
+Tool calls are structured as a **graph** (not just a DAG — loops are supported). Nodes represent tool invocations; edges define execution order and conditions.
 
 ### Immutable Graph + Mutable Context
 
@@ -172,28 +171,7 @@ Real-world execution doesn't always follow the plan. Chaeshin handles this throu
   <img src="assets/replan-scenarios.svg" alt="Replan Scenarios — Phone call, Allergy, Missing ingredient" width="780"/>
 </p>
 
-The key insight: the graph stays immutable during normal execution. Only when an exception has **no matching edge** does the LLM step in to modify the graph via a minimal diff — not a full regeneration.
-
-## Install
-
-```bash
-pip install chaeshin
-```
-
-Or with [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv pip install chaeshin
-```
-
-From source:
-
-```bash
-git clone https://github.com/GEOHYEON/chaeshin.git
-cd chaeshin
-uv sync --all-extras        # recommended
-# or: pip install -e ".[dev]"
-```
+The graph stays immutable during normal execution. Only when an exception has **no matching edge** does the LLM step in to modify the graph via a minimal diff — not a full regeneration.
 
 ## Quick Start
 
@@ -213,16 +191,12 @@ cp .env.example .env         # add your OPENAI_API_KEY
 uv run python -m examples.cooking.chef_agent_llm
 ```
 
-This runs the full CBR cycle with real LLM-powered graph creation, vector-based case retrieval, and diff-based replanning.
-
 **Web UI demo** (Gradio):
 
 ```bash
 cp .env.example .env         # add your OPENAI_API_KEY
 uv run python -m examples.cooking.app
 ```
-
-Opens a browser UI where you can enter any cooking request and watch the CBR pipeline execute step by step.
 
 See the [Quick Start Guide](docs/quickstart.md) for a step-by-step walkthrough.
 
@@ -231,6 +205,28 @@ See the [Quick Start Guide](docs/quickstart.md) for a step-by-step walkthrough.
 <p align="center">
   <img src="assets/architecture.svg" alt="Chaeshin Architecture" width="600"/>
 </p>
+
+## Project Structure
+
+```
+chaeshin/
+├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
+│   └── main.py
+├── integrations/
+│   ├── claude_code/        # MCP server (FastMCP) + CLAUDE.md template
+│   │   ├── mcp_server.py
+│   │   └── CLAUDE.md
+│   ├── openclaw/           # SKILL.md + bridge CLI (subprocess)
+│   │   ├── SKILL.md
+│   │   └── bridge.py
+│   ├── openai.py           # LLM + embedding adapter
+│   └── chroma.py           # VectorDB case store
+├── schema.py               # Core data types
+├── case_store.py           # CBR retrieve / retain (+ anti-patterns)
+├── graph_executor.py       # Tool graph runner
+└── planner.py              # LLM-based graph create / adapt / replan
+chaeshin-monitor/           # Next.js web UI — visual graph builder & case viewer
+```
 
 ## Related Work
 
