@@ -1,81 +1,88 @@
 # Chaeshin (채신) 採薪
 
-> *"Dale un plan a un agente y resolverá una tarea. Enséñale a buscar planes y los resolverá todos."*
+**Agentes LLM que recuerdan lo que funcionó.** En lugar de improvisar llamadas a herramientas cada vez, Chaeshin almacena patrones de ejecución exitosos y los reutiliza — así tu agente mejora con cada tarea.
 
-**Chaeshin** es un framework de Razonamiento Basado en Casos (CBR) para llamadas a herramientas de LLM. Almacena grafos de ejecución de herramientas exitosos, los recupera para problemas similares y los adapta a nuevas situaciones.
+<p align="center">
+  <img src="../../assets/comparison.svg" alt="LLM simple vs Chaeshin — el mismo error vs patrón aprendido" width="820"/>
+</p>
 
-El nombre proviene de 교자채신(敎子採薪) — *"No des leña; enseña a recogerla."*
-
-[English](../../README.md) | [한국어](../ko/README.md)
+[English](../../README.md) | [한국어](../ko/README.md) | [中文](../zh/README.md) | [日本語](../ja/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md)
 
 ---
 
-## Integraciones — Configuración en una línea
+## El Problema
 
-Ambas plataformas comparten `~/.chaeshin/cases.json` — los casos guardados por Claude Code pueden ser reutilizados por OpenClaw, y viceversa.
+La mayoría de los agentes LLM **improvisan** llamadas a herramientas sobre la marcha o siguen pipelines **codificados**:
 
-<p align="center">
-  <img src="../../assets/integrations.svg" alt="Arquitectura de Integración de Chaeshin — Claude Code y OpenClaw" width="820"/>
-</p>
+- **Improvisado** (estilo ReAct): Se salta pasos, orden incorrecto, repite los mismos errores.
+- **Codificado**: Cada nuevo escenario requiere cambios de código. No escala.
 
-### Claude Code
+## La Solución
 
-```bash
-pip install chaeshin && chaeshin setup claude-code
+Chaeshin recuerda lo que funcionó. Cuando llega una solicitud similar, recupera un grafo de ejecución de herramientas probado, lo adapta, lo ejecuta y guarda el resultado. Esto es [Razonamiento Basado en Casos](https://es.wikipedia.org/wiki/Razonamiento_basado_en_casos): **Recuperar → Reutilizar → Revisar → Retener.**
+
+Los fallos también se guardan — así el mismo error nunca se repite.
+
+```
+Día 1:    El agente improvisa todo desde cero
+Día 7:    20 casos guardados — los patrones comunes se reutilizan
+Día 30:   100+ casos — el agente rara vez improvisa, sigue patrones probados
 ```
 
-Esto registra un servidor [MCP](https://modelcontextprotocol.io/) de Chaeshin con Claude Code. Cuatro nuevas herramientas estarán disponibles:
+---
 
-| Herramienta | Descripción |
-|-------------|-------------|
-| `chaeshin_retrieve` | Busca casos anteriores — devuelve éxitos + advertencias de anti-patrones |
-| `chaeshin_retain` | Guarda grafos de ejecución (éxitos y fallos) |
-| `chaeshin_anticipate` | Obtiene sugerencias proactivas basadas en el contexto actual |
-| `chaeshin_stats` | Muestra estadísticas del almacén de casos |
+## Inicio Rápido
 
-Antes de improvisar una tarea de múltiples pasos, Claude verifica si existe un patrón similar. Retrieve devuelve tanto casos exitosos a seguir **como** advertencias sobre fallos pasados a evitar. Después de completar una tarea, guarda el grafo de ejecución. Las ejecuciones fallidas también se guardan con la razón del error para no repetir el mismo error.
+### 1. Instalar
+
+```bash
+pip install chaeshin
+```
+
+### 2. Conectar a tu agente
+
+```bash
+chaeshin setup claude-code       # Claude Code (MCP + auto-aprendizaje)
+chaeshin setup claude-desktop    # Claude Desktop
+chaeshin setup openclaw          # OpenClaw
+```
+
+Eso es todo. Claude ahora automáticamente:
+- **Antes** de tareas de múltiples pasos → recupera patrones anteriores
+- **Después** de completar tareas → guarda el grafo de ejecución
+- **En caso de fallo** → guarda el patrón fallido para no repetirlo
 
 <details>
-<summary>Configuración manual (si la CLI de <code>claude</code> no está disponible)</summary>
+<summary>Otros métodos de instalación</summary>
 
-Añadir a `~/.claude.json`:
+Con [uv](https://docs.astral.sh/uv/) (recomendado):
+
+```bash
+uv pip install chaeshin
+```
+
+Con `uvx` (sin instalación global):
+
+```bash
+uvx chaeshin setup claude-code --uvx
+```
+
+Configuración manual de MCP (añadir a `~/.claude.json`):
 
 ```json
 {
   "mcpServers": {
     "chaeshin": {
-      "command": "python",
-      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
+      "command": "uv",
+      "args": ["tool", "run", "chaeshin-mcp"]
     }
   }
 }
 ```
 </details>
 
-### OpenClaw
-
-```bash
-pip install chaeshin && chaeshin setup openclaw
-```
-
-Esto instala un `SKILL.md` en `~/.openclaw/workspace/skills/chaeshin/`. Tu agente OpenClaw comenzará a usar la memoria de grafos de herramientas — recuperando patrones anteriores antes de ejecutar, y reteniendo los exitosos.
-
-La CLI puente proporciona acceso basado en JSON para el modelo de subproceso de OpenClaw:
-
-```bash
-# Buscar casos similares
-python -m chaeshin.integrations.openclaw.bridge retrieve "deploy to staging"
-
-# Guardar un patrón exitoso
-python -m chaeshin.integrations.openclaw.bridge retain \
-    --request "deploy to staging" \
-    --graph '{"nodes":[...],"edges":[...]}'
-
-# Ver estadísticas
-python -m chaeshin.integrations.openclaw.bridge stats
-```
-
-### Independiente (cualquier agente)
+<details>
+<summary>Uso como biblioteca independiente (cualquier agente)</summary>
 
 ```python
 from chaeshin import CaseStore, ProblemFeatures
@@ -83,148 +90,123 @@ from chaeshin import CaseStore, ProblemFeatures
 store = CaseStore()
 store.load_json(open("cases.json").read())
 
-# Recuperar un caso pasado similar
 results = store.retrieve(ProblemFeatures(request="send daily PR summary to slack"))
-
-# Usar el grafo de herramientas de la mejor coincidencia
 if results:
     graph = results[0][0].solution.tool_graph
-    # ejecutar grafo...
 ```
+</details>
 
-### Estructura del Proyecto
-
-```
-chaeshin/
-├── cli/                    # chaeshin setup claude-code / openclaw
-│   └── main.py
-├── integrations/
-│   ├── claude_code/        # Servidor MCP (protocolo stdio)
-│   │   └── mcp_server.py
-│   ├── openclaw/           # SKILL.md + CLI puente (subproceso)
-│   │   ├── SKILL.md
-│   │   └── bridge.py
-│   ├── openai.py           # Adaptador LLM + embeddings
-│   └── chroma.py           # Almacén de casos VectorDB
-├── schema.py               # Tipos de datos principales
-├── case_store.py            # CBR recuperar / retener
-├── graph_executor.py        # Ejecutor de grafos de herramientas
-└── planner.py               # Creación / adaptación / replanificación de grafos con LLM
-```
-
----
-
-## ¿Por qué Chaeshin?
-
-La mayoría de los agentes LLM improvisan llamadas a herramientas sobre la marcha (estilo ReAct) o siguen pipelines rígidos codificados por desarrolladores. Ambos enfoques tienen limitaciones:
-
-- **Improvisado**: El LLM puede saltarse pasos, llamar herramientas en el orden incorrecto o repetir errores que ya cometió.
-- **Codificado**: Cada nuevo escenario requiere cambios de código. No escala.
-
-Chaeshin adopta un enfoque diferente: **recordar lo que funcionó y reutilizarlo.**
-
-Cuando llega una solicitud, Chaeshin busca un caso pasado similar, extrae el grafo de ejecución de herramientas que funcionó, lo adapta si es necesario, lo ejecuta y — si tiene éxito — lo guarda para uso futuro. Este es el ciclo clásico de [Razonamiento Basado en Casos](https://es.wikipedia.org/wiki/Razonamiento_basado_en_casos): **Recuperar → Reutilizar → Revisar → Retener**.
-
-## LLM Simple vs Chaeshin
-
-<p align="center">
-  <img src="../../assets/comparison.svg" alt="LLM Simple vs Chaeshin — comparación con tostada de queso" width="820"/>
-</p>
-
-## Conceptos Principales
-
-### Grafo de Herramientas
-
-Las llamadas a herramientas se estructuran como un **grafo** (no solo un DAG — se admiten ciclos).
-
-<p align="center">
-  <img src="../../assets/tool-graph.svg" alt="Ejemplo de Grafo de Herramientas — Estofado de Kimchi" width="720"/>
-</p>
-
-### Caso CBR
-
-Cada caso es una tupla de `(problema, solución, resultado, metadatos)`:
-
-```python
-Case(
-    problem_features=ProblemFeatures(
-        request="Make kimchi stew",
-        category="stew",
-        keywords=["kimchi", "stew", "pork"],
-    ),
-    solution=Solution(
-        tool_graph=ToolGraph(nodes=[...], edges=[...])
-    ),
-    outcome=Outcome(success=True, user_satisfaction=0.90),
-    metadata=CaseMetadata(used_count=25, avg_satisfaction=0.88),
-)
-```
-
-### Grafo Inmutable + Contexto Mutable
-
-El grafo de herramientas nunca cambia durante la ejecución. Solo se actualiza el **contexto de ejecución** (posición del cursor, estados de los nodos, salidas). Si ocurre algo inesperado y no existe una arista coincidente, se le pide al LLM que modifique el grafo mediante un diff — añadiendo o eliminando nodos y aristas.
-
-### ¿Qué pasa cuando algo sale mal?
-
-La ejecución en el mundo real no siempre sigue el plan. Chaeshin maneja esto mediante **replanificación basada en diffs** — el LLM solo interviene cuando no existe una arista coincidente:
-
-<p align="center">
-  <img src="../../assets/replan-scenarios.svg" alt="Escenarios de Replanificación — Llamada telefónica, Alergia, Ingrediente faltante" width="780"/>
-</p>
-
-La idea clave: el grafo permanece inmutable durante la ejecución normal. Solo cuando una excepción **no tiene una arista coincidente**, el LLM interviene para modificar el grafo mediante un diff mínimo — no una regeneración completa.
-
-## Instalación
+### 3. Probar la demo
 
 ```bash
-pip install chaeshin
-```
-
-O con [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv pip install chaeshin
-```
-
-Desde el código fuente:
-
-```bash
-git clone https://github.com/GEOHYEON/chaeshin.git
-cd chaeshin
-uv sync --all-extras        # recomendado
-# o: pip install -e ".[dev]"
-```
-
-## Inicio Rápido
-
-**Demo basada en reglas** (no se necesita clave API):
-
-```bash
-git clone https://github.com/GEOHYEON/chaeshin.git
-cd chaeshin
+git clone https://github.com/GEOHYEON/chaeshin.git && cd chaeshin
 uv sync --all-extras
-uv run python -m examples.cooking.chef_agent
+uv run python -m examples.cooking.chef_agent   # no se necesita clave API
 ```
 
-**Demo LLM + VectorDB** (OpenAI + ChromaDB):
+<details>
+<summary>Demo LLM + VectorDB (OpenAI + ChromaDB)</summary>
 
 ```bash
 cp .env.example .env         # añade tu OPENAI_API_KEY
 uv run python -m examples.cooking.chef_agent_llm
 ```
+</details>
 
-Esto ejecuta el ciclo CBR completo con creación de grafos impulsada por LLM real, recuperación de casos basada en vectores y replanificación basada en diffs.
-
-**Demo con interfaz web** (Gradio):
+<details>
+<summary>Demo con interfaz web (Gradio)</summary>
 
 ```bash
-cp .env.example .env         # añade tu OPENAI_API_KEY
+cp .env.example .env
 uv run python -m examples.cooking.app
 ```
+</details>
 
-Abre una interfaz de navegador donde puedes ingresar cualquier solicitud de cocina y observar el pipeline CBR ejecutarse paso a paso.
+Consulta la [Guía de Inicio Rápido](../quickstart.md) para un recorrido completo.
 
-Consulta la [Guía de Inicio Rápido](../quickstart.md) para un recorrido paso a paso.
+---
+
+## Cómo Funciona
+
+### Grafo de Herramientas
+
+Las llamadas a herramientas se estructuran como un **grafo** — no una simple lista. Los nodos son invocaciones de herramientas; las aristas definen el orden y las condiciones. Se admiten ciclos (ej., "probar → muy soso → cocinar más → probar de nuevo").
+
+<p align="center">
+  <img src="../../assets/tool-graph.svg" alt="Grafo de Herramientas — nodos, aristas, condiciones, ciclos" width="720"/>
+</p>
+
+### Grafo Inmutable + Contexto Mutable
+
+El grafo nunca cambia durante la ejecución. Solo se actualiza el **contexto de ejecución** (cursor, estados de los nodos, salidas). Si ocurre algo inesperado y ninguna arista coincide, el LLM modifica el grafo mediante un **diff** mínimo — no una regeneración completa.
+
+### Cuando Algo Sale Mal
+
+La ejecución real no siempre sigue el plan. Chaeshin maneja esto mediante **replanificación basada en diffs**:
+
+<p align="center">
+  <img src="../../assets/replan-scenarios.svg" alt="Replanificación — llamada telefónica, alerta de alergia, ingrediente faltante" width="780"/>
+</p>
+
+---
+
+## Ejemplo Completo — Preparar una Mesa para Cenar
+
+Un recorrido completo: "Prepara la cena para 3, el niño tiene alergia al camarón." Muestra cada paso — recuperar, descomponer en capas, cocción en paralelo, ciclos de prueba de sabor y escalamiento de fallos.
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.svg" alt="Éxito — Recuperar → Descomponer → Ejecutar → Retener" width="820"/>
+</p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.svg" alt="Fallo — Escalamiento de L1 → L2 → Usuario → Recuperación" width="820"/>
+</p>
+
+Escenario completo con explicaciones paso a paso:
+[English](../../examples/dinner-table/scenario_en.md) ·
+[한국어](../../examples/dinner-table/scenario_ko.md) ·
+[日本語](../../examples/dinner-table/scenario_ja.md) ·
+[中文](../../examples/dinner-table/scenario_zh.md)
+
+---
+
+## Integraciones
+
+Todas las plataformas comparten `~/.chaeshin/cases.json` — los casos guardados en Claude Code funcionan en OpenClaw y viceversa.
+
+<p align="center">
+  <img src="../../assets/integrations.svg" alt="Arquitectura de Integración — Claude Code y OpenClaw" width="820"/>
+</p>
+
+| Plataforma | Comando | Qué hace |
+|------------|---------|----------|
+| Claude Code | `chaeshin setup claude-code` | Servidor MCP + reglas de auto-aprendizaje (`CLAUDE.md`) |
+| Claude Desktop | `chaeshin setup claude-desktop` | Edita automáticamente `claude_desktop_config.json` |
+| OpenClaw | `chaeshin setup openclaw` | Instala `SKILL.md` en el workspace |
+
+Tres herramientas quedan disponibles después de la configuración:
+
+| Herramienta | Descripción |
+|-------------|-------------|
+| `chaeshin_retrieve` | Busca casos anteriores — devuelve éxitos y fallos por separado |
+| `chaeshin_retain` | Guarda grafos de ejecución (éxitos y fallos) |
+| `chaeshin_stats` | Muestra estadísticas del almacén de casos |
+
+---
+
+## Monitor — Editor Visual de Grafos
+
+<p align="center">
+  <img src="../../assets/tool-graph.svg" alt="Editor Visual de Grafos" width="720"/>
+</p>
+
+Un editor web de grafos de herramientas construido con Next.js y React Flow. Arrastra y suelta nodos, dibuja aristas, establece condiciones, importa/exporta casos desde `~/.chaeshin/cases.json`.
+
+```bash
+cd chaeshin-monitor && pnpm install && pnpm dev
+```
+
+---
 
 ## Arquitectura
 
@@ -232,21 +214,50 @@ Consulta la [Guía de Inicio Rápido](../quickstart.md) para un recorrido paso a
   <img src="../../assets/architecture.svg" alt="Arquitectura de Chaeshin" width="600"/>
 </p>
 
+<details>
+<summary>Estructura del proyecto</summary>
+
+```
+chaeshin/
+├── schema.py               # Tipos de datos principales (Case, ToolGraph, GraphNode, GraphEdge)
+├── case_store.py           # Ciclo CBR 4R: recuperar, reutilizar, revisar, retener
+├── graph_executor.py       # Ejecutor de grafos de herramientas (paralelo, ciclos, condiciones)
+├── planner.py              # Creación / adaptación / replanificación de grafos con LLM (basado en diffs)
+├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
+├── integrations/
+│   ├── claude_code/        # Servidor MCP (FastMCP) + plantilla de auto-aprendizaje CLAUDE.md
+│   ├── openclaw/           # SKILL.md + CLI puente
+│   ├── openai.py           # Adaptador LLM + embeddings
+│   ├── chroma.py           # Almacén de casos vectorial ChromaDB
+│   └── chaebi.py           # Sincronización con marketplace Chaebi
+└── agents/                 # v2: Orchestrator, Decomposer, Executor, Reflection
+chaeshin-monitor/           # Interfaz web Next.js
+examples/cooking/           # Agente demo (estofado de kimchi, estofado de doenjang, escenarios de recuperación)
+examples/dinner-table/      # Recorrido completo (4 idiomas)
+```
+</details>
+
+## Requisitos
+
+- Python 3.10+
+- Sin dependencias requeridas para uso básico
+- Opcionales: `openai` (adaptador LLM), `chromadb` (almacén vectorial), `httpx` (marketplace Chaebi)
+
 ## Trabajo Relacionado
 
 Chaeshin se inspira en ideas de:
 
-- [Case-Based Reasoning for LLM Agents (2025)](https://arxiv.org/abs/2504.06943) — Encuesta sobre integración CBR + LLM
+- [CBR for LLM Agents (2025)](https://arxiv.org/abs/2504.06943) — Encuesta sobre integración CBR + LLM
 - [DS-Agent (ICML 2024)](https://arxiv.org/abs/2402.17453) — Agente de ciencia de datos basado en CBR
 - [Voyager (NeurIPS 2023)](https://arxiv.org/abs/2305.16291) — Biblioteca de habilidades con aprendizaje basado en experiencia
-- [GAP: Graph-based Agent Planning (2025)](https://arxiv.org/html/2510.25320v1) — Ejecución paralela de herramientas mediante grafos
+- [GAP (2025)](https://arxiv.org/html/2510.25320v1) — Ejecución paralela de herramientas mediante grafos
 - [HTN Plan Repair (2025)](https://arxiv.org/abs/2504.16209) — Reparación jerárquica de planes
 
-**¿Qué lo diferencia?** Chaeshin combina el almacenamiento de grafos de herramientas como casos CBR, grafos generales con ciclos (no solo DAGs), modificación de grafos basada en diffs en lugar de regeneración completa, y ejecución híbrida donde el código maneja el flujo normal mientras el LLM solo interviene en excepciones.
+**¿Qué lo diferencia?** Grafos de herramientas almacenados como casos CBR, grafos generales con ciclos (no solo DAGs), modificación basada en diffs en lugar de regeneración completa, y ejecución híbrida donde el código maneja el flujo normal mientras el LLM solo interviene en excepciones.
 
 ## Licencia
 
-Licencia MIT — ver [LICENSE](../../LICENSE)
+MIT — ver [LICENSE](../../LICENSE)
 
 ---
 

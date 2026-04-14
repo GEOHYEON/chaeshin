@@ -1,81 +1,88 @@
-# 採薪 (Chaeshin)
+# Chaeshin (採薪)
 
-> **"给代理一个计划，它能解决一个任务。教会它检索计划，它能解决所有任务。"**
+**能记住有效方案的LLM代理。** 採薪不再每次即兴调用工具，而是存储成功的执行模式并复用——让你的代理随着每次任务不断进步。
 
-**採薪**是一个用于LLM工具调用（Tool Calling）的Case-Based Reasoning（CBR）框架。它存储过去成功的工具执行图，在遇到类似问题时检索并复用，根据情况进行调整后执行。
+<p align="center">
+  <img src="../../assets/comparison.svg" alt="普通LLM vs 採薪——同样的错误 vs 学习到的模式" width="820"/>
+</p>
 
-敎子採薪 — *不要给木柴，要教会如何采薪。*
-
-[English](../../README.md) | [한국어](../ko/README.md)
+[English](../../README.md) | [한국어](../ko/README.md) | [日本語](../ja/README.md) | [Español](../es/README.md) | [Français](../fr/README.md) | [Deutsch](../de/README.md)
 
 ---
 
-## 集成 — 一行配置
+## 问题所在
 
-两个平台共享 `~/.chaeshin/cases.json` — 在Claude Code中积累的案例可以在OpenClaw中使用，反之亦然。
+大多数LLM代理要么**即兴**进行工具调用，要么遵循**硬编码**的流水线：
 
-<p align="center">
-  <img src="../../assets/integrations.svg" alt="採薪集成架构 — Claude Code & OpenClaw" width="820"/>
-</p>
+- **即兴型**（ReAct风格）：跳过步骤、顺序错误、反复犯同样的错误。
+- **硬编码型**：每个新场景都需要修改代码。无法扩展。
 
-### Claude Code
+## 解决方案
 
-```bash
-pip install chaeshin && chaeshin setup claude-code
+採薪记住有效的方案。当类似请求到来时，它检索经过验证的工具执行图，进行适配，执行，并保存结果。这就是[Case-Based Reasoning](https://en.wikipedia.org/wiki/Case-based_reasoning)：**检索 → 复用 → 修订 → 保留。**
+
+失败的案例也会被保存——同样的错误不会再犯第二次。
+
+```
+第1天：  代理从零开始即兴处理所有任务
+第7天：  保存了20个案例——常见模式被复用
+第30天： 100+个案例——代理几乎不再即兴，遵循经过验证的模式
 ```
 
-Chaeshin [MCP](https://modelcontextprotocol.io/) 服务器将注册到Claude Code中。以下4个工具将被添加：
+---
 
-| 工具 | 说明 |
-|------|------|
-| `chaeshin_retrieve` | 搜索类似案例 — 返回成功案例 + 反模式警告 |
-| `chaeshin_retain` | 保存执行图（成功和失败均保存） |
-| `chaeshin_anticipate` | 预测建议 — 基于当前上下文的主动建议 |
-| `chaeshin_stats` | 存储统计 — 查看案例库统计信息 |
+## 快速开始
 
-在执行多步骤任务之前，先搜索是否存在类似模式。检索时不仅返回成功案例，还会返回过去失败的**反模式警告**。任务完成后保存执行图，失败的执行也会连同原因一起保存，以避免重复同样的错误。
+### 1. 安装
+
+```bash
+pip install chaeshin
+```
+
+### 2. 连接到你的代理
+
+```bash
+chaeshin setup claude-code       # Claude Code (MCP + 自动学习)
+chaeshin setup claude-desktop    # Claude Desktop
+chaeshin setup openclaw          # OpenClaw
+```
+
+就是这样。Claude现在会自动：
+- **执行**多步骤任务之前 → 检索过去的模式
+- **完成**任务之后 → 保存执行图
+- **失败**时 → 保存失败模式，避免重复
 
 <details>
-<summary>手动配置（当 <code>claude</code> CLI 不可用时）</summary>
+<summary>其他安装方式</summary>
 
-添加到 `~/.claude.json`：
+使用 [uv](https://docs.astral.sh/uv/)（推荐）：
+
+```bash
+uv pip install chaeshin
+```
+
+使用 `uvx`（无需全局安装）：
+
+```bash
+uvx chaeshin setup claude-code --uvx
+```
+
+手动MCP配置（添加到 `~/.claude.json`）：
 
 ```json
 {
   "mcpServers": {
     "chaeshin": {
-      "command": "python",
-      "args": ["-m", "chaeshin.integrations.claude_code.mcp_server"]
+      "command": "uv",
+      "args": ["tool", "run", "chaeshin-mcp"]
     }
   }
 }
 ```
 </details>
 
-### OpenClaw
-
-```bash
-pip install chaeshin && chaeshin setup openclaw
-```
-
-`SKILL.md` 将被安装到 `~/.openclaw/workspace/skills/chaeshin/`。OpenClaw代理将开始使用Tool Graph记忆。
-
-通过桥接CLI可以进行基于JSON的检索/保存：
-
-```bash
-# 搜索类似案例
-python -m chaeshin.integrations.openclaw.bridge retrieve "deploy to staging"
-
-# 保存成功模式
-python -m chaeshin.integrations.openclaw.bridge retain \
-    --request "deploy to staging" \
-    --graph '{"nodes":[...],"edges":[...]}'
-
-# 查看统计
-python -m chaeshin.integrations.openclaw.bridge stats
-```
-
-### 独立使用 (any agent)
+<details>
+<summary>作为独立库使用（任意代理）</summary>
 
 ```python
 from chaeshin import CaseStore, ProblemFeatures
@@ -87,159 +94,119 @@ results = store.retrieve(ProblemFeatures(request="send daily PR summary to slack
 if results:
     graph = results[0][0].solution.tool_graph
 ```
+</details>
 
-### 项目结构
+### 3. 试试演示
 
+```bash
+git clone https://github.com/GEOHYEON/chaeshin.git && cd chaeshin
+uv sync --all-extras
+uv run python -m examples.cooking.chef_agent   # 无需API密钥
 ```
-chaeshin/
-├── cli/                    # chaeshin setup claude-code / openclaw
-│   └── main.py
-├── integrations/
-│   ├── claude_code/        # MCP 服务器 (stdio 协议)
-│   │   └── mcp_server.py
-│   ├── openclaw/           # SKILL.md + 桥接 CLI (subprocess)
-│   │   ├── SKILL.md
-│   │   └── bridge.py
-│   ├── openai.py           # LLM + 嵌入适配器
-│   └── chroma.py           # VectorDB 案例存储
-├── schema.py               # 核心数据类型
-├── case_store.py            # CBR 检索 / 保留
-├── graph_executor.py        # Tool Graph 执行引擎
-└── planner.py               # 基于LLM的图创建 / 适应 / 重规划
+
+<details>
+<summary>LLM + VectorDB 演示（OpenAI + ChromaDB）</summary>
+
+```bash
+cp .env.example .env         # 填入你的 OPENAI_API_KEY
+uv run python -m examples.cooking.chef_agent_llm
 ```
+</details>
+
+<details>
+<summary>Web UI 演示（Gradio）</summary>
+
+```bash
+cp .env.example .env
+uv run python -m examples.cooking.app
+```
+</details>
+
+完整指南请参阅[快速开始文档](docs/quickstart.md)。
 
 ---
 
-## 为什么选择採薪？
+## 工作原理
 
-大多数LLM代理要么即兴进行工具调用（ReAct风格），要么遵循开发者预设的固定流水线。两种方式都有局限性：
+### 工具图
 
-- **即兴型**：LLM可能会跳过步骤、弄错顺序，或重复同样的错误。
-- **固定型**：每个新场景都需要修改代码。难以扩展。
-
-採薪采用不同的方法：**记住有效的方案，然后复用。**
-
-当请求到来时，採薪搜索类似的历史案例，取出当时成功的工具执行图，必要时进行修改，执行后，如果成功则再次保存。这就是 [Case-Based Reasoning](https://en.wikipedia.org/wiki/Case-based_reasoning) 的经典循环：**检索 → 复用 → 修订 → 保留**。
-
-## 普通LLM vs 採薪
+工具调用以**图结构**表示——不是简单的列表。节点是工具调用；边定义顺序和条件。支持循环（例如，"品尝 → 太淡 → 继续煮 → 再次品尝"）。
 
 <p align="center">
-  <img src="../../assets/comparison.svg" alt="普通LLM vs 採薪 — 芝士吐司对比" width="820"/>
+  <img src="../../assets/tool-graph.svg" alt="工具图——节点、边、条件、循环" width="720"/>
 </p>
-
-## 核心概念
-
-### Tool Graph — 执行蓝图
-
-工具调用以**图结构**表示。不是DAG，而是支持**循环**的一般图。
-
-<p align="center">
-  <img src="../../assets/tool-graph.svg" alt="Tool Graph 示例 — 泡菜汤" width="720"/>
-</p>
-
-### CBR Case — 问题-解法-结果-元数据
-
-每个案例是一个 `(problem, solution, outcome, metadata)` 元组：
-
-```python
-Case(
-    problem_features=ProblemFeatures(
-        request="Make kimchi stew",
-        category="stew",
-        keywords=["kimchi", "stew", "pork"],
-    ),
-    solution=Solution(
-        tool_graph=ToolGraph(nodes=[...], edges=[...])
-    ),
-    outcome=Outcome(success=True, user_satisfaction=0.90),
-    metadata=CaseMetadata(used_count=25, avg_satisfaction=0.88),
-)
-```
 
 ### 不可变图 + 可变上下文
 
-Tool Graph在执行过程中不会改变。改变的只是**执行上下文**（游标位置、节点状态、输出值）。当出现意外情况且没有匹配的边时，才会请求LLM以diff形式（添加/删除节点和边）修改图。
+图在执行过程中不会改变。只有**执行上下文**（游标、节点状态、输出）会更新。当出现意外情况且没有匹配的边时，LLM通过最小化的**diff**修改图——而非完全重新生成。
 
-### 当出现意外情况怎么办？
+### 当出现意外情况
 
-执行过程中并不总是按计划进行。採薪通过**基于diff的重规划**来处理 — 仅在没有匹配边时LLM才介入：
+实际执行并不总是按计划进行。採薪通过**基于diff的重规划**来处理：
 
 <p align="center">
-  <img src="../../assets/replan-scenarios.svg" alt="重规划场景 — 电话、过敏、缺少食材" width="780"/>
+  <img src="../../assets/replan-scenarios.svg" alt="重规划——电话、过敏警报、缺少食材" width="780"/>
 </p>
 
-核心原理：正常执行时图是不可变的。只有当出现**没有匹配边的异常**时，LLM才介入，以最小的diff修改图。不是完全重新生成，而是只应用变更部分。
+---
 
-## 安装
+## 完整示例——摆设餐桌
+
+一个完整的演示："为3人准备晚餐，其中一个孩子对虾过敏。"展示每个步骤——检索、分层分解、并行烹饪、品尝检查循环和失败升级。
+
+<p align="center">
+  <img src="../../assets/dinner-table-success.zh.svg" alt="成功——检索 → 分解 → 执行 → 保留" width="820"/>
+</p>
+
+<p align="center">
+  <img src="../../assets/dinner-table-failure.zh.svg" alt="失败——从L1 → L2 → 用户 → 恢复的升级" width="820"/>
+</p>
+
+完整场景及逐步说明：
+[English](../../examples/dinner-table/scenario_en.md) ·
+[한국어](../../examples/dinner-table/scenario_ko.md) ·
+[日本語](../../examples/dinner-table/scenario_ja.md) ·
+[中文](../../examples/dinner-table/scenario_zh.md)
+
+---
+
+## 集成
+
+所有平台共享 `~/.chaeshin/cases.json`——在Claude Code中保存的案例可以在OpenClaw中使用，反之亦然。
+
+<p align="center">
+  <img src="../../assets/integrations.svg" alt="集成架构——Claude Code & OpenClaw" width="820"/>
+</p>
+
+| 平台 | 命令 | 功能 |
+|------|------|------|
+| Claude Code | `chaeshin setup claude-code` | MCP服务器 + 自动学习规则（`CLAUDE.md`） |
+| Claude Desktop | `chaeshin setup claude-desktop` | 自动编辑 `claude_desktop_config.json` |
+| OpenClaw | `chaeshin setup openclaw` | 将 `SKILL.md` 安装到工作区 |
+
+设置后可用的三个工具：
+
+| 工具 | 说明 |
+|------|------|
+| `chaeshin_retrieve` | 搜索过去的案例——分别返回成功和失败案例 |
+| `chaeshin_retain` | 保存执行图（成功和失败均保存） |
+| `chaeshin_stats` | 查看案例库统计信息 |
+
+---
+
+## 监控——可视化图编辑器
+
+<p align="center">
+  <img src="../../assets/tool-graph.svg" alt="可视化图编辑器" width="720"/>
+</p>
+
+基于Next.js和React Flow构建的Web工具图编辑器。拖放节点、绘制边、设置条件，从 `~/.chaeshin/cases.json` 导入/导出案例。
 
 ```bash
-pip install chaeshin
+cd chaeshin-monitor && pnpm install && pnpm dev
 ```
 
-或使用 [uv](https://docs.astral.sh/uv/)：
-
-```bash
-uv pip install chaeshin
-```
-
-从源码安装：
-
-```bash
-git clone https://github.com/GEOHYEON/chaeshin.git
-cd chaeshin
-uv sync --all-extras        # 推荐
-# 或: pip install -e ".[dev]"
-```
-
-## 快速开始 — 泡菜汤厨师
-
-**基于规则的演示**（无需API密钥）：
-
-```bash
-git clone https://github.com/GEOHYEON/chaeshin.git
-cd chaeshin
-uv sync --all-extras
-uv run python -m examples.cooking.chef_agent
-```
-
-**LLM + VectorDB 演示**（OpenAI + ChromaDB）：
-
-```bash
-cp .env.example .env         # 填入 OPENAI_API_KEY
-uv run python -m examples.cooking.chef_agent_llm
-```
-
-**Web UI 演示**（Gradio）：
-
-```bash
-cp .env.example .env         # 填入 OPENAI_API_KEY
-uv run python -m examples.cooking.app
-```
-
-在浏览器中输入烹饪请求，可以看到CBR流水线逐步执行的过程。
-
-```python
-from chaeshin import CaseStore, GraphExecutor, ProblemFeatures
-
-# 1. 加载CBR案例库
-store = CaseStore()
-store.load_json(open("cases.json").read())
-
-# 2. 搜索类似案例
-problem = ProblemFeatures(
-    request="김치찌개 2인분 해줘",
-    category="찌개류",
-    keywords=["김치", "찌개"],
-)
-case = store.retrieve_best(problem)
-
-# 3. 执行 Tool Graph
-executor = GraphExecutor(tools=COOKING_TOOLS)
-ctx = await executor.execute(case.solution.tool_graph)
-
-# 4. 成功则保存
-store.retain_if_successful(new_case)
-```
+---
 
 ## 架构
 
@@ -247,22 +214,51 @@ store.retain_if_successful(new_case)
   <img src="../../assets/architecture.svg" alt="採薪架构" width="600"/>
 </p>
 
+<details>
+<summary>项目结构</summary>
+
+```
+chaeshin/
+├── schema.py               # 核心数据类型 (Case, ToolGraph, GraphNode, GraphEdge)
+├── case_store.py           # CBR 4R循环: 检索、复用、修订、保留
+├── graph_executor.py       # 工具图执行器（并行、循环、条件）
+├── planner.py              # 基于LLM的图创建 / 适配 / 重规划（基于diff）
+├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
+├── integrations/
+│   ├── claude_code/        # MCP服务器 (FastMCP) + CLAUDE.md自动学习模板
+│   ├── openclaw/           # SKILL.md + 桥接CLI
+│   ├── openai.py           # LLM + 嵌入适配器
+│   ├── chroma.py           # ChromaDB向量案例存储
+│   └── chaebi.py           # Chaebi市场同步
+└── agents/                 # v2: 编排器、分解器、执行器、反思
+chaeshin-monitor/           # Next.js Web UI
+examples/cooking/           # 演示代理（泡菜汤、大酱汤、恢复场景）
+examples/dinner-table/      # 完整演示（4种语言）
+```
+</details>
+
+## 系统要求
+
+- Python 3.10+
+- 核心功能无需额外依赖
+- 可选：`openai`（LLM适配器）、`chromadb`（向量存储）、`httpx`（Chaebi市场）
+
 ## 相关研究
 
 採薪从以下研究中获得了启发：
 
-- [Case-Based Reasoning for LLM Agents (2025)](https://arxiv.org/abs/2504.06943) — CBR + LLM 集成综述
+- [CBR for LLM Agents (2025)](https://arxiv.org/abs/2504.06943) — CBR + LLM集成综述
 - [DS-Agent (ICML 2024)](https://arxiv.org/abs/2402.17453) — 基于CBR的数据科学代理
-- [Voyager (NeurIPS 2023)](https://arxiv.org/abs/2305.16291) — 基于技能库的经验学习
-- [GAP: Graph-based Agent Planning (2025)](https://arxiv.org/html/2510.25320v1) — 基于图的工具并行执行
+- [Voyager (NeurIPS 2023)](https://arxiv.org/abs/2305.16291) — 基于技能库的经验驱动学习
+- [GAP (2025)](https://arxiv.org/html/2510.25320v1) — 基于图的工具并行执行
 - [HTN Plan Repair (2025)](https://arxiv.org/abs/2504.16209) — 层次化计划修复
 
-**与现有研究的不同之处：** 採薪将Tool Graph作为CBR案例存储，使用支持循环的一般图（而非仅DAG），采用基于diff的图修改而非完全重新生成，并结合代码处理正常流程而LLM仅在异常情况下介入的混合执行方式。
+**有何不同？** 採薪将工具图作为CBR案例存储，使用支持循环的一般图（而非仅DAG），采用基于diff的修改而非完全重新生成，并结合代码处理正常流程而LLM仅在异常情况下介入的混合执行方式。
 
 ## 许可证
 
-MIT License — 参见 [LICENSE](../../LICENSE)
+MIT——参见 [LICENSE](../../LICENSE)
 
 ---
 
-*敎子採薪 — 不要给木柴，要教会如何采薪。*
+*敎子採薪——不要给木柴，要教会如何采薪。*
