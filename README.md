@@ -237,14 +237,21 @@ Full scenario with step-by-step explanations:
 
 ---
 
-## Domain Example — Clinical Lifestyle Intake
+## Domain Examples
 
-A full clinician-patient walkthrough showing Chaeshin in a high-stakes domain:
-a primary-care visit for newly-diagnosed Type-2 diabetes. Recursive decomposition
-(L4 → L3 → L2 → L1), FHIR R5 resource hooks, `pending` verdicts that wait weeks
-for patient follow-up without blocking the clinician.
+Two long-form walkthroughs showing the same three features (recursive graph decomposition, tri-state outcome, cascading revise) in very different domains.
 
-[📋 examples/medical_intake/scenario_ko.md](examples/medical_intake/scenario_ko.md) — real clinical flow, not a toy. Runnable demo: `uv run python -m examples.medical_intake.demo`.
+### 🏥 Clinical Lifestyle Intake — high-stakes, long verdict cycle
+A clinician-patient flow for newly-diagnosed Type-2 diabetes. Recursive decomposition into intake / stratify / plan / follow-up, FHIR R5 resource hooks, 12-week `pending` verdicts.
+
+[📋 scenario](examples/medical_intake/scenario_ko.md) · runnable: `uv run python -m examples.medical_intake.demo`
+
+### 🏃 Lifestyle Coaching (non-medical) — chronic fatigue reset
+A 3-month reset plan for a burned-out startup PM. Same structure, no medical terminology. Minimum-load planning, cascade revise when the 10-min home workout doesn't stick, failed-habit archive that warns future similar clients.
+
+[📋 scenario](examples/lifestyle_coaching/scenario_ko.md) · runnable: `uv run python -m examples.lifestyle_coaching.demo`
+
+Both examples are standalone — read either first. They use parallel scenario structure (T0 intake → weekly feedback → cascade revise → final verdict → reuse by similar client), so comparing them side-by-side shows the same engine working in different contexts.
 
 ---
 
@@ -332,6 +339,7 @@ chaeshin-monitor/           # Next.js 15 UI — /, /events, /hierarchy (better-s
 examples/cooking/           # Demo agent (kimchi stew, doenjang stew, recovery scenarios)
 examples/dinner-table/      # Recursive decomposition walkthrough (4 languages)
 examples/medical_intake/    # Clinician lifestyle intake → adaptive plan (FHIR-aware)
+examples/lifestyle_coaching/ # Chronic-fatigue reset plan — non-medical parallel to medical_intake
 ```
 </details>
 
