@@ -17,8 +17,9 @@ deadline 기반 verdict 대기는 이 도메인 그대로를 모델링한다.
 4. [시나리오 A — 성공 경로](#4-시나리오-a--성공-경로-12주-뒤-verdict-success)
 5. [시나리오 B — 중간 상태 유지 (lost to follow-up)](#5-시나리오-b--중간-상태-pending-유지)
 6. [시나리오 C — 실패 → 안티패턴 등록](#6-시나리오-c--실패--안티패턴-등록)
-7. [재사용 — 유사 환자 내원](#7-재사용--유사-환자-내원)
-8. [FHIR R5 리소스 매핑 부록](#8-fhir-r5-리소스-매핑-부록)
+7. [Cascading revise — 상위 그래프 재작성](#7-cascading-revise--의료진이-상위-그래프를-재작성하면)
+8. [재사용 — 유사 환자 내원](#8-재사용--유사-환자-내원)
+9. [FHIR R5 리소스 매핑 부록](#9-fhir-r5-리소스-매핑-부록)
 
 ---
 
@@ -231,7 +232,82 @@ L4  "신환 T2DM 초진 — 개별 맞춤 관리 계획 수립"                 
 
 ---
 
-## 7. 재사용 — 유사 환자 내원
+## 7. Cascading revise — 의료진이 상위 그래프를 재작성하면
+
+**상황**. T+8주 시점, 환자가 "약 복용이 야간 근무 때 놓치기 쉽다"고 호소. 의료진은
+계획 자체의 골격을 손본다 — 단순 피드백이 아니라 **L3 "개별 맞춤 관리 계획"의 그래프**
+를 수정해야 한다:
+
+```
+수정 전:  meal → activity → med → goals
+수정 후:  meal → activity → med_simplified → self_monitor → goals
+                            └── "med" 노드를 쪼개서 1T + 자가모니터링으로 분리
+```
+
+호스트 AI는 단순 update가 아니라 **revise**를 호출한다:
+
+```python
+chaeshin_revise(
+    case_id=L3_plan_id,
+    graph={
+        "nodes": [
+            {"id": "meal", "tool": "compose"},
+            {"id": "activity", "tool": "compose"},
+            {"id": "med_simplified", "tool": "compose",
+             "note": "1T metformin + 리마인더"},
+            {"id": "self_monitor", "tool": "compose",
+             "note": "주간 체중/FBS 자가 측정"},
+            {"id": "goals", "tool": "compose"},
+        ],
+        "edges": [
+            {"from": "meal", "to": "activity"},
+            {"from": "activity", "to": "med_simplified"},
+            {"from": "med_simplified", "to": "self_monitor"},
+            {"from": "self_monitor", "to": "goals"},
+        ],
+    },
+    reason="환자 복약 순응도 이슈 — 약물 노드 간소화 + 자가 모니터링 추가",
+    cascade=True,
+)
+```
+
+응답:
+```json
+{
+  "added_nodes": ["med_simplified", "self_monitor"],
+  "removed_nodes": ["med"],
+  "retained_nodes": ["meal", "activity", "goals"],
+  "orphaned_children": ["<L2 메트포르민 1차 시작의 case_id>"]
+}
+```
+
+자동으로 일어나는 일:
+
+1. **고아가 된 L2 "메트포르민 1차 시작"** (parent_node_id="med" → 제거됨)
+   - `outcome.status`가 **pending으로 되돌아감**. 의료진이 재검토하기 전에는 신규
+     환자 retrieve에서 성공 패턴으로 제안되지 않음.
+   - `feedback_log`에 `[cascade] parent node 'med' removed by revise; needs review`
+     자동 추가.
+   - 모니터 `/hierarchy`에서 rose 배지 **`orphan`** 로 노출 — 놓칠 수 없다.
+
+2. **새 노드 `med_simplified`, `self_monitor`** 가 확장 대상으로 반환.
+   - 의료진은 각각 하위 L2 케이스(예: `L2 "간소화 복약 코칭"`)를 새로 retain.
+   - `parent_case_id=L3_plan_id`, `parent_node_id="med_simplified"`로 연결.
+
+3. **retained `meal`, `activity`, `goals`** 에 매달려 있던 기존 L2/L1 자식들은
+   그대로 유지. 환자가 잘 따라오던 부분은 건드리지 않음.
+
+4. 이벤트 로그에 `revise` 이벤트(added/removed/retained + orphaned_children 전체
+   목록)가 추가되어, 누가·언제·왜 수정했는지 감사 가능.
+
+**이게 중요한 이유.** 의료는 계획 수정이 빈번하고, 수정이 어디까지 파급되는지
+추적이 안 되면 위험하다. 상위 레이어의 그래프를 바꾼 순간 다운스트림이
+"검토 필요" 상태로 자동 표시된다 — 의료진이 놓치는 자식 케이스가 없다.
+Chaeshin은 자식을 자동으로 삭제하지 않는다. 의료진의 명시적 결정이 원칙이다.
+
+---
+
+## 8. 재사용 — 유사 환자 내원
 
 6개월 후, 42세 여성, 야간 택시 기사, HbA1c 7.0% 신환.
 
@@ -266,7 +342,7 @@ chaeshin_update(
 
 ---
 
-## 8. FHIR R5 리소스 매핑 부록
+## 9. FHIR R5 리소스 매핑 부록
 
 Chaeshin 케이스 트리의 각 레벨이 FHIR 리소스로 어떻게 떨어지는지:
 

@@ -55,35 +55,63 @@ When you finish a multi-step task:
 
 필수는 아니지만, 복잡한 워크플로우를 저장할 때 유용하다.
 
-## Hierarchy — L1 / L2 / L3
+## Graphs All the Way Down — Mental Model
 
-Every case now has a `layer`:
-- **L1** — atomic tool-call pattern (single decisive action)
-- **L2** — multi-tool workflow (composes L1 patterns)
-- **L3** — strategy spanning multiple workflows
+Every case stores a Tool Graph. **A node in that graph isn't necessarily atomic.** If one node still needs more than a single tool call, unfold it — that unfolding is another case with its own Tool Graph, linked back through `parent_node_id`.
 
-When you `chaeshin_retain`, pass `layer` (defaults to `L1`). When a case belongs under a bigger plan, pass `parent_case_id` — chaeshin links them automatically.
+Keep unfolding until every leaf is one tool call:
+- `depth=0` / `layer="L1"` — atomic tool call (the leaf). Don't unfold further.
+- `depth=n>0` / `layer="L{n+1}"` — a node that still needs its own graph to describe it.
+
+The layer label is just a display name. The real question is always: "can this node be accomplished in one tool call? if yes, stop. if no, unfold."
 
 ## Decomposing Complex Requests
 
-For genuinely complex tasks (multi-workflow, spans sessions, high-stakes), call `chaeshin_decompose` first. It returns:
-- similar cases for reference
-- the layer schema
-- a `retain_protocol` that tells you the call order
+For complex tasks (multi-step, high-stakes, spans sessions), call `chaeshin_decompose` first. It returns:
+- similar past cases for reference
+- the `layer_schema` (recursive model, not fixed 3 levels)
+- a `retain_protocol` with example call sequences including verdict
 
-You (the host AI) do the actual decomposition, then persist the tree yourself:
+You (the host AI) do the actual unfolding, then persist the tree yourself — always from the outermost layer downward:
 
 ```
-1. chaeshin_retain(layer="L3", request=..., graph={...})        → L3 case_id
-2. chaeshin_retain(layer="L2", parent_case_id=<L3 case_id>, graph={...})  → L2 case_id (per L3 node)
-3. chaeshin_retain(layer="L1", parent_case_id=<L2 case_id>, graph={...})  → L1 case_id (per L2 node)
+1. chaeshin_retain(layer="L{n}", depth=n-1, request=..., graph={...})    → root case_id
+2. For each still-composite node, recurse:
+     chaeshin_retain(layer="L{n-1}", depth=n-2,
+                     parent_case_id=<upper case_id>,
+                     parent_node_id=<that node's id>,
+                     graph={... the unfolding ...})
+3. Stop when graph.nodes are all atomic tool calls (depth=0).
 ```
 
-Chaeshin sets parent/child links automatically when you pass `parent_case_id`.
+Chaeshin sets parent/child links automatically when you pass `parent_case_id` + `parent_node_id`.
+
+## Editing a Layer's Graph — Use `chaeshin_revise`
+
+When the user's feedback is about the graph structure itself ("이 단계 빼", "순서 바꿔", "이 중간 단계를 두 개로 쪼개"), don't just log feedback — rewrite the graph:
+
+```
+chaeshin_revise(
+  case_id=<this layer's id>,
+  graph={"nodes":[...], "edges":[...]},
+  reason="<why the graph changed>",
+  cascade=true   # default
+)
+```
+
+Chaeshin replaces this layer's graph and then handles the cascade:
+- Children whose `parent_node_id` no longer exists in the new graph are flipped back to `outcome="pending"` with a `[cascade]` entry in `feedback_log` — they're orphaned and need your review.
+- `added_nodes` (nodes that didn't exist before) come back in the response. For each new node: is it atomic? retain no child. Still composite? retain a child case under it via `parent_node_id`.
+
+Use `chaeshin_update` for non-graph edits (outcome, metadata, problem_features). Use `chaeshin_revise` when the graph itself changes — the cascading is the point.
+
+## Authoritative Verdicts — `chaeshin_verdict`
+
+Never infer success/failure from vibes. When the user gives an explicit judgment ("됐다", "이거 아닌데"), call `chaeshin_verdict(case_id, "success"|"failure", note=<user's own words>)`. No verdict yet? Leave it as `pending` — that's a real state, not a missing one.
 
 ## Retrieve Cascade
 
-When pulling context for a complex task, use `include_children=true` on L3 retrievals to get the full L3→L2→L1 tree in one call. Use `include_parent=true` on an L1 hit to discover which strategy it belonged to.
+`include_children=true` on a retrieved case returns the full unfolding (deeper graphs) in one call. `include_parent=true` on a leaf hit walks back up so you discover which higher-layer strategy it belonged to.
 
 ## When NOT to Use
 

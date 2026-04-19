@@ -136,24 +136,55 @@ Tool calls are structured as a **graph** — not a simple list. Nodes are tool i
   <img src="assets/tool-graph.svg" alt="Tool Graph — nodes, edges, conditions, loops" width="720"/>
 </p>
 
-### Recursive Decomposition — Graph of Graphs
+### It's Graphs All the Way Down
 
-Complex requests aren't limited to a fixed 3-layer (L1/L2/L3) hierarchy. Chaeshin decomposes **recursively** until every leaf is a single tool call:
-
-- **Leaf** (`depth=0`, `L1`) — one atomic tool call (`Bash`, `Read`, etc.)
-- **Composite** (`depth=n>0`, `L{n+1}`) — a graph whose nodes reference child cases. Can nest arbitrarily deep.
+Every layer is a graph. **Zoom in on any node — and you find another graph.** L2 isn't a "separate" graph linked to L3; L2 *is what you see when you unfold one L3 node*. Graph structure is preserved at every depth of zoom.
 
 ```
-L3 "Plan dinner"
-├── L2 "Cook stew"              (its own graph)
-│   ├── L1 "search recipe"       (leaf — tool call)
-│   ├── L1 "prep ingredients"    (leaf)
-│   └── L1 "simmer 20min"        (leaf)
-└── L2 "Prep side dishes"       (parallel workflow)
-    └── L1 "blanch spinach"      (leaf)
+L3 — the whole plan is a graph:
+  ┌────────┐   ┌────────┐   ┌────────┐
+  │ decide ├──►│  cook  │──►│  plate │
+  └────────┘   └────┬───┘   └────────┘
+                    │   ← "cook" isn't atomic.
+                    │      Zoom in. It's another graph:
+                    ▼
+                ┌─────────┐  ┌────────┐  ┌──────┐
+                │ recipe  ├─►│  prep  │─►│simmer│      (L2 — still a graph)
+                └─────────┘  └───┬────┘  └──────┘
+                                 │   ← "prep" still composite?
+                                 │      Zoom in again:
+                                 ▼
+                          ┌────────────────────┐
+                          │ Bash mise-en-place │            (L1 — atomic tool call)
+                          └────────────────────┘
 ```
 
-Simple tasks stop at `depth=0`. Hairy ones grow to `L4`, `L5`. No hard ceiling.
+You keep unfolding nodes until every leaf is a single tool call. How many zoom levels that takes is up to the problem — simple requests stop at `depth=0`, tangled ones go `L4`, `L5`, deeper. There's no fixed count.
+
+Under the hood: each "fold" is a separate `Case` with its own `solution.tool_graph`, and `metadata.parent_node_id` records which node in the upper graph you unfolded. But the mental model is one recursive structure, not a stack of distinct graphs.
+
+### Cascading Feedback — Edit a Layer, Downstream Reacts
+
+Edit the graph at any zoom level and Chaeshin propagates the change to the deeper layers automatically:
+
+```
+User: "전략 바꿔. followup 빼고 reassess 넣어."
+     │
+     ▼
+chaeshin_revise(L3_case, graph={nodes:[decide, cook, plate, reassess]})
+     │
+     ├─ This layer's graph replaced. Diff: added=[reassess], removed=[followup]
+     │
+     └─ Cascade: any deeper case that was the unfolding of "followup"
+                 has lost its anchor → flipped back to outcome="pending".
+                 feedback_log: "[cascade] parent node 'followup' removed —
+                 needs review". Logged as a `revise` event with the list of
+                 orphaned cases.
+```
+
+Orphans aren't deleted — in high-stakes domains a human decides whether to revise, re-link to a different parent node, or retire them. `added_nodes` are returned so the host AI can decide whether each new node is atomic (leaf tool call) or still composite (unfold into yet another graph).
+
+This is why `chaeshin_revise` is a first-class tool — distinct from `chaeshin_update`. Graph edits at one zoom level ripple through every deeper level, and Chaeshin does the bookkeeping.
 
 ### Immutable Graph + Mutable Context
 

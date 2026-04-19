@@ -13,7 +13,8 @@ Chaeshin MCP Server — Claude Code 연동.
 제공 MCP Tools:
     - chaeshin_retrieve:   유사 케이스 검색 (성공/실패/대기 분리)
     - chaeshin_retain:     실행 패턴 저장 (재귀적 깊이, 기본 outcome=pending)
-    - chaeshin_update:     diff 기반 부분 수정 (Update)
+    - chaeshin_update:     diff 기반 부분 수정 (Update, metadata/outcome 등)
+    - chaeshin_revise:     이 레이어의 Tool Graph 교체 + 다운스트림 파급 (고아 자식 처리)
     - chaeshin_delete:     케이스 삭제
     - chaeshin_verdict:    사용자 성공/실패 verdict 기록 (pending → success/failure)
     - chaeshin_feedback:   자연어 피드백 기록
@@ -438,6 +439,73 @@ def chaeshin_update(
             "status": "updated",
             "case_id": case_id,
             "changed_fields": diff["changed_fields"],
+        },
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def chaeshin_revise(
+    case_id: str,
+    graph: dict,
+    reason: str = "",
+    cascade: bool = True,
+) -> str:
+    """Replace this layer's Tool Graph and cascade the change downstream.
+
+    **Key mental model**: every case stores its own Tool Graph. A node in a parent
+    graph is "expanded" by a child case's graph, linked through `parent_node_id`.
+    When you edit a parent layer's graph here, any child case whose
+    `parent_node_id` no longer appears in the new graph becomes **orphaned**:
+    Chaeshin flips that child back to `outcome.status="pending"` with a
+    feedback_log entry so a human can decide whether to revise, re-link, or
+    delete it.
+
+    Newly-added node ids are returned as `new_nodes` — expansion candidates the
+    host AI can then `chaeshin_retain` as deeper-layer children.
+
+    Args:
+        case_id: Case whose graph is being revised
+        graph: New graph dict with `nodes` (+ optional `edges`)
+        reason: Why the graph is being revised (saved to feedback_log)
+        cascade: If true, orphan children hanging off removed nodes (default true)
+    """
+    store = _new_store()
+    graph_data = graph if isinstance(graph, dict) else json.loads(graph)
+    result = store.revise_graph(
+        case_id=case_id,
+        nodes=graph_data.get("nodes", []),
+        edges=graph_data.get("edges", []),
+        cascade=cascade,
+        reason=reason,
+    )
+    if result is None:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "revise",
+        payload={
+            "reason": reason,
+            "added_nodes": result["added_nodes"],
+            "removed_nodes": result["removed_nodes"],
+            "retained_nodes": result["retained_nodes"],
+            "orphaned_children": result["orphaned_children"],
+        },
+        case_ids=[case_id] + result["orphaned_children"],
+    )
+
+    return json.dumps(
+        {
+            "status": "revised",
+            "case_id": case_id,
+            "added_nodes": result["added_nodes"],
+            "removed_nodes": result["removed_nodes"],
+            "retained_nodes": result["retained_nodes"],
+            "orphaned_children": result["orphaned_children"],
+            "next_action": (
+                "added_nodes 중 tool 단일 호출이 아닌 것은 chaeshin_retain으로 하위 "
+                "케이스를 붙여 확장하세요. orphaned_children은 검토 후 revise/delete/verdict 결정."
+            ),
         },
         ensure_ascii=False,
     )

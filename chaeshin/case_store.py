@@ -487,6 +487,128 @@ class CaseStore:
         logger.info("case_deleted", case_id=case_id)
         return True
 
+    def revise_graph(
+        self,
+        case_id: str,
+        nodes: List[Dict[str, Any]],
+        edges: Optional[List[Dict[str, Any]]] = None,
+        cascade: bool = True,
+        reason: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """이 레이어의 Tool Graph를 교체하고, 다운스트림에 파급.
+
+        각 레이어는 자체 Tool Graph를 보유한다. 상위 그래프의 한 노드는 하위 케이스의
+        Tool Graph로 "확장"되며 `parent_node_id`로 연결된다. 이 메서드는 특정 레이어
+        그래프를 새로 쓰고, 아래 두 가지 downstream 파급을 자동으로 처리한다:
+
+          1. **Orphaned children** — 기존 자식 케이스의 `parent_node_id`가 새 그래프
+             nodes에 더 이상 존재하지 않으면, 해당 자식은 "고아"가 된다. 자식의
+             `outcome.status`를 `pending`으로 되돌리고, feedback_log에 사유를 남기며,
+             이벤트 로그에 기록한다. 자식을 삭제하지는 않음 — 의료/고비용 도메인에서
+             의사가 보존할 수도 있으므로 수동 결정이 원칙.
+
+          2. **New expansion candidates** — 이전에 없던 새 노드 id가 추가되면 `new_nodes`
+             목록으로 반환. 호스트 AI는 이 노드들을 leaf로 처리할지, 하위 케이스로
+             확장할지 결정.
+
+        Args:
+            case_id: 수정할 케이스 ID (이 케이스의 그래프를 교체)
+            nodes: 새 그래프의 노드 리스트 (GraphNode dict 형식)
+            edges: 새 그래프의 엣지 리스트 (선택)
+            cascade: True면 자식 고아화/새노드 파급 계산 (기본 True)
+            reason: 수정 사유 (feedback_log에 남음)
+
+        Returns:
+            {"before": {...}, "after": {...}, "orphaned_children": [...],
+             "new_nodes": [...], "retained_nodes": [...]} 또는 None (미존재).
+        """
+        from chaeshin.schema import GraphNode, GraphEdge  # 순환 회피
+
+        case = self.get_case_by_id(case_id)
+        if not case:
+            return None
+
+        before_nodes = [n.id for n in case.solution.tool_graph.nodes]
+
+        new_nodes_obj: List[GraphNode] = []
+        for i, n in enumerate(nodes):
+            new_nodes_obj.append(
+                GraphNode(
+                    id=n.get("id", f"n{i}"),
+                    tool=n.get("tool", "unknown"),
+                    params_hint=n.get("params_hint", {}),
+                    note=n.get("note", ""),
+                )
+            )
+        new_edges_obj: List[GraphEdge] = []
+        for e in edges or []:
+            new_edges_obj.append(
+                GraphEdge(
+                    from_node=e.get("from_node", e.get("from", "")),
+                    to_node=e.get("to_node", e.get("to")),
+                    condition=e.get("condition"),
+                )
+            )
+
+        case.solution.tool_graph.nodes = new_nodes_obj
+        case.solution.tool_graph.edges = new_edges_obj
+        case.metadata.updated_at = datetime.now().isoformat()
+
+        after_nodes = [n.id for n in new_nodes_obj]
+        retained = [nid for nid in before_nodes if nid in after_nodes]
+        added = [nid for nid in after_nodes if nid not in before_nodes]
+        removed = [nid for nid in before_nodes if nid not in after_nodes]
+
+        if reason:
+            fb_log = getattr(case.metadata, "feedback_log", []) or []
+            fb_log.append(f"[revise] {reason}")
+            case.metadata.feedback_log = fb_log
+
+        self._persist(case)
+
+        orphaned: List[str] = []
+        if cascade:
+            # 자식 중 parent_node_id가 제거된 노드를 가리키면 → 고아화 처리
+            for child_id in list(getattr(case.metadata, "child_case_ids", []) or []):
+                child = self.get_case_by_id(child_id)
+                if not child:
+                    continue
+                pnode = getattr(child.metadata, "parent_node_id", "")
+                if pnode and pnode in removed:
+                    child.outcome.status = "pending"
+                    child.outcome.success = False
+                    child.outcome.verdict_note = (
+                        f"parent revised — node '{pnode}' removed from upstream graph"
+                    )
+                    child.outcome.verdict_at = ""  # 재-verdict 필요
+                    fb_log = getattr(child.metadata, "feedback_log", []) or []
+                    fb_log.append(
+                        f"[cascade] parent node '{pnode}' removed by revise; needs review"
+                    )
+                    child.metadata.feedback_log = fb_log
+                    child.metadata.updated_at = datetime.now().isoformat()
+                    self._persist(child)
+                    orphaned.append(child_id)
+
+        logger.info(
+            "graph_revised",
+            case_id=case_id,
+            added=added,
+            removed=removed,
+            retained=len(retained),
+            orphaned_children=orphaned,
+        )
+        return {
+            "case_id": case_id,
+            "before_nodes": before_nodes,
+            "after_nodes": after_nodes,
+            "retained_nodes": retained,
+            "added_nodes": added,
+            "removed_nodes": removed,
+            "orphaned_children": orphaned,
+            "reason": reason,
+        }
+
     def set_verdict(
         self,
         case_id: str,

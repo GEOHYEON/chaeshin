@@ -283,6 +283,14 @@ export interface HierarchyNode {
   deadline_at: string;
   wait_mode: string;
   feedback_count: number;
+  // 그래프 요약 — "이 레이어의 그래프" 를 가시화
+  graph_summary: {
+    node_count: number;
+    edge_count: number;
+    node_ids: string[]; // 상위 8개
+    tools: string[];    // 중복 제거 상위 5개
+  };
+  orphaned: boolean;    // [cascade] 로그가 있으면 true
 }
 
 export function readHierarchyNodes(): HierarchyNode[] {
@@ -290,7 +298,7 @@ export function readHierarchyNodes(): HierarchyNode[] {
   const rows = db
     .prepare(
       `SELECT case_id, layer, parent_case_id, category, feedback_count,
-              problem_json, outcome_json, metadata_json
+              problem_json, solution_json, outcome_json, metadata_json
        FROM cases`
     )
     .all() as Array<{
@@ -300,11 +308,18 @@ export function readHierarchyNodes(): HierarchyNode[] {
       category: string;
       feedback_count: number;
       problem_json: string;
+      solution_json: string;
       outcome_json: string;
       metadata_json: string;
     }>;
   return rows.map((r) => {
     const pf = JSON.parse(r.problem_json) as { request?: string };
+    const sol = JSON.parse(r.solution_json) as {
+      tool_graph?: {
+        nodes?: Array<{ id?: string; tool?: string }>;
+        edges?: unknown[];
+      };
+    };
     const out = JSON.parse(r.outcome_json) as {
       status?: string;
       success?: boolean;
@@ -314,10 +329,20 @@ export function readHierarchyNodes(): HierarchyNode[] {
       parent_node_id?: string;
       deadline_at?: string;
       wait_mode?: string;
+      feedback_log?: string[];
     };
     const status: "success" | "failure" | "pending" =
       (out.status as "success" | "failure" | "pending") ||
       (out.success ? "success" : "pending");
+
+    const graphNodes = sol.tool_graph?.nodes || [];
+    const toolsSet = new Set<string>();
+    for (const n of graphNodes) if (n.tool) toolsSet.add(n.tool);
+
+    const orphaned = (meta.feedback_log || []).some((line) =>
+      line.startsWith("[cascade]"),
+    );
+
     return {
       case_id: r.case_id,
       layer: r.layer || "L1",
@@ -330,6 +355,13 @@ export function readHierarchyNodes(): HierarchyNode[] {
       deadline_at: meta.deadline_at || "",
       wait_mode: meta.wait_mode || "deadline",
       feedback_count: r.feedback_count || 0,
+      graph_summary: {
+        node_count: graphNodes.length,
+        edge_count: (sol.tool_graph?.edges || []).length,
+        node_ids: graphNodes.slice(0, 8).map((n) => n.id || ""),
+        tools: [...toolsSet].slice(0, 5),
+      },
+      orphaned,
     };
   });
 }

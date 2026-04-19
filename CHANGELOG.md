@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — v3 아키텍처 업그레이드
 
+### Graphs All the Way Down (후속)
+- **`chaeshin_revise(case_id, graph, cascade=true)`** — 특정 레이어의 Tool Graph를 새로
+  쓰고 다운스트림을 파급. 상위 그래프에서 사라진 노드에 매달려 있던 자식 케이스는
+  자동으로 `outcome.status="pending"`으로 되돌아가며 `[cascade]` 로그가 남음. 자식
+  삭제하지 않음 — 사람의 명시적 결정 원칙.
+- `case_store.revise_graph()` — `added_nodes`, `removed_nodes`, `retained_nodes`,
+  `orphaned_children`을 계산해 반환. 이벤트 로그에 `revise` 이벤트로 기록.
+- 모니터 `/hierarchy`에 노드별 `⊞node·edge` 그래프 요약 배지 + `orphan` rose 뱃지
+  + `↱parent_node_id` 앵커 표시. "그래프 구조가 계속 내려간다"는 걸 가시화.
+- README/CLAUDE.md 리프레이밍: "각 레이어가 자체 그래프" → "노드를 쪼개면 또 그래프"
+  (상위 레이어가 그래프면 하위도 그래프 — zoom-in 의미론).
+- 의료 예시에 cascade 시나리오 추가: 복약 이슈로 L3 'plan' 그래프를 재작성 → 기존 L2
+  "메트포르민 1차 시작"이 고아가 되어 pending 회귀. demo.py가 전체 동작을 실제로 출력.
+
+
 ### Added — 재귀 분해 & 관측성
 - **재귀 깊이 무제한**. `CaseMetadata.depth` 신규 필드. `layer`는 자유 문자열 (L1=leaf, Ln=composite). 고정 3단계 제거 — tool로 해결될 때까지 분해.
 - **Tri-state outcome** `Outcome.status: "success" | "failure" | "pending"`. `pending`이 기본 — retain 직후 verdict 없이는 성공/실패가 아닌 중간 상태.

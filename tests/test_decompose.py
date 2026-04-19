@@ -205,6 +205,110 @@ class TestHostDrivenDecomposition:
         assert case.problem_features.request == "updated request"
         assert case.metadata.layer == "L2"
 
+    def test_revise_cascades_to_orphan_children(self, isolated_mcp):
+        """상위 그래프에서 노드를 제거하면, 그 노드를 parent_node_id로 가진 자식은 pending으로 되돌림."""
+        srv = isolated_mcp
+
+        # L3 그래프: s1 → s2 → s3 (세 노드)
+        l3 = json.loads(srv.chaeshin_retain(
+            request="multi-step strategy",
+            graph={
+                "nodes": [
+                    {"id": "s1", "tool": "compose", "note": "plan"},
+                    {"id": "s2", "tool": "compose", "note": "execute"},
+                    {"id": "s3", "tool": "compose", "note": "followup"},
+                ],
+                "edges": [
+                    {"from": "s1", "to": "s2"},
+                    {"from": "s2", "to": "s3"},
+                ],
+            },
+            layer="L3",
+            depth=2,
+        ))
+        l3_id = l3["case_id"]
+
+        # s2 노드에 매달린 L2 자식, s3 노드에 매달린 L2 자식
+        l2_a = json.loads(srv.chaeshin_retain(
+            request="execute workflow",
+            graph={"nodes": [{"id": "n1", "tool": "Bash"}]},
+            layer="L2",
+            depth=1,
+            parent_case_id=l3_id,
+            parent_node_id="s2",
+        ))
+        l2_b = json.loads(srv.chaeshin_retain(
+            request="followup workflow",
+            graph={"nodes": [{"id": "n1", "tool": "Read"}]},
+            layer="L2",
+            depth=1,
+            parent_case_id=l3_id,
+            parent_node_id="s3",
+        ))
+        # 자식들에 verdict=success까지 먼저 줘서 pending이 아니게 한다
+        srv.chaeshin_verdict(case_id=l2_a["case_id"], status="success")
+        srv.chaeshin_verdict(case_id=l2_b["case_id"], status="success")
+
+        # L3 그래프 수정 — s3 제거, s4 추가
+        revised = json.loads(srv.chaeshin_revise(
+            case_id=l3_id,
+            graph={
+                "nodes": [
+                    {"id": "s1", "tool": "compose"},
+                    {"id": "s2", "tool": "compose"},
+                    {"id": "s4", "tool": "compose", "note": "new step"},
+                ],
+                "edges": [
+                    {"from": "s1", "to": "s2"},
+                    {"from": "s2", "to": "s4"},
+                ],
+            },
+            reason="s3 was unnecessary, replaced with s4",
+        ))
+
+        assert revised["removed_nodes"] == ["s3"]
+        assert "s4" in revised["added_nodes"]
+        assert l2_b["case_id"] in revised["orphaned_children"]  # s3 매달린 자식 고아화
+        assert l2_a["case_id"] not in revised["orphaned_children"]  # s2 그대로
+
+        # 재조회해서 상태 확인
+        from chaeshin.case_store import CaseStore
+        store = CaseStore(backend=srv._backend, auto_load=True)
+        orphan = store.get_case_by_id(l2_b["case_id"])
+        survivor = store.get_case_by_id(l2_a["case_id"])
+        assert orphan.outcome.status == "pending"  # pending으로 되돌림
+        assert any("cascade" in line for line in orphan.metadata.feedback_log)
+        assert survivor.outcome.status == "success"  # 영향 없음
+
+    def test_revise_without_cascade_preserves_children(self, isolated_mcp):
+        srv = isolated_mcp
+        parent = json.loads(srv.chaeshin_retain(
+            request="p",
+            graph={"nodes": [{"id": "a", "tool": "t"}]},
+            layer="L2",
+        ))
+        child = json.loads(srv.chaeshin_retain(
+            request="c",
+            graph={"nodes": [{"id": "n1", "tool": "t"}]},
+            layer="L1",
+            parent_case_id=parent["case_id"],
+            parent_node_id="a",
+        ))
+        srv.chaeshin_verdict(case_id=child["case_id"], status="success")
+
+        result = json.loads(srv.chaeshin_revise(
+            case_id=parent["case_id"],
+            graph={"nodes": [{"id": "b", "tool": "t"}]},  # 'a' 제거됨
+            cascade=False,
+        ))
+        assert result["removed_nodes"] == ["a"]
+        assert result["orphaned_children"] == []  # cascade=False이므로 자식 그대로
+
+        from chaeshin.case_store import CaseStore
+        store = CaseStore(backend=srv._backend, auto_load=True)
+        kept = store.get_case_by_id(child["case_id"])
+        assert kept.outcome.status == "success"
+
     def test_delete_removes_case(self, isolated_mcp):
         srv = isolated_mcp
         retained = json.loads(srv.chaeshin_retain(
@@ -231,10 +335,18 @@ class TestHostDrivenDecomposition:
         cid = retained["case_id"]
         srv.chaeshin_retrieve(query="x", min_similarity=0.0)
         srv.chaeshin_update(case_id=cid, patch={"metadata": {"layer": "L2"}})
+        srv.chaeshin_revise(
+            case_id=cid,
+            graph={"nodes": [{"id": "n2", "tool": "Edit"}]},
+            reason="swap tool",
+        )
         srv.chaeshin_verdict(case_id=cid, status="success", note="good")
         srv.chaeshin_delete(case_id=cid)
 
         events = srv._backend.recent_events(limit=50)
         types = [e["event_type"] for e in events]
-        for expected in ("decompose_context", "retain", "retrieve", "update", "verdict", "delete"):
+        for expected in (
+            "decompose_context", "retain", "retrieve",
+            "update", "revise", "verdict", "delete",
+        ):
             assert expected in types, f"{expected} missing from {types}"

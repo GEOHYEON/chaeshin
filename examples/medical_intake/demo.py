@@ -329,6 +329,56 @@ def main():
           f"verdict_at={root.outcome.verdict_at[:19]}")
     print(f"  verdict_note: {root.outcome.verdict_note}")
 
+    # ───────────────── T+8주 시점을 역산 — L3 그래프 revise + cascade ─────
+    section("Cascading revise — L3 'plan' 그래프 재작성 (상위 편집 → 하위 파급)")
+    print("가정: 8주차에 환자 복약 순응도 이슈가 있었고, 그 당시 의료진이 계획 자체의")
+    print("골격을 손봤다. L3의 그래프에서 'med' 노드를 두 개로 쪼개고, self_monitor")
+    print("노드를 추가. 기존 L2 '메트포르민 1차 시작'은 고아가 된다.\n")
+
+    revise_result = store.revise_graph(
+        ids_a["L3_plan"],
+        nodes=[
+            {"id": "meal", "tool": "compose"},
+            {"id": "activity", "tool": "compose"},
+            {"id": "med_simplified", "tool": "compose",
+             "note": "1T metformin + 리마인더"},
+            {"id": "self_monitor", "tool": "compose",
+             "note": "주간 체중/FBS 자가 측정"},
+            {"id": "goals", "tool": "compose"},
+        ],
+        edges=[
+            {"from": "meal", "to": "activity"},
+            {"from": "activity", "to": "med_simplified"},
+            {"from": "med_simplified", "to": "self_monitor"},
+            {"from": "self_monitor", "to": "goals"},
+        ],
+        cascade=True,
+        reason="환자 복약 순응도 이슈 — 약물 노드 간소화 + 자가 모니터링 추가",
+    )
+    events.record(
+        "revise",
+        {
+            "added": revise_result["added_nodes"],
+            "removed": revise_result["removed_nodes"],
+            "orphaned": revise_result["orphaned_children"],
+        },
+        case_ids=[ids_a["L3_plan"]] + revise_result["orphaned_children"],
+    )
+
+    print(f"added:    {revise_result['added_nodes']}")
+    print(f"removed:  {revise_result['removed_nodes']}")
+    print(f"retained: {revise_result['retained_nodes']}")
+    print(f"orphaned children: "
+          f"{[cid[:8] for cid in revise_result['orphaned_children']]}")
+
+    if revise_result["orphaned_children"]:
+        orphan = store.get_case_by_id(revise_result["orphaned_children"][0])
+        print(f"\n고아 자식 '{orphan.problem_features.request}':")
+        print(f"  outcome.status: success → {orphan.outcome.status}")
+        print(f"  feedback_log 최신: {orphan.metadata.feedback_log[-1]}")
+    print("\n→ 의료진은 added_nodes에 대해 새 L2 케이스를 retain하거나, orphan에 대해")
+    print("  revise/delete/재-verdict 중 하나를 명시적으로 결정해야 한다.")
+
     # ───────────────── 6개월 후 환자 B 내원 ─────────────────
     section(f"T+6개월 — 유사 환자 B 내원 ({PATIENT_B['label']})")
     print("다른 의료진이 비슷한 프로파일의 신환을 만남.")

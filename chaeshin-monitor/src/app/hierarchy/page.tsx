@@ -17,6 +17,13 @@ interface HierarchyNode {
   deadline_at: string;
   wait_mode: string;
   feedback_count: number;
+  graph_summary: {
+    node_count: number;
+    edge_count: number;
+    node_ids: string[];
+    tools: string[];
+  };
+  orphaned: boolean;
 }
 
 type Tree = HierarchyNode & { children: Tree[] };
@@ -122,7 +129,7 @@ export default function HierarchyPage() {
           <div>
             <h1 className="text-base font-semibold tracking-tight">Hierarchy</h1>
             <p className="text-[11px] text-gray-400 leading-none">
-              케이스 그래프 — 깊이 제한 없음 (tool로 해결될 때까지 재귀)
+              Graphs all the way down — 모든 노드는 자기 자신도 그래프로 펼쳐질 수 있다
             </p>
           </div>
           <nav className="ml-auto flex items-center gap-4 text-sm">
@@ -283,7 +290,24 @@ function TreeNode({
           {layer}
         </span>
         <StatusBadge status={node.status} overdue={!!overdue} />
+        {node.orphaned && (
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 shrink-0"
+            title="상위 그래프의 anchor 노드가 revise로 제거됨 — 검토/재연결 필요"
+          >
+            orphan
+          </span>
+        )}
         <span className="text-sm text-gray-800 truncate flex-1">{node.request}</span>
+        {node.parent_node_id && (
+          <span
+            className="text-[10px] font-mono text-gray-400 shrink-0"
+            title={`상위 그래프의 '${node.parent_node_id}' 노드를 펼친 결과`}
+          >
+            ↱{node.parent_node_id}
+          </span>
+        )}
+        <GraphSummary summary={node.graph_summary} />
         {node.status === "pending" && (
           <div className="opacity-0 group-hover:opacity-100 transition flex gap-1 shrink-0">
             <button
@@ -318,6 +342,27 @@ function TreeNode({
         </ul>
       )}
     </li>
+  );
+}
+
+function GraphSummary({
+  summary,
+}: {
+  summary: HierarchyNode["graph_summary"];
+}) {
+  if (!summary || summary.node_count === 0) return null;
+  const tip =
+    `graph: ${summary.node_count} node${summary.node_count > 1 ? "s" : ""}, ` +
+    `${summary.edge_count} edge${summary.edge_count > 1 ? "s" : ""}\n` +
+    (summary.node_ids.length ? `ids: ${summary.node_ids.join(", ")}\n` : "") +
+    (summary.tools.length ? `tools: ${summary.tools.join(", ")}` : "");
+  return (
+    <span
+      className="text-[10px] font-mono text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded shrink-0 cursor-help"
+      title={tip}
+    >
+      ⊞{summary.node_count}·{summary.edge_count}
+    </span>
   );
 }
 
