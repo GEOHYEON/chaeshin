@@ -1,9 +1,9 @@
 """Medical intake demo — 신규 T2DM 환자 초진 시나리오.
 
-Chaeshin v3의 세 가지 핵심 동작을 의료 맥락에서 보여준다:
-  1. 재귀 분해 (L4 → L3 → L2 → L1)
-  2. Tri-state outcome — retain은 pending, verdict만 success/failure 전환
-  3. 유사 환자 내원 시 retrieve + diff 기반 update
+Chaeshin의 세 가지 핵심 동작을 의료 맥락에서 보여준다:
+  1. 계속 쪼개기 — L4부터 L1까지 tool 단일 호출 수준까지 내려간다
+  2. 세 가지 상태 — retain은 pending으로 저장, 의료진의 verdict만 success/failure로 전환
+  3. 비슷한 환자가 왔을 때 retrieve로 참고 트리 가져오고 diff만 덮어쓰기
 
 실행:
     uv run python -m examples.medical_intake.demo
@@ -57,7 +57,7 @@ PATIENT_B = {
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 트리 빌더 — 시나리오 A 환자용 L4 재귀 분해
+# 트리 빌더 — 환자 A의 L4부터 L1까지 한 번에 쌓기
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -74,7 +74,7 @@ def _case(
     parent_node_id: str = "",
     deadline_weeks: int | None = None,
 ) -> Case:
-    """도메인 헬퍼 — 의료 케이스 1건을 pending 상태로 만든다."""
+    """의료 케이스 한 건을 pending 상태로 만든다."""
     meta = CaseMetadata(
         source="medical-intake-demo",
         layer=layer,
@@ -96,13 +96,13 @@ def _case(
         solution=Solution(
             tool_graph=ToolGraph(nodes=nodes, edges=edges or [])
         ),
-        outcome=Outcome(status="pending"),  # 의료 도메인 — verdict까지 중간 상태
+        outcome=Outcome(status="pending"),  # 의료 — 결과 확인 전까진 성공도 실패도 아님
         metadata=meta,
     )
 
 
 def build_t2dm_tree(store: CaseStore, patient: dict) -> dict[str, str]:
-    """환자 A의 L4→L1 전체 트리를 pending으로 저장. 반환: 레이어별 case_id 매핑."""
+    """환자 A의 L4부터 L1까지 트리 전체를 pending으로 저장. 반환값은 레이어별 case_id."""
     ids: dict[str, str] = {}
 
     # ─── L4 root ──────────────────────────────────────────
@@ -111,7 +111,7 @@ def build_t2dm_tree(store: CaseStore, patient: dict) -> dict[str, str]:
         layer="L4",
         depth=3,
         nodes=[
-            GraphNode(id="intake", tool="compose", note="lifestyle intake 묶음"),
+            GraphNode(id="intake", tool="compose", note="생활습관 문진 묶음"),
             GraphNode(id="stratify", tool="compose", note="risk stratification"),
             GraphNode(id="plan", tool="compose", note="individualized plan"),
             GraphNode(id="followup", tool="compose", note="follow-up schedule"),
@@ -128,7 +128,7 @@ def build_t2dm_tree(store: CaseStore, patient: dict) -> dict[str, str]:
 
     # ─── L3 intake ────────────────────────────────────────
     intake = _case(
-        request="lifestyle intake",
+        request="생활습관 문진",
         layer="L3",
         depth=2,
         nodes=[
@@ -185,7 +185,7 @@ def build_t2dm_tree(store: CaseStore, patient: dict) -> dict[str, str]:
         layer="L3",
         depth=2,
         nodes=[
-            GraphNode(id="meal", tool="compose", note="cost-aware 교대근무 식단"),
+            GraphNode(id="meal", tool="compose", note="저예산 교대근무 식단"),
             GraphNode(id="activity", tool="compose", note="야간근무 운동 루틴"),
             GraphNode(id="med", tool="compose", note="약물 치료 시작"),
             GraphNode(id="goals", tool="compose", note="SMART 목표 설정"),
@@ -202,9 +202,9 @@ def build_t2dm_tree(store: CaseStore, patient: dict) -> dict[str, str]:
     ids["L3_plan"] = store.retain(plan)
     store.link_parent_child(ids["L4"], ids["L3_plan"], "plan")
 
-    # ─── L2 cost-aware 교대근무 식단 ─────────────────────
+    # ─── L2 저예산 교대근무 식단 ─────────────────────
     meal_plan = _case(
-        request="cost-aware 교대근무 식단",
+        request="저예산 교대근무 식단",
         layer="L2",
         depth=1,
         nodes=[
@@ -290,18 +290,18 @@ def main():
 
     # ───────────────── T0 — 환자 A 초진 ─────────────────
     section(f"T0 — 환자 A 초진 ({PATIENT_A['label']})")
-    print("의료진: 신규 T2DM · 야간 3교대 · 경제적 제약.")
-    print("→ 재귀 분해 트리(L4→L1)를 pending으로 저장합니다.\n")
+    print("의료진 판단: 신규 T2DM · 야간 3교대 · 경제적 제약.")
+    print("→ L4부터 L1까지 트리 전체를 '아직 판단 안 함(pending)' 상태로 저장.\n")
 
     ids_a = build_t2dm_tree(store, PATIENT_A)
     events.record("decompose_context", {"patient": PATIENT_A["label"]},
                   case_ids=[ids_a["L4"]])
 
-    print("생성된 트리:")
+    print("만들어진 트리:")
     walk_tree(store, ids_a["L4"])
 
     # ───────────────── T+4주 피드백만 ─────────────────
-    section("T+4주 — 중간 체크인 (verdict 보류, 피드백만 기록)")
+    section("T+4주 — 중간 외래 (판정 보류, 피드백만 기록)")
     store.add_feedback(
         ids_a["L2_meal"],
         feedback="편의점 조합 규칙이 잘 맞는다고 함 (김밥+두유+삶은달걀)",
@@ -310,12 +310,12 @@ def main():
     events.record("feedback", {"note": "편의점 조합 호응"},
                   case_ids=[ids_a["L2_meal"]])
     meal = store.get_case_by_id(ids_a["L2_meal"])
-    print(f"L2_meal feedback_count={meal.metadata.feedback_count}, "
-          f"status={meal.outcome.status}")
-    print("→ pending 유지. HbA1c 재검 전이므로 verdict 내리지 않음.")
+    print(f"L2_meal 피드백 {meal.metadata.feedback_count}건 누적, "
+          f"상태는 '{meal.outcome.status}' 그대로")
+    print("→ HbA1c 재측정 전이라 아직 성공/실패 판정 안 내림.")
 
     # ───────────────── T+12주 verdict=success ─────────────────
-    section("T+12주 — HbA1c 7.2 → 6.5, 체중 -3.2kg. 의료진 verdict=success")
+    section("T+12주 — HbA1c 7.2 → 6.5, 체중 -3.2kg. 의료진이 '성공' 판정")
     for key in ("L4", "L3_plan", "L2_meal", "L2_med"):
         store.set_verdict(
             ids_a[key],
@@ -325,15 +325,15 @@ def main():
         events.record("verdict", {"status": "success"}, case_ids=[ids_a[key]])
 
     root = store.get_case_by_id(ids_a["L4"])
-    print(f"L4 root outcome: status={root.outcome.status}, "
-          f"verdict_at={root.outcome.verdict_at[:19]}")
-    print(f"  verdict_note: {root.outcome.verdict_note}")
+    print(f"L4 루트 상태: {root.outcome.status}, "
+          f"판정 시각: {root.outcome.verdict_at[:19]}")
+    print(f"  판정 메모: {root.outcome.verdict_note}")
 
-    # ───────────────── T+8주 시점을 역산 — L3 그래프 revise + cascade ─────
-    section("Cascading revise — L3 'plan' 그래프 재작성 (상위 편집 → 하위 파급)")
-    print("가정: 8주차에 환자 복약 순응도 이슈가 있었고, 그 당시 의료진이 계획 자체의")
-    print("골격을 손봤다. L3의 그래프에서 'med' 노드를 두 개로 쪼개고, self_monitor")
-    print("노드를 추가. 기존 L2 '메트포르민 1차 시작'은 고아가 된다.\n")
+    # ───────────────── T+8주 상황 재현 — L3 그래프 뜯어고치기 ─────
+    section("상위 플랜 뜯어고치기 — L3 '개별 맞춤 관리 계획' 그래프를 손본다")
+    print("가정: 8주차에 환자가 '야간 근무 때 약을 자주 놓친다'고 호소해서")
+    print("의료진이 플랜 자체를 손봤다. 'med' 노드를 단일정 복약과 자가 모니터링")
+    print("두 개로 쪼갠다. 기존 L2 '메트포르민 1차 시작'은 붙어있던 자리가 사라진다.\n")
 
     revise_result = store.revise_graph(
         ids_a["L3_plan"],
@@ -353,7 +353,7 @@ def main():
             {"from": "self_monitor", "to": "goals"},
         ],
         cascade=True,
-        reason="환자 복약 순응도 이슈 — 약물 노드 간소화 + 자가 모니터링 추가",
+        reason="야간 근무 중 약 놓침 — 약물 노드를 단일정 복약 + 자가 모니터링으로 쪼갬",
     )
     events.record(
         "revise",
@@ -365,24 +365,25 @@ def main():
         case_ids=[ids_a["L3_plan"]] + revise_result["orphaned_children"],
     )
 
-    print(f"added:    {revise_result['added_nodes']}")
-    print(f"removed:  {revise_result['removed_nodes']}")
-    print(f"retained: {revise_result['retained_nodes']}")
-    print(f"orphaned children: "
+    print(f"새로 생긴 자리:   {revise_result['added_nodes']}")
+    print(f"없어진 자리:      {revise_result['removed_nodes']}")
+    print(f"그대로 둔 자리:   {revise_result['retained_nodes']}")
+    print(f"연결이 끊긴 자식: "
           f"{[cid[:8] for cid in revise_result['orphaned_children']]}")
 
     if revise_result["orphaned_children"]:
         orphan = store.get_case_by_id(revise_result["orphaned_children"][0])
-        print(f"\n고아 자식 '{orphan.problem_features.request}':")
-        print(f"  outcome.status: success → {orphan.outcome.status}")
-        print(f"  feedback_log 최신: {orphan.metadata.feedback_log[-1]}")
-    print("\n→ 의료진은 added_nodes에 대해 새 L2 케이스를 retain하거나, orphan에 대해")
-    print("  revise/delete/재-verdict 중 하나를 명시적으로 결정해야 한다.")
+        print(f"\n'{orphan.problem_features.request}' 케이스는 붙어있던 자리가 사라짐:")
+        print(f"  상태: success → {orphan.outcome.status}")
+        print(f"  feedback_log: {orphan.metadata.feedback_log[-1]}")
+    print("\n→ 의료진의 다음 결정:")
+    print("  · 새로 생긴 자리 아래에 새 L2 케이스를 만들어 붙이기")
+    print("  · 연결 끊긴 케이스는 내용을 수정해서 재연결 / failure로 닫기 / 지우기 중 선택")
 
-    # ───────────────── 6개월 후 환자 B 내원 ─────────────────
-    section(f"T+6개월 — 유사 환자 B 내원 ({PATIENT_B['label']})")
-    print("다른 의료진이 비슷한 프로파일의 신환을 만남.")
-    print("→ retrieve로 A의 성공 트리를 후보로 가져옴.\n")
+    # ───────────────── 6개월 뒤 비슷한 환자 ─────────────────
+    section(f"T+6개월 뒤 — 비슷한 환자 {PATIENT_B['label']}가 옴")
+    print("다른 의료진이 비슷한 프로필의 신환을 본다.")
+    print("→ retrieve로 A의 성공 트리를 후보로 가져온다.\n")
 
     probe = ProblemFeatures(
         request="야간 근무 T2DM 신환 초진 개별 맞춤 관리 계획",
@@ -400,43 +401,43 @@ def main():
         },
         case_ids=[c.metadata.case_id for c, _ in result["cases"]],
     )
-    print("successes:")
+    print("성공 사례 (가져다 쓸 후보):")
     for c, s in result["cases"][:3]:
-        print(f"  • [{c.metadata.layer}] sim={s:.3f} — {c.problem_features.request}")
-    print(f"warnings(실패 안티패턴): {len(result['warnings'])}")
-    print(f"pending(미결 유사케이스): {len(result.get('pending', []))}")
+        print(f"  • [{c.metadata.layer}] 유사도={s:.3f} — {c.problem_features.request}")
+    print(f"경고 (과거에 안 먹혔던 패턴): {len(result['warnings'])}건")
+    print(f"아직 판정 안 난 비슷한 케이스: {len(result.get('pending', []))}건")
 
-    # ───────────────── 환자 B에 맞춘 diff 업데이트 ─────────────────
-    section("환자 B 맞춤화 — diff 기반 update")
-    print("차이점: 피처폰 사용 → patient_message_send 채널을 SMS로 변경.")
+    # ───────────────── 환자 B에 맞춘 diff 덮어쓰기 ─────────────────
+    section("환자 B에 맞게 수정 — diff만 덮어쓰기")
+    print("다른 점: 피처폰 사용 → patient_message_send 채널을 SMS로 바꾼다.")
 
-    # 환자 A의 L2_meal을 참고로 B 전용 L2_meal 새로 만들고 SMS 힌트 추가
+    # 환자 A의 L2_meal을 바탕으로 B 전용 트리를 만들고 SMS 제약만 덮어쓰기
     ids_b = build_t2dm_tree(store, PATIENT_B)
 
     diff = store.update_case(
         ids_b["L2_meal"],
         patch={
             "problem_features": {
-                "constraints": ["SMS only", "편의점 접근 양호"],
+                "constraints": ["SMS로만 연락 가능", "편의점 접근 양호"],
             },
         },
     )
     events.record("update", {"changed_fields": diff["changed_fields"]},
                   case_ids=[ids_b["L2_meal"]])
-    print(f"변경된 필드: {diff['changed_fields']}")
+    print(f"바뀐 필드: {diff['changed_fields']}")
 
     # ───────────────── 저장소 요약 ─────────────────
-    section("저장소 상태 요약")
+    section("저장소 현황 요약")
     total = len(store.cases)
     status_counts: dict[str, int] = {}
     for c in store.cases:
         status_counts[c.outcome.status] = status_counts.get(c.outcome.status, 0) + 1
-    print(f"total cases: {total}")
-    print(f"status distribution: {status_counts}")
-    print(f"events recorded: {backend.event_count()}")
+    print(f"전체 케이스: {total}건")
+    print(f"상태별: {status_counts}")
+    print(f"기록된 이벤트: {backend.event_count()}건")
     print(
-        "\n→ pending 상태 케이스들은 환자 B의 12주 follow-up까지 그대로 유지됨. "
-        "의료진이 HbA1c 재검 결과를 보고 그때 verdict 내림."
+        "\n→ 아직 pending인 케이스들은 환자 B의 12주 추적이 끝날 때까지 그대로 둔다."
+        "\n   의료진이 HbA1c 재검 결과를 보고 그때 직접 판정을 내린다."
     )
 
     tmp.cleanup()
