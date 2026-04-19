@@ -26,6 +26,7 @@ from chaeshin.schema import (
     CaseMetadata,
     ToolGraph,
 )
+from chaeshin.storage.sqlite_backend import SQLiteBackend
 
 logger = structlog.get_logger(__name__)
 
@@ -33,24 +34,46 @@ logger = structlog.get_logger(__name__)
 class CaseStore:
     """CBR 케이스 저장소.
 
-    기본 구현은 in-memory.
-    프로덕션에서는 VectorDB (Weaviate, Pinecone 등)로 교체.
+    in-memory 리스트 + 선택적 SQLite 영속화.
+    backend=None이면 순수 in-memory (기존 테스트 호환).
     """
 
     def __init__(
         self,
         embed_fn: Optional[Callable[[str], List[float]]] = None,
         similarity_threshold: float = 0.7,
+        backend: Optional[SQLiteBackend] = None,
+        auto_load: bool = True,
     ):
         """
         Args:
             embed_fn: 텍스트 → 임베딩 벡터 변환 함수 (None이면 키워드 매칭)
             similarity_threshold: 유사도 임계값
+            backend: SQLite 영속화 백엔드 (None이면 in-memory only)
+            auto_load: backend 지정 시 생성 즉시 기존 케이스 로드
         """
         self.cases: List[Case] = []
         self.embed_fn = embed_fn
         self.similarity_threshold = similarity_threshold
         self._embeddings: Dict[str, List[float]] = {}  # case_id → embedding
+        self.backend = backend
+
+        if backend is not None and auto_load:
+            self._load_from_backend()
+
+    def _load_from_backend(self):
+        """SQLite에서 케이스와 임베딩 로드."""
+        if self.backend is None:
+            return
+        self.cases = self.backend.load_all_cases()
+        self._embeddings = self.backend.load_embeddings()
+
+    def _persist(self, case: Case):
+        """케이스 + 임베딩을 backend에 저장 (있으면)."""
+        if self.backend is None:
+            return
+        embedding = self._embeddings.get(case.metadata.case_id)
+        self.backend.upsert_case(case, embedding=embedding)
 
     # ── Retrieve ──────────────────────────────────────────────────────
 
@@ -198,6 +221,7 @@ class CaseStore:
                     error=str(e),
                 )
 
+        self._persist(case)
         return case.metadata.case_id
 
     def retain_if_successful(
@@ -233,6 +257,7 @@ class CaseStore:
         Returns:
             저장된 case_id
         """
+        case.outcome.status = "failure"
         case.outcome.success = False
         case.outcome.error_reason = error_reason
         return self.retain(case)
@@ -264,15 +289,23 @@ class CaseStore:
         else:
             all_results = self._retrieve_by_keywords(problem, len(self.cases))
 
-        successes = [(c, s) for c, s in all_results if c.outcome.success]
+        def _status(c: Case) -> str:
+            return getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")
+
+        successes = [(c, s) for c, s in all_results if _status(c) == "success"]
         failures = [
             (c, s) for c, s in all_results
-            if not c.outcome.success and s >= warning_threshold
+            if _status(c) == "failure" and s >= warning_threshold
+        ]
+        pendings = [
+            (c, s) for c, s in all_results
+            if _status(c) == "pending" and s >= warning_threshold
         ]
 
         return {
             "cases": successes[:top_k],
             "warnings": failures[:top_k_failures],
+            "pending": pendings[:top_k],
         }
 
     def promote_failure(
@@ -307,6 +340,8 @@ class CaseStore:
         removed = self.cases.pop(failure_idx)
         if failure_case_id in self._embeddings:
             del self._embeddings[failure_case_id]
+        if self.backend is not None:
+            self.backend.delete_case(failure_case_id)
 
         logger.info(
             "failure_promoted",
@@ -383,6 +418,102 @@ class CaseStore:
                 break
         return result
 
+    # ── v3: Diff 기반 Update & Verdict ────────────────────────────────
+
+    def update_case(self, case_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """케이스를 diff로 업데이트 (얕은 merge).
+
+        patch는 `{"problem_features": {...}, "solution": {...}, "outcome": {...}, "metadata": {...}}`
+        형태 — 지정된 하위 키만 얕게 교체. 변경된 필드를 diff로 반환.
+
+        Returns:
+            {"before": {...}, "after": {...}, "changed_fields": [...]} 또는 None (미존재).
+        """
+        case = self.get_case_by_id(case_id)
+        if not case:
+            return None
+
+        before = {
+            "problem_features": asdict(case.problem_features),
+            "solution": asdict(case.solution),
+            "outcome": asdict(case.outcome),
+            "metadata": asdict(case.metadata),
+        }
+
+        changed: List[str] = []
+        for section, updates in (patch or {}).items():
+            if not isinstance(updates, dict):
+                continue
+            target = getattr(case, section, None)
+            if target is None:
+                continue
+            for k, v in updates.items():
+                if not hasattr(target, k):
+                    continue
+                if getattr(target, k) != v:
+                    setattr(target, k, v)
+                    changed.append(f"{section}.{k}")
+
+        case.metadata.updated_at = datetime.now().isoformat()
+
+        # Outcome status/success 동기화
+        if isinstance(case.outcome.status, str):
+            case.outcome.success = case.outcome.status == "success"
+
+        after = {
+            "problem_features": asdict(case.problem_features),
+            "solution": asdict(case.solution),
+            "outcome": asdict(case.outcome),
+            "metadata": asdict(case.metadata),
+        }
+
+        self._persist(case)
+        logger.info("case_updated", case_id=case_id, changed_fields=changed)
+        return {"before": before, "after": after, "changed_fields": changed}
+
+    def delete_case(self, case_id: str) -> bool:
+        """케이스 삭제. 자식 링크는 그대로 남음 (parent_case_id가 고아가 됨)."""
+        idx = None
+        for i, c in enumerate(self.cases):
+            if c.metadata.case_id == case_id:
+                idx = i
+                break
+        if idx is None:
+            return False
+        self.cases.pop(idx)
+        self._embeddings.pop(case_id, None)
+        if self.backend is not None:
+            self.backend.delete_case(case_id)
+        logger.info("case_deleted", case_id=case_id)
+        return True
+
+    def set_verdict(
+        self,
+        case_id: str,
+        status: str,
+        note: str = "",
+    ) -> Optional[Case]:
+        """사용자 verdict 기록 — outcome.status를 success/failure로 전환.
+
+        pending에서만 전환 가능 (재-verdict 가능하게 하려면 force=True 별도).
+        note는 verdict_note에 저장.
+        """
+        if status not in ("success", "failure"):
+            raise ValueError(f"verdict status must be 'success' or 'failure', got {status!r}")
+        case = self.get_case_by_id(case_id)
+        if not case:
+            return None
+        case.outcome.status = status
+        case.outcome.success = status == "success"
+        case.outcome.verdict_note = note
+        case.outcome.verdict_at = datetime.now().isoformat()
+        if status == "failure" and note and not case.outcome.error_reason:
+            case.outcome.error_reason = note
+        case.metadata.updated_at = datetime.now().isoformat()
+        self._persist(case)
+        logger.info("verdict_set", case_id=case_id, status=status)
+        return case
+
     # ── v2: Feedback (피드백 반영) ────────────────────────────────────
 
     def add_feedback(
@@ -418,6 +549,7 @@ class CaseStore:
             feedback_type=feedback_type,
             feedback_count=case.metadata.feedback_count,
         )
+        self._persist(case)
         return case
 
     def link_parent_child(self, parent_case_id: str, child_case_id: str, parent_node_id: str = ""):
@@ -441,6 +573,11 @@ class CaseStore:
         if parent_node_id:
             child.metadata.parent_node_id = parent_node_id
 
+        if self.backend is not None:
+            self._persist(parent)
+            self._persist(child)
+            self.backend.link(parent_case_id, child_case_id, parent_node_id)
+
         logger.info("linked", parent=parent_case_id, child=child_case_id, node=parent_node_id)
 
     # ── Record Usage ──────────────────────────────────────────────────
@@ -455,6 +592,7 @@ class CaseStore:
                 meta.used_count += 1
                 meta.avg_satisfaction = round(total / meta.used_count, 3)
                 meta.updated_at = datetime.now().isoformat()
+                self._persist(case)
                 return
 
     # ── Serialization ─────────────────────────────────────────────────

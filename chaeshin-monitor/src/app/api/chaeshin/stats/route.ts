@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { readCases } from "@/lib/case-store";
 
 export async function GET() {
-  const cases = (await readCases()) as Record<string, unknown>[];
+  const cases = readCases() as unknown as Record<string, unknown>[];
 
   let successCount = 0;
   let totalSat = 0;

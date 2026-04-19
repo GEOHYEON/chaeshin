@@ -179,29 +179,53 @@ class Solution:
     tool_graph: ToolGraph = field(default_factory=ToolGraph)
 
 
+OUTCOME_STATUS_SUCCESS = "success"
+OUTCOME_STATUS_FAILURE = "failure"
+OUTCOME_STATUS_PENDING = "pending"  # 사용자 verdict 대기 중 (혹은 deadline 경과)
+
+
 @dataclass
 class Outcome:
     """실행 결과 — CBR의 (outcome).
 
-    요리로 비유하면: "김치찌개 2인분 완성, 35분 소요, 맛 평점 4.5"
+    status는 3-state — success / failure / pending.
+    pending = 사용자가 아직 성공/실패 verdict를 주지 않은 상태 ("중간").
+    레거시 호환용으로 success 필드는 유지하지만 status가 단일 권위 소스.
     """
 
+    # status="" (미지정) → __post_init__에서 success bool 기반으로 유도.
+    # 권장: retain 시 status="pending" 명시, verdict 시 "success"/"failure" 명시.
+    status: str = ""
     success: bool = False
     result_summary: str = ""
     tools_executed: int = 0
     loops_triggered: int = 0
     total_time_ms: int = 0
     user_satisfaction: float = 0.0
-    error_reason: str = ""  # 실패 사유 (success=False일 때)
+    error_reason: str = ""  # 실패 사유 (status == "failure"일 때)
+    verdict_note: str = ""  # 사용자 verdict 시 함께 남긴 메모
+    verdict_at: str = ""    # verdict ISO 타임스탬프 ("" = 미결정)
     details: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        # status가 비어있으면 legacy success bool에서 유도 — error_reason이 있으면 failure로.
+        if not self.status:
+            if self.success:
+                self.status = OUTCOME_STATUS_SUCCESS
+            elif self.error_reason:
+                self.status = OUTCOME_STATUS_FAILURE
+            else:
+                self.status = OUTCOME_STATUS_PENDING
+        # status가 권위 소스 — success bool 동기화.
+        self.success = self.status == OUTCOME_STATUS_SUCCESS
 
 
 @dataclass
 class CaseMetadata:
     """케이스 관리 정보 — CBR의 (metadata).
 
-    v2 확장: 계층적 분해를 위한 레이어/부모/자식 관계 필드,
-    피드백 추적 필드 추가. 모든 v2 필드는 기본값이 있어 하위 호환.
+    계층 구조(layer/parent/child)와 피드백은 이제 1등 필드.
+    version=2 이상이면 layer 기본값 "L1" 보장.
     """
 
     case_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -210,19 +234,33 @@ class CaseMetadata:
     used_count: int = 0
     avg_satisfaction: float = 0.0
     source: str = "user_session"
-    version: int = 1
+    version: int = 2
     tags: List[str] = field(default_factory=list)
 
-    # === v2: 계층 구조 ===
-    layer: str = ""                  # "L1", "L2", "L3", ... (빈 문자열이면 flat/레거시)
+    # 계층 구조 — depth=0은 leaf(atomic tool call). n > 0은 composite(하위 케이스 묶음).
+    # layer는 표시 라벨 ("L1" = leaf, "Ln" = depth n). 고정 3단계 아님 — tool로 해결될 때까지 재귀 분해.
+    layer: str = "L1"
+    depth: int = 0                   # 0 = leaf, n = composite (n단계 하위 트리 보유)
     parent_case_id: str = ""         # 상위 레이어 케이스 ID
     parent_node_id: str = ""         # 상위 케이스에서 이 케이스에 대응하는 노드 ID
-    child_case_ids: List[str] = field(default_factory=list)  # 하위 레이어 케이스 IDs
+    child_case_ids: List[str] = field(default_factory=list)  # 직속 하위 케이스 IDs
 
-    # === v2: 난이도 & 피드백 ===
+    # Verdict 대기 정책
+    wait_mode: str = "deadline"      # "deadline" (타임아웃 후 pending 유지) | "blocking" (무기한)
+    deadline_at: str = ""            # ISO ts — 경과 시 retrieve에서 pending으로 노출. "" = 없음
+
+    # 난이도 & 피드백
     difficulty: int = 0              # 이 케이스를 루트로 할 때의 분해 깊이
     feedback_count: int = 0          # 유저 피드백 누적 횟수
     feedback_log: List[str] = field(default_factory=list)  # 피드백 이력 요약
+
+    def __post_init__(self):
+        # 레거시 저장본에서 layer가 빈 문자열로 들어오면 L1로 정규화.
+        if not self.layer:
+            self.layer = "L1"
+        # layer에서 depth 역유도 (Ln → n-1). 저장된 depth가 있으면 그대로 사용.
+        if self.depth == 0 and self.layer.startswith("L") and self.layer[1:].isdigit():
+            self.depth = max(0, int(self.layer[1:]) - 1)
 
 
 @dataclass

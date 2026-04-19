@@ -10,14 +10,22 @@ Chaeshin MCP Server — Claude Code 연동.
 또는 수동:
     claude mcp add chaeshin -- python -m chaeshin.integrations.claude_code.mcp_server
 
-제공하는 MCP Tools:
-    - chaeshin_retrieve:   유사 케이스 검색 (성공 N건 + 실패 N건 분리 반환)
-    - chaeshin_retain:     실행 패턴 저장 (성공/실패)
+제공 MCP Tools:
+    - chaeshin_retrieve:   유사 케이스 검색 (성공/실패/대기 분리)
+    - chaeshin_retain:     실행 패턴 저장 (재귀적 깊이, 기본 outcome=pending)
+    - chaeshin_update:     diff 기반 부분 수정 (Update)
+    - chaeshin_delete:     케이스 삭제
+    - chaeshin_verdict:    사용자 성공/실패 verdict 기록 (pending → success/failure)
+    - chaeshin_feedback:   자연어 피드백 기록
+    - chaeshin_decompose:  호스트 AI 위임용 재귀 분해 컨텍스트 반환
     - chaeshin_stats:      저장소 통계
 """
 
 import json
 import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # .env 로드
 try:
@@ -39,15 +47,22 @@ from chaeshin.schema import (
     GraphEdge,
 )
 from chaeshin.case_store import CaseStore
+from chaeshin.event_log import EventLog
+from chaeshin.storage.sqlite_backend import SQLiteBackend
+
 
 # ── 저장소 설정 ──────────────────────────────────────────────
 
-GLOBAL_STORE_DIR = os.path.expanduser("~/.chaeshin")
-GLOBAL_STORE_FILE = os.path.join(GLOBAL_STORE_DIR, "cases.json")
+GLOBAL_DIR = Path(os.path.expanduser("~/.chaeshin"))
+GLOBAL_DIR.mkdir(parents=True, exist_ok=True)
 
 _env_store = os.getenv("CHAESHIN_STORE_DIR", "")
-LOCAL_STORE_DIR = os.path.abspath(_env_store) if _env_store else None
-LOCAL_STORE_FILE = os.path.join(LOCAL_STORE_DIR, "cases.json") if LOCAL_STORE_DIR else None
+LOCAL_DIR: Optional[Path] = Path(_env_store).resolve() if _env_store else None
+
+# DB 경로: 로컬이 있으면 로컬, 없으면 글로벌
+_db_dir = LOCAL_DIR if LOCAL_DIR else GLOBAL_DIR
+_db_dir.mkdir(parents=True, exist_ok=True)
+DB_PATH = _db_dir / "chaeshin.db"
 
 
 def _get_embed_fn():
@@ -62,34 +77,19 @@ def _get_embed_fn():
         return None
 
 
-def _load_store() -> CaseStore:
-    """글로벌 + 로컬 저장소 병합 로드."""
-    store = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
-
-    if os.path.exists(GLOBAL_STORE_FILE):
-        with open(GLOBAL_STORE_FILE, "r", encoding="utf-8") as f:
-            store.load_json(f.read())
-
-    if LOCAL_STORE_FILE and os.path.exists(LOCAL_STORE_FILE):
-        local = CaseStore(embed_fn=_get_embed_fn(), similarity_threshold=0.5)
-        with open(LOCAL_STORE_FILE, "r", encoding="utf-8") as f:
-            local.load_json(f.read())
-        existing_ids = {c.metadata.case_id for c in store.cases}
-        for case in local.cases:
-            if case.metadata.case_id in existing_ids:
-                store.cases = [c for c in store.cases if c.metadata.case_id != case.metadata.case_id]
-            store.cases.append(case)
-
-    return store
+# 단일 전역 backend — MCP 서버 수명 동안 재사용.
+_backend = SQLiteBackend(DB_PATH)
+_event_log = EventLog(_backend)
 
 
-def _save_store(store: CaseStore):
-    """저장: 로컬이 있으면 로컬에, 없으면 글로벌에."""
-    target_dir = LOCAL_STORE_DIR or GLOBAL_STORE_DIR
-    target_file = LOCAL_STORE_FILE or GLOBAL_STORE_FILE
-    os.makedirs(target_dir, exist_ok=True)
-    with open(target_file, "w", encoding="utf-8") as f:
-        f.write(store.to_json())
+def _new_store() -> CaseStore:
+    """backend에서 상태를 재로드한 CaseStore 생성."""
+    return CaseStore(
+        embed_fn=_get_embed_fn(),
+        similarity_threshold=0.5,
+        backend=_backend,
+        auto_load=True,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -97,6 +97,76 @@ def _save_store(store: CaseStore):
 # ═══════════════════════════════════════════════════════════════════════
 
 mcp = FastMCP("chaeshin")
+
+
+def _format_case(
+    store: CaseStore,
+    case: Case,
+    score: float,
+    include_children: bool = False,
+    include_parent: bool = False,
+    depth: int = 0,
+) -> Dict[str, Any]:
+    g = case.solution.tool_graph
+    meta = case.metadata
+    formatted: Dict[str, Any] = {
+        "case_id": meta.case_id,
+        "similarity": round(score, 4),
+        "request": case.problem_features.request,
+        "category": case.problem_features.category,
+        "layer": getattr(meta, "layer", "L1") or "L1",
+        "graph": {
+            "nodes": [
+                {"id": n.id, "tool": n.tool, "note": n.note, "params_hint": n.params_hint}
+                for n in g.nodes
+            ],
+            "edges": [
+                {"from_node": e.from_node, "to_node": e.to_node, "condition": e.condition}
+                for e in g.edges
+            ],
+        },
+        "outcome": {
+            "status": getattr(case.outcome, "status", "success" if case.outcome.success else "pending"),
+            "success": case.outcome.success,
+            "satisfaction": case.outcome.user_satisfaction,
+            "error_reason": case.outcome.error_reason,
+            "verdict_note": getattr(case.outcome, "verdict_note", ""),
+            "verdict_at": getattr(case.outcome, "verdict_at", ""),
+        },
+    }
+
+    depth = getattr(meta, "depth", 0)
+    if depth:
+        formatted["depth"] = depth
+    wait_mode = getattr(meta, "wait_mode", "deadline")
+    deadline_at = getattr(meta, "deadline_at", "")
+    if deadline_at or wait_mode != "deadline":
+        formatted["wait"] = {"mode": wait_mode, "deadline_at": deadline_at}
+
+    parent_id = getattr(meta, "parent_case_id", "")
+    if parent_id:
+        formatted["parent_case_id"] = parent_id
+    fb_count = getattr(meta, "feedback_count", 0)
+    if fb_count > 0:
+        formatted["feedback_count"] = fb_count
+    difficulty = getattr(meta, "difficulty", 0)
+    if difficulty > 0:
+        formatted["difficulty"] = difficulty
+
+    if include_children and depth < 6:
+        children = store.get_children(meta.case_id)
+        if children:
+            formatted["children"] = [
+                _format_case(store, c, 0.0, include_children=True, depth=depth + 1)
+                for c in children
+            ]
+
+    if include_parent and depth == 0:
+        parent = store.get_parent(meta.case_id)
+        if parent:
+            formatted["parent"] = _format_case(store, parent, 0.0, depth=depth + 1)
+
+    return formatted
 
 
 @mcp.tool()
@@ -107,7 +177,6 @@ def chaeshin_retrieve(
     top_k: int = 3,
     top_k_failures: int = 3,
     min_similarity: float = 0.5,
-    # === v2 파라미터 ===
     include_children: bool = False,
     include_parent: bool = False,
     min_feedback_count: int = 0,
@@ -116,7 +185,7 @@ def chaeshin_retrieve(
 
     Returns successful cases and failed cases separately.
     Cases below min_similarity are excluded.
-    v2: can cascade-load children/parent layers and filter by feedback count.
+    Cascade-load children/parent layers and filter by feedback count.
 
     Args:
         query: What the user wants to do (natural language)
@@ -124,90 +193,80 @@ def chaeshin_retrieve(
         keywords: Comma-separated keywords for matching
         top_k: Number of successful cases to return (default 3)
         top_k_failures: Number of failed cases to return (default 3)
-        min_similarity: Minimum similarity threshold — cases below this are not shown (default 0.5)
+        min_similarity: Minimum similarity threshold (default 0.5)
         include_children: If true, also return child layer cases for each match
         include_parent: If true, also return parent layer case for each match
-        min_feedback_count: Only return cases with at least this many feedbacks (0 = no filter)
+        min_feedback_count: Only return cases with at least this many feedbacks
     """
-    store = _load_store()
+    store = _new_store()
 
     kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
 
     problem = ProblemFeatures(request=query, category=category, keywords=kw_list)
     result = store.retrieve_with_warnings(problem, top_k=top_k, top_k_failures=top_k_failures)
 
-    def _format_case(case, score, depth=0):
-        g = case.solution.tool_graph
-        meta = case.metadata
-        formatted = {
-            "case_id": meta.case_id,
-            "similarity": round(score, 4),
-            "request": case.problem_features.request,
-            "category": case.problem_features.category,
-            "graph": {
-                "nodes": [{"id": n.id, "tool": n.tool, "note": n.note, "params_hint": n.params_hint} for n in g.nodes],
-                "edges": [{"from_node": e.from_node, "to_node": e.to_node, "condition": e.condition} for e in g.edges],
-            },
-            "outcome": {
-                "success": case.outcome.success,
-                "satisfaction": case.outcome.user_satisfaction,
-                "error_reason": case.outcome.error_reason,
-            },
-        }
-
-        # v2 메타 필드 (값이 있을 때만 포함)
-        layer = getattr(meta, "layer", "")
-        if layer:
-            formatted["layer"] = layer
-        parent_id = getattr(meta, "parent_case_id", "")
-        if parent_id:
-            formatted["parent_case_id"] = parent_id
-        fb_count = getattr(meta, "feedback_count", 0)
-        if fb_count > 0:
-            formatted["feedback_count"] = fb_count
-        difficulty = getattr(meta, "difficulty", 0)
-        if difficulty > 0:
-            formatted["difficulty"] = difficulty
-
-        # v2: 하위 레이어 연쇄 로드
-        if include_children and depth < 3:
-            children = store.get_children(meta.case_id)
-            if children:
-                formatted["children"] = [
-                    _format_case(child, 0.0, depth + 1) for child in children
-                ]
-
-        # v2: 상위 레이어 로드
-        if include_parent and depth == 0:
-            parent = store.get_parent(meta.case_id)
-            if parent:
-                formatted["parent"] = _format_case(parent, 0.0, depth + 1)
-
-        return formatted
-
-    # v2: feedback_count 필터
-    def _passes_filter(case):
+    def _passes_filter(case: Case) -> bool:
         if min_feedback_count <= 0:
             return True
         return getattr(case.metadata, "feedback_count", 0) >= min_feedback_count
 
     successes = [
-        _format_case(c, s) for c, s in result["cases"]
+        _format_case(store, c, s, include_children=include_children, include_parent=include_parent)
+        for c, s in result["cases"]
         if s >= min_similarity and _passes_filter(c)
     ]
     failures = [
-        _format_case(c, s) for c, s in result["warnings"]
+        _format_case(store, c, s, include_children=include_children, include_parent=include_parent)
+        for c, s in result["warnings"]
         if s >= min_similarity and _passes_filter(c)
     ]
 
-    if not successes and not failures:
-        return json.dumps({"message": "No similar cases found", "total_in_store": len(store.cases)}, ensure_ascii=False)
+    pending_raw = result.get("pending", [])
+    pending = [
+        _format_case(store, c, s, include_children=include_children, include_parent=include_parent)
+        for c, s in pending_raw
+        if s >= min_similarity and _passes_filter(c)
+    ]
 
-    return json.dumps({
-        "successes": successes,
-        "failures": failures,
-        "total_in_store": len(store.cases),
-    }, ensure_ascii=False, indent=2)
+    _event_log.record(
+        "retrieve",
+        payload={
+            "query": query,
+            "category": category,
+            "keywords": kw_list,
+            "top_k": top_k,
+            "min_similarity": min_similarity,
+            "n_successes": len(successes),
+            "n_failures": len(failures),
+            "n_pending": len(pending),
+            "match_scores": [s["similarity"] for s in successes],
+        },
+        case_ids=(
+            [s["case_id"] for s in successes]
+            + [f["case_id"] for f in failures]
+            + [p["case_id"] for p in pending]
+        ),
+    )
+
+    if not successes and not failures and not pending:
+        return json.dumps(
+            {"message": "No similar cases found", "total_in_store": len(store.cases)},
+            ensure_ascii=False,
+        )
+
+    return json.dumps(
+        {
+            "successes": successes,
+            "failures": failures,
+            "pending": pending,
+            "total_in_store": len(store.cases),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+DEFAULT_DEADLINE_SECONDS = 7200  # 2시간 — verdict 없으면 "중간(pending)"으로 남음
 
 
 @mcp.tool()
@@ -217,37 +276,42 @@ def chaeshin_retain(
     category: str = "",
     keywords: str = "",
     summary: str = "",
-    satisfaction: float = 0.85,
-    success: bool = True,
-    error_reason: str = "",
-    # === v2 파라미터 ===
-    layer: str = "",
+    layer: str = "L1",
+    depth: int = 0,
     parent_case_id: str = "",
     parent_node_id: str = "",
     difficulty: int = 0,
     child_case_ids: str = "",
+    wait_mode: str = "deadline",
+    deadline_seconds: int = DEFAULT_DEADLINE_SECONDS,
 ) -> str:
-    """Save a tool execution pattern to Chaeshin memory for future reuse.
+    """Save a tool execution pattern to Chaeshin memory.
 
-    Save both successful patterns (to reuse) and failed patterns (to avoid).
-    v2: supports hierarchical layers — set layer/parent/difficulty for layered storage.
+    Outcome defaults to **pending** — success/failure is NEVER assumed. The user
+    must explicitly give a verdict via `chaeshin_verdict(case_id, status, note)`.
+    If no verdict arrives by `deadline_at`, the case stays `pending` (중간 상태).
+
+    Hierarchy:
+        depth=0 = leaf (atomic tool call). depth=n = composite of depth=n-1 children.
+        Decompose recursively until every leaf is a single tool call — no fixed 3 layers.
+        `layer` is a free-form display label (e.g. "L1" for leaf, "L3" for root).
 
     Args:
         request: Original user request
-        graph: Tool execution graph as JSON string with nodes and edges
+        graph: Tool execution graph as dict/JSON with nodes and edges
         category: Task category (e.g. "bug-fix", "feature", "ci")
         keywords: Comma-separated keywords for future matching
         summary: Short result summary
-        satisfaction: Satisfaction score 0-1 (default 0.85)
-        success: Whether the execution succeeded. Set false to save as anti-pattern.
-        error_reason: Why it failed (only when success=false)
-        layer: Hierarchy layer — "L1" (tool calls), "L2" (patterns), "L3" (strategy). Empty = flat/legacy.
-        parent_case_id: Parent layer case ID (for L1/L2 cases that belong to a higher layer)
+        layer: Free-form display label ("L1" = leaf, higher = composite)
+        depth: 0 for leaf, n for composite (recursive decomposition depth)
+        parent_case_id: Parent case ID when building a hierarchy tree
         parent_node_id: Which node in the parent case this case corresponds to
-        difficulty: Decomposition depth when this case is the root (0 = not calculated)
-        child_case_ids: Comma-separated child case IDs (for L2/L3 cases with sub-layers)
+        difficulty: Decomposition depth when this case is the root
+        child_case_ids: Comma-separated direct child case IDs
+        wait_mode: "deadline" (default — auto-release after deadline) or "blocking" (wait forever)
+        deadline_seconds: Seconds until verdict deadline (default 7200 = 2h). 0 = no deadline.
     """
-    store = _load_store()
+    store = _new_store()
 
     graph_data = graph if isinstance(graph, dict) else json.loads(graph)
     nodes = [
@@ -261,7 +325,6 @@ def chaeshin_retain(
     ]
     edges = [
         GraphEdge(
-            # edge 키 호환: "from"/"from_node" 둘 다 지원
             from_node=e.get("from_node", e.get("from", "")),
             to_node=e.get("to_node", e.get("to")),
             condition=e.get("condition"),
@@ -272,67 +335,225 @@ def chaeshin_retain(
     kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
     child_ids = [c.strip() for c in child_case_ids.split(",") if c.strip()] if child_case_ids else []
 
+    deadline_at = ""
+    if wait_mode == "deadline" and deadline_seconds > 0:
+        deadline_at = (datetime.now() + timedelta(seconds=deadline_seconds)).isoformat()
+
     case = Case(
         problem_features=ProblemFeatures(request=request, category=category, keywords=kw_list),
         solution=Solution(tool_graph=ToolGraph(nodes=nodes, edges=edges)),
         outcome=Outcome(
-            success=success,
+            status="pending",  # verdict 올 때까지 중간 상태
             result_summary=summary,
             tools_executed=len(nodes),
-            user_satisfaction=satisfaction if success else 0.0,
-            error_reason=error_reason,
         ),
         metadata=CaseMetadata(
             source="claude_code",
-            tags=kw_list + ["claude_code"] + (["failure"] if not success else []),
-            # v2 필드
-            layer=layer,
+            tags=kw_list + ["claude_code"],
+            layer=layer or "L1",
+            depth=depth,
             parent_case_id=parent_case_id,
             parent_node_id=parent_node_id,
             difficulty=difficulty,
             child_case_ids=child_ids,
+            wait_mode=wait_mode,
+            deadline_at=deadline_at,
         ),
     )
 
-    if success:
-        case_id = store.retain(case)
-    else:
-        case_id = store.retain_failure(case, error_reason)
+    case_id = store.retain(case)
 
-    # v2: 부모-자식 링크 자동 설정
     if parent_case_id:
         store.link_parent_child(parent_case_id, case.metadata.case_id, parent_node_id)
 
-    _save_store(store)
+    _event_log.record(
+        "retain",
+        payload={
+            "request": request,
+            "category": category,
+            "layer": case.metadata.layer,
+            "depth": depth,
+            "status": "pending",
+            "parent_case_id": parent_case_id,
+            "wait_mode": wait_mode,
+            "deadline_at": deadline_at,
+            "node_count": len(nodes),
+        },
+        case_ids=[case_id] + ([parent_case_id] if parent_case_id else []),
+    )
 
-    return json.dumps({
-        "status": "saved",
-        "case_id": case_id,
-        "success": success,
-        "layer": layer or "(flat)",
-        "total_cases": len(store.cases),
-    }, ensure_ascii=False)
+    return json.dumps(
+        {
+            "status": "saved",
+            "case_id": case_id,
+            "outcome_status": "pending",
+            "layer": case.metadata.layer,
+            "depth": depth,
+            "parent_case_id": parent_case_id or None,
+            "wait_mode": wait_mode,
+            "deadline_at": deadline_at,
+            "next_action": (
+                "사용자의 성공/실패 verdict를 받으면 chaeshin_verdict(case_id, status, note) 호출. "
+                "verdict 없이 deadline 경과 시 pending으로 남음."
+            ),
+            "total_cases": len(store.cases),
+        },
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def chaeshin_update(
+    case_id: str,
+    patch: dict,
+) -> str:
+    """Update a case with a partial patch (shallow diff merge).
+
+    Only specified sub-fields are replaced. The diff is recorded as an event
+    so changes can be audited (and rolled back if we add that later).
+
+    Args:
+        case_id: Target case ID
+        patch: Partial dict like {"problem_features": {"request": "..."},
+               "metadata": {"layer": "L2"}, "outcome": {"status": "success"}}.
+               Only existing fields on each section are applied.
+    """
+    store = _new_store()
+    patch_dict = patch if isinstance(patch, dict) else json.loads(patch)
+    diff = store.update_case(case_id, patch_dict)
+    if diff is None:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "update",
+        payload={
+            "changed_fields": diff["changed_fields"],
+            "patch": patch_dict,
+        },
+        case_ids=[case_id],
+    )
+
+    return json.dumps(
+        {
+            "status": "updated",
+            "case_id": case_id,
+            "changed_fields": diff["changed_fields"],
+        },
+        ensure_ascii=False,
+    )
+
+
+@mcp.tool()
+def chaeshin_delete(case_id: str, reason: str = "") -> str:
+    """Delete a case from Chaeshin memory.
+
+    Child links become orphaned (their parent_case_id stays but points to a missing case).
+
+    Args:
+        case_id: Target case ID to remove
+        reason: Optional reason for deletion (goes to event log)
+    """
+    store = _new_store()
+    ok = store.delete_case(case_id)
+    if not ok:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "delete",
+        payload={"reason": reason},
+        case_ids=[case_id],
+    )
+
+    return json.dumps({"status": "deleted", "case_id": case_id}, ensure_ascii=False)
+
+
+@mcp.tool()
+def chaeshin_verdict(
+    case_id: str,
+    status: str,
+    note: str = "",
+    satisfaction: float = 0.0,
+) -> str:
+    """Record the user's success/failure verdict on a pending case.
+
+    Chaeshin treats success/failure as an authoritative user signal — never inferred.
+    Cases without a verdict stay `pending` (the "중간" in-between state).
+
+    Args:
+        case_id: Target case ID
+        status: "success" or "failure"
+        note: Free-form note from the user (quoted feedback preferred)
+        satisfaction: 0-1 satisfaction score (optional, for success)
+    """
+    if status not in ("success", "failure"):
+        return json.dumps({"error": "status must be 'success' or 'failure'"}, ensure_ascii=False)
+    store = _new_store()
+    case = store.set_verdict(case_id, status, note)
+    if case is None:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+    if status == "success" and satisfaction > 0:
+        case.outcome.user_satisfaction = satisfaction
+        store._persist(case)
+
+    _event_log.record(
+        "verdict",
+        payload={
+            "status": status,
+            "note": note,
+            "satisfaction": case.outcome.user_satisfaction,
+        },
+        case_ids=[case_id],
+    )
+
+    return json.dumps(
+        {
+            "status": "verdict_recorded",
+            "case_id": case_id,
+            "outcome_status": status,
+            "verdict_at": case.outcome.verdict_at,
+        },
+        ensure_ascii=False,
+    )
 
 
 @mcp.tool()
 def chaeshin_stats() -> str:
     """Get Chaeshin memory store statistics.
 
-    Returns total cases, store paths, embedding status, and categories.
+    Returns total cases, store path, embedding status, categories, and layer distribution.
     """
-    store = _load_store()
-    return json.dumps({
+    store = _new_store()
+    layers: Dict[str, int] = {}
+    statuses: Dict[str, int] = {"success": 0, "failure": 0, "pending": 0}
+    now = datetime.now()
+    overdue_pending = 0
+    for c in store.cases:
+        layer = getattr(c.metadata, "layer", "L1") or "L1"
+        layers[layer] = layers.get(layer, 0) + 1
+        status = getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")
+        statuses[status] = statuses.get(status, 0) + 1
+        deadline = getattr(c.metadata, "deadline_at", "")
+        if status == "pending" and deadline:
+            try:
+                if datetime.fromisoformat(deadline) < now:
+                    overdue_pending += 1
+            except ValueError:
+                pass
+
+    payload = {
         "total_cases": len(store.cases),
-        "global_store": GLOBAL_STORE_FILE,
-        "local_store": LOCAL_STORE_FILE or "(not set)",
+        "db_path": str(DB_PATH),
         "has_embeddings": store.embed_fn is not None,
-        "categories": list(set(c.problem_features.category for c in store.cases if c.problem_features.category)),
-    }, ensure_ascii=False, indent=2)
-
-
-# ═══════════════════════════════════════════════════════════════════════
-# v2: New Tools
-# ═══════════════════════════════════════════════════════════════════════
+        "categories": sorted({
+            c.problem_features.category for c in store.cases if c.problem_features.category
+        }),
+        "layers": layers,
+        "outcome_status": statuses,
+        "overdue_pending": overdue_pending,  # deadline 지난 pending 개수
+        "event_count": _backend.event_count(),
+    }
+    _event_log.record("stats_viewed", payload={"total_cases": payload["total_cases"]})
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
@@ -343,7 +564,6 @@ def chaeshin_feedback(
 ) -> str:
     """Record user feedback on a Chaeshin case.
 
-    The Reflection Agent uses this to improve stored cases based on user feedback.
     Feedback is logged and the case's feedback_count increases, which boosts
     its retrieval priority for future similar queries.
 
@@ -351,14 +571,14 @@ def chaeshin_feedback(
         case_id: Target case ID to give feedback on
         feedback: User feedback in natural language (e.g. "이건 더 복잡해", "순서 바꿔")
         feedback_type: One of: escalate, modify, simplify, correct, reject, auto.
-            - escalate: "이건 더 복잡해" — push existing graph down one layer, create new intermediate layer
-            - modify: "순서 바꿔" — reorder/edit nodes and edges in the graph
+            - escalate: "이건 더 복잡해" — push existing graph down one layer
+            - modify: "순서 바꿔" — reorder/edit nodes and edges
             - simplify: "이건 한번에 해도 돼" — merge child layers into parent
             - correct: "이 툴 대신 저걸 써" — swap tool nodes
             - reject: "이건 아예 안 해도 돼" — remove nodes
-            - auto: LLM decides the feedback type (default)
+            - auto: host AI decides the feedback type
     """
-    store = _load_store()
+    store = _new_store()
 
     case = store.get_case_by_id(case_id)
     if not case:
@@ -368,16 +588,29 @@ def chaeshin_feedback(
     if not updated:
         return json.dumps({"error": "Failed to add feedback"}, ensure_ascii=False)
 
-    _save_store(store)
+    _event_log.record(
+        "feedback",
+        payload={
+            "feedback_type": feedback_type,
+            "feedback": feedback,
+            "feedback_count": updated.metadata.feedback_count,
+            "layer": getattr(updated.metadata, "layer", "L1"),
+        },
+        case_ids=[case_id],
+    )
 
-    return json.dumps({
-        "status": "feedback_recorded",
-        "case_id": case_id,
-        "feedback_type": feedback_type,
-        "feedback_count": updated.metadata.feedback_count,
-        "feedback_log": updated.metadata.feedback_log[-3:],  # 최근 3개만
-        "layer": getattr(updated.metadata, "layer", "") or "(flat)",
-    }, ensure_ascii=False, indent=2)
+    return json.dumps(
+        {
+            "status": "feedback_recorded",
+            "case_id": case_id,
+            "feedback_type": feedback_type,
+            "feedback_count": updated.metadata.feedback_count,
+            "feedback_log": updated.metadata.feedback_log[-3:],
+            "layer": getattr(updated.metadata, "layer", "L1"),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 @mcp.tool()
@@ -386,22 +619,26 @@ def chaeshin_decompose(
     tools: str = "",
     max_depth: int = 4,
 ) -> str:
-    """Decompose a user query into a hierarchical task tree.
+    """Return decomposition context so the *host AI* can break the query into L3→L2→L1.
 
-    This is used by the Decomposer Agent to break down complex queries.
-    It calculates difficulty (tree depth) and checks Chaeshin for similar cases.
+    Chaeshin does NOT call an LLM itself. It returns:
+        1) similar cases for reference,
+        2) the layer schema to follow,
+        3) a retain protocol (what to call next and in what order).
+
+    The caller (Claude Code or another host AI) decomposes the query and
+    persists each layer via chaeshin_retain with parent_case_id linkage.
 
     Args:
         query: User question/request in natural language
         tools: Comma-separated list of available tool names (optional)
         max_depth: Maximum decomposition depth (default 4, max 6)
     """
-    store = _load_store()
+    store = _new_store()
 
     tool_list = [t.strip() for t in tools.split(",") if t.strip()] if tools else []
     max_depth = min(max_depth, 6)
 
-    # 유사 케이스 검색 — 쿼리의 추상도에 맞는 레이어가 자연스럽게 매칭됨
     problem = ProblemFeatures(request=query, category="", keywords=[])
     results = store.retrieve_with_warnings(problem, top_k=3, top_k_failures=1)
 
@@ -410,46 +647,134 @@ def chaeshin_decompose(
         if score < 0.4:
             continue
         meta = case.metadata
-        matched_cases.append({
-            "case_id": meta.case_id,
-            "similarity": round(score, 4),
-            "request": case.problem_features.request,
-            "layer": getattr(meta, "layer", "") or "(flat)",
-            "difficulty": getattr(meta, "difficulty", 0),
-            "feedback_count": getattr(meta, "feedback_count", 0),
-            "has_children": bool(getattr(meta, "child_case_ids", [])),
-        })
+        matched_cases.append(
+            {
+                "case_id": meta.case_id,
+                "similarity": round(score, 4),
+                "request": case.problem_features.request,
+                "layer": getattr(meta, "layer", "L1") or "L1",
+                "difficulty": getattr(meta, "difficulty", 0),
+                "feedback_count": getattr(meta, "feedback_count", 0),
+                "has_children": bool(getattr(meta, "child_case_ids", [])),
+            }
+        )
 
-    # 난이도 추정: 매칭된 케이스의 difficulty 참고, 없으면 0
-    estimated_difficulty = 0
-    if matched_cases:
-        estimated_difficulty = max(c["difficulty"] for c in matched_cases)
-
-    # 검색 트리거 판단
-    should_use_chaeshin = (
-        estimated_difficulty >= 2
-        or any(c["feedback_count"] >= 3 for c in matched_cases)
+    leaf_rule = (
+        "리프 기준: 해당 노드가 available_tools 중 하나로 **한 번의 tool-call**로 완결되면 리프(depth=0, 'L1'). "
+        "그렇지 않으면 더 세분화된 자식 케이스로 분해. 깊이는 고정 3단계 아님 — tool로 해결 가능할 때까지 계속."
     )
 
-    return json.dumps({
-        "query": query,
-        "available_tools": tool_list,
-        "max_depth": max_depth,
-        "matched_cases": matched_cases,
-        "estimated_difficulty": estimated_difficulty,
-        "should_use_chaeshin": should_use_chaeshin,
-        "recommendation": (
-            "Complex query — use matched cases as reference for decomposition"
-            if should_use_chaeshin
-            else "Simple query — proceed with direct tool calling or shallow decomposition"
+    retain_protocol = {
+        "style": "recursive_tree",
+        "leaf_rule": leaf_rule,
+        "order": "root(depth=n) → children(depth=n-1) → ... → leaves(depth=0).",
+        "linkage": (
+            "각 하위 retain 시 parent_case_id에 상위 case_id, parent_node_id에 해당되는 부모 노드 id를 지정하면 "
+            "chaeshin이 자동으로 부모-자식 링크를 설정합니다."
         ),
-        "total_in_store": len(store.cases),
-    }, ensure_ascii=False, indent=2)
+        "verdict_rule": (
+            "각 chaeshin_retain은 outcome=pending으로 저장됩니다. 사용자가 성공/실패를 말하면 "
+            "chaeshin_verdict(case_id, status, note)를 호출하세요. verdict 없이 deadline 경과 시 pending 유지 "
+            "— 중간 상태는 허용됩니다."
+        ),
+        "example_sequence": [
+            {
+                "step": 1,
+                "call": "chaeshin_retain",
+                "args": {
+                    "layer": "L{N}",
+                    "depth": "N-1",
+                    "request": query,
+                    "graph": {"nodes": ["<상위 단계들>"], "edges": ["..."]},
+                    "difficulty": "<estimated depth>",
+                },
+                "note": "루트를 먼저 저장하고 반환된 case_id 보관. 한 번에 tool로 해결 가능하면 이 단계에서 끝(depth=0).",
+            },
+            {
+                "step": 2,
+                "call": "chaeshin_retain (depth-1 자식마다 재귀)",
+                "args": {
+                    "layer": "L{N-1}",
+                    "depth": "N-2",
+                    "parent_case_id": "<상위 case_id>",
+                    "parent_node_id": "<상위 그래프의 해당 노드 id>",
+                    "graph": {"nodes": ["<더 작은 단계들>"]},
+                },
+                "note": "각 노드가 여전히 tool 하나로 불가능하면 또 자식으로 분해. 리프가 될 때까지 반복.",
+            },
+            {
+                "step": 3,
+                "call": "chaeshin_retain (리프 — depth=0)",
+                "args": {
+                    "layer": "L1",
+                    "depth": 0,
+                    "parent_case_id": "<상위 case_id>",
+                    "parent_node_id": "<상위 그래프의 해당 노드 id>",
+                    "graph": {"nodes": [{"id": "n1", "tool": "Bash", "note": "..."}]},
+                },
+                "note": "리프: tool 단일 호출 패턴. 더 이상 분해하지 않음.",
+            },
+            {
+                "step": 4,
+                "call": "chaeshin_verdict (사용자 응답 받으면)",
+                "args": {"case_id": "<any case_id>", "status": "success|failure", "note": "<user quote>"},
+                "note": "pending → success/failure. 응답이 없으면 생략 — deadline 경과 후에도 pending은 유효한 상태.",
+            },
+        ],
+    }
+
+    estimated_difficulty = max(
+        (c["difficulty"] for c in matched_cases), default=0
+    )
+    should_decompose = estimated_difficulty >= 2 or any(
+        c["feedback_count"] >= 3 for c in matched_cases
+    )
+
+    _event_log.record(
+        "decompose_context",
+        payload={
+            "query": query,
+            "available_tools": tool_list,
+            "max_depth": max_depth,
+            "n_matched": len(matched_cases),
+            "estimated_difficulty": estimated_difficulty,
+            "should_decompose": should_decompose,
+        },
+        case_ids=[c["case_id"] for c in matched_cases],
+    )
+
+    layer_schema = {
+        "recursive": True,
+        "leaf": "depth=0 / 'L1' — tool 하나로 해결되는 원자 패턴",
+        "composite": "depth=n>0 / 'L{n+1}' — 하위(depth=n-1) 케이스들의 묶음",
+        "note": "레이어는 고정 3단계가 아님. tool로 해결될 수 있을 때까지 계속 분해해서 그래프 위에 그래프를 쌓음.",
+    }
+
+    return json.dumps(
+        {
+            "query": query,
+            "available_tools": tool_list,
+            "max_depth": max_depth,
+            "similar_cases": matched_cases,
+            "layer_schema": layer_schema,
+            "retain_protocol": retain_protocol,
+            "estimated_difficulty": estimated_difficulty,
+            "should_decompose": should_decompose,
+            "next_action": (
+                "호스트 AI가 query를 재귀적으로 분해 (tool 하나로 가능해질 때까지). "
+                "루트부터 저장하며 각 하위는 parent_case_id로 연결. 사용자 verdict가 오면 chaeshin_verdict로 기록."
+            ),
+            "total_in_store": len(store.cases),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════
 # Entry point
 # ═══════════════════════════════════════════════════════════════════════
+
 
 def main():
     mcp.run(transport="stdio")

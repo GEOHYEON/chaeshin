@@ -55,6 +55,36 @@ When you finish a multi-step task:
 
 필수는 아니지만, 복잡한 워크플로우를 저장할 때 유용하다.
 
+## Hierarchy — L1 / L2 / L3
+
+Every case now has a `layer`:
+- **L1** — atomic tool-call pattern (single decisive action)
+- **L2** — multi-tool workflow (composes L1 patterns)
+- **L3** — strategy spanning multiple workflows
+
+When you `chaeshin_retain`, pass `layer` (defaults to `L1`). When a case belongs under a bigger plan, pass `parent_case_id` — chaeshin links them automatically.
+
+## Decomposing Complex Requests
+
+For genuinely complex tasks (multi-workflow, spans sessions, high-stakes), call `chaeshin_decompose` first. It returns:
+- similar cases for reference
+- the layer schema
+- a `retain_protocol` that tells you the call order
+
+You (the host AI) do the actual decomposition, then persist the tree yourself:
+
+```
+1. chaeshin_retain(layer="L3", request=..., graph={...})        → L3 case_id
+2. chaeshin_retain(layer="L2", parent_case_id=<L3 case_id>, graph={...})  → L2 case_id (per L3 node)
+3. chaeshin_retain(layer="L1", parent_case_id=<L2 case_id>, graph={...})  → L1 case_id (per L2 node)
+```
+
+Chaeshin sets parent/child links automatically when you pass `parent_case_id`.
+
+## Retrieve Cascade
+
+When pulling context for a complex task, use `include_children=true` on L3 retrievals to get the full L3→L2→L1 tree in one call. Use `include_parent=true` on an L1 hit to discover which strategy it belonged to.
+
 ## When NOT to Use
 
 - Simple single-tool operations (reading one file, running one command)

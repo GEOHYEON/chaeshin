@@ -63,7 +63,10 @@ export interface ChaeshinProblemFeatures {
   context: Record<string, unknown>;
 }
 
+export type ChaeshinOutcomeStatus = "success" | "failure" | "pending";
+
 export interface ChaeshinOutcome {
+  status?: ChaeshinOutcomeStatus;
   success: boolean;
   result_summary: string;
   tools_executed: number;
@@ -71,6 +74,8 @@ export interface ChaeshinOutcome {
   total_time_ms: number;
   user_satisfaction: number;
   error_reason: string;
+  verdict_note?: string;
+  verdict_at?: string;
   details: Record<string, unknown>;
 }
 
@@ -83,6 +88,16 @@ export interface ChaeshinCaseMetadata {
   source: string;
   version: number;
   tags: string[];
+  layer?: string;
+  depth?: number;
+  parent_case_id?: string;
+  parent_node_id?: string;
+  child_case_ids?: string[];
+  wait_mode?: "deadline" | "blocking";
+  deadline_at?: string;
+  difficulty?: number;
+  feedback_count?: number;
+  feedback_log?: string[];
 }
 
 export interface ChaeshinCase {

@@ -136,9 +136,45 @@ Tool calls are structured as a **graph** — not a simple list. Nodes are tool i
   <img src="assets/tool-graph.svg" alt="Tool Graph — nodes, edges, conditions, loops" width="720"/>
 </p>
 
+### Recursive Decomposition — Graph of Graphs
+
+Complex requests aren't limited to a fixed 3-layer (L1/L2/L3) hierarchy. Chaeshin decomposes **recursively** until every leaf is a single tool call:
+
+- **Leaf** (`depth=0`, `L1`) — one atomic tool call (`Bash`, `Read`, etc.)
+- **Composite** (`depth=n>0`, `L{n+1}`) — a graph whose nodes reference child cases. Can nest arbitrarily deep.
+
+```
+L3 "Plan dinner"
+├── L2 "Cook stew"              (its own graph)
+│   ├── L1 "search recipe"       (leaf — tool call)
+│   ├── L1 "prep ingredients"    (leaf)
+│   └── L1 "simmer 20min"        (leaf)
+└── L2 "Prep side dishes"       (parallel workflow)
+    └── L1 "blanch spinach"      (leaf)
+```
+
+Simple tasks stop at `depth=0`. Hairy ones grow to `L4`, `L5`. No hard ceiling.
+
 ### Immutable Graph + Mutable Context
 
 The graph never changes during execution. Only the **execution context** (cursor, node states, outputs) updates. If something unexpected happens and no edge matches, the LLM modifies the graph via a minimal **diff** — not a full regeneration.
+
+### Diff-Based CRUD
+
+Cases support full Create / Read / Update / Delete:
+- `chaeshin_retain` — Create (always as `pending` outcome)
+- `chaeshin_retrieve` — Read (split into successes / failures / pending)
+- `chaeshin_update(case_id, patch)` — shallow merge; changed fields are recorded in the event log
+- `chaeshin_delete(case_id, reason)` — removes a case
+
+### Tri-State Outcome + User Verdict
+
+Chaeshin never *infers* success or failure. Every new case starts as `pending` — the "중간" in-between state. The authoritative verdict comes from the user via `chaeshin_verdict(case_id, "success"|"failure", note)`.
+
+- `wait_mode="blocking"` — wait indefinitely for verdict
+- `wait_mode="deadline"` (default, 2h) — after the deadline the case stays `pending` forever; the agent stops blocking on it and moves on
+
+No answer ≠ failure. No answer ≠ success. No answer = **pending** — and that's a first-class state.
 
 ### When Things Go Wrong
 
@@ -170,6 +206,17 @@ Full scenario with step-by-step explanations:
 
 ---
 
+## Domain Example — Clinical Lifestyle Intake
+
+A full clinician-patient walkthrough showing Chaeshin in a high-stakes domain:
+a primary-care visit for newly-diagnosed Type-2 diabetes. Recursive decomposition
+(L4 → L3 → L2 → L1), FHIR R5 resource hooks, `pending` verdicts that wait weeks
+for patient follow-up without blocking the clinician.
+
+[📋 examples/medical_intake/scenario_ko.md](examples/medical_intake/scenario_ko.md) — real clinical flow, not a toy. Runnable demo: `uv run python -m examples.medical_intake.demo`.
+
+---
+
 ## Integrations
 
 All platforms share `~/.chaeshin/cases.json` — cases saved in Claude Code work in OpenClaw and vice versa.
@@ -184,27 +231,40 @@ All platforms share `~/.chaeshin/cases.json` — cases saved in Claude Code work
 | Claude Desktop | `chaeshin setup claude-desktop` | Auto-edits `claude_desktop_config.json` |
 | OpenClaw | `chaeshin setup openclaw` | Installs `SKILL.md` into workspace |
 
-Three tools become available after setup:
+Available MCP tools after setup:
 
 | Tool | Description |
 |------|-------------|
-| `chaeshin_retrieve` | Search past cases — returns successes and failures separately |
-| `chaeshin_retain` | Save execution graphs (successes and failures) |
-| `chaeshin_stats` | View case store statistics |
+| `chaeshin_retrieve` | Search past cases — returns `successes` / `failures` / `pending` separately |
+| `chaeshin_retain` | Save a tool graph. Always starts as `pending` until a verdict arrives |
+| `chaeshin_update` | Diff-based partial update (shallow merge, changes logged) |
+| `chaeshin_delete` | Remove a case (reason logged) |
+| `chaeshin_verdict` | User's `success`/`failure` verdict → flips a pending case |
+| `chaeshin_feedback` | Record free-form user feedback (escalate / modify / correct / …) |
+| `chaeshin_decompose` | Return recursive-decomposition context for the host AI to execute |
+| `chaeshin_stats` | Case store + outcome-status distribution + overdue-pending count |
 
 ---
 
-## Monitor — Visual Graph Editor
+## Monitor — Observability UI
 
 <p align="center">
   <img src="assets/tool-graph.svg" alt="Visual Graph Editor" width="720"/>
 </p>
 
-A web-based tool graph editor built with Next.js and React Flow. Drag-and-drop nodes, draw edges, set conditions, import/export cases from `~/.chaeshin/cases.json`.
+A Next.js dashboard over the live SQLite store at `~/.chaeshin/chaeshin.db`. Three views:
+
+| Route | What you see |
+|-------|--------------|
+| `/` (Cases) | Visual graph editor — drag-and-drop nodes, edges, conditions; full CRUD |
+| `/events` | Timeline of every MCP call (retrieve / retain / update / verdict / delete / feedback / decompose). 5-second auto-refresh. Click any row to expand payload + session_id + matched case_ids |
+| `/hierarchy` | Recursive case tree. Filter by layer (L1…Ln) and by outcome status (pending / success / failure). Hover a pending case → inline **✓ 성공 / ✗ 실패** buttons to post a user verdict |
 
 ```bash
 cd chaeshin-monitor && pnpm install && pnpm dev
 ```
+
+The monitor writes verdicts directly to the same DB the MCP server reads from — so a verdict clicked in the UI immediately affects future `chaeshin_retrieve` rankings.
 
 ---
 
@@ -219,21 +279,28 @@ cd chaeshin-monitor && pnpm install && pnpm dev
 
 ```
 chaeshin/
-├── schema.py               # Core data types (Case, ToolGraph, GraphNode, GraphEdge)
-├── case_store.py           # CBR 4R cycle: retrieve, reuse, revise, retain
+├── schema.py               # Core data types — tri-state Outcome, recursive CaseMetadata (depth, wait_mode, deadline_at)
+├── case_store.py           # CBR 4R cycle + update_case (diff merge) + set_verdict
+├── event_log.py            # Every MCP call → SQLite events table (observability)
+├── storage/
+│   └── sqlite_backend.py   # ~/.chaeshin/chaeshin.db — cases, events, hierarchy_edges, embeddings
+├── migrations/
+│   ├── m001_json_to_sqlite_l1.py   # Legacy cases.json → SQLite + flat→L1 normalization
+│   └── m002_outcome_status.py      # Backfill outcome.status on existing cases
 ├── graph_executor.py       # Tool graph runner (parallel, loops, conditions)
 ├── planner.py              # LLM-based graph create / adapt / replan (diff-based)
 ├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
 ├── integrations/
-│   ├── claude_code/        # MCP server (FastMCP) + CLAUDE.md auto-learning template
+│   ├── claude_code/        # FastMCP server (8 tools) + CLAUDE.md auto-learning template
 │   ├── openclaw/           # SKILL.md + bridge CLI
 │   ├── openai.py           # LLM + embedding adapter
-│   ├── chroma.py           # ChromaDB vector case store
+│   ├── chroma.py           # ChromaDB vector case store (alt backend)
 │   └── chaebi.py           # Chaebi marketplace sync
-└── agents/                 # v2: Orchestrator, Decomposer, Executor, Reflection
-chaeshin-monitor/           # Next.js web UI
+└── agents/                 # Orchestrator, Decomposer, Executor, Reflection
+chaeshin-monitor/           # Next.js 15 UI — /, /events, /hierarchy (better-sqlite3 over the same DB)
 examples/cooking/           # Demo agent (kimchi stew, doenjang stew, recovery scenarios)
-examples/dinner-table/      # Full walkthrough (4 languages)
+examples/dinner-table/      # Recursive decomposition walkthrough (4 languages)
+examples/medical_intake/    # Clinician lifestyle intake → adaptive plan (FHIR-aware)
 ```
 </details>
 
