@@ -215,17 +215,29 @@ Full scenario with step-by-step explanations:
 
 Two long-form walkthroughs showing the same three features (recursive graph decomposition, tri-state outcome, cascading revise) in very different domains.
 
+Each example ships in two flavors:
+
+- `demo.py` — **scripted** walkthrough (no API key needed). Deterministic output, ideal for reading the narrative.
+- `react_demo.py` — **live ReAct agent** using `OPENAI_API_KEY`. Drop a key in `.env` and watch a real LLM retrieve past cases, plan, call domain tools, retain with layer/parent linkage, and (for lifestyle) cascade-revise when feedback arrives.
+
 ### 🏥 Clinical Lifestyle Intake — high-stakes, long verdict cycle
 A clinician-patient flow for newly-diagnosed Type-2 diabetes. Recursive decomposition into intake / stratify / plan / follow-up, FHIR R5 resource hooks, 12-week `pending` verdicts.
 
-[📋 scenario](examples/medical_intake/scenario_ko.md) · runnable: `uv run python -m examples.medical_intake.demo`
+[📋 scenario](examples/medical_intake/scenario_ko.md) · scripted: `uv run python -m examples.medical_intake.demo` · live ReAct: `uv run python -m examples.medical_intake.react_demo`
 
 ### 🏃 Lifestyle Coaching (non-medical) — chronic fatigue reset
 A 3-month reset plan for a burned-out startup PM. Same structure, no medical terminology. Minimum-load planning, cascade revise when the 10-min home workout doesn't stick, failed-habit archive that warns future similar clients.
 
-[📋 scenario](examples/lifestyle_coaching/scenario_ko.md) · runnable: `uv run python -m examples.lifestyle_coaching.demo`
+[📋 scenario](examples/lifestyle_coaching/scenario_ko.md) · scripted: `uv run python -m examples.lifestyle_coaching.demo` · live ReAct: `uv run python -m examples.lifestyle_coaching.react_demo`
 
-Both examples are standalone — read either first. They use parallel scenario structure (T0 intake → weekly feedback → cascade revise → final verdict → reuse by similar client), so comparing them side-by-side shows the same engine working in different contexts.
+### 🍲 Cooking (starter) — kimchi stew, minimal setup
+The shortest possible live example. ReAct agent cooks kimchi stew end-to-end — good for verifying your setup in under a minute.
+
+Live ReAct: `uv run python -m examples.cooking.react_demo`
+
+All ReAct demos share `examples/_react_common.py` (Chaeshin tool wrappers + store bootstrap) and `chaeshin/agents/react_agent.py` (the Thought / Action / Observation loop with colored console trace). By default the demos write to a temp SQLite; set `CHAESHIN_DEMO_PERSIST=1` to append to `~/.chaeshin/chaeshin.db` so verdicts from the monitor UI apply.
+
+Both medical/lifestyle examples use parallel scenario structure (T0 intake → weekly feedback → cascade revise → final verdict → reuse by similar client), so comparing them side-by-side shows the same engine working in different contexts.
 
 ---
 

@@ -370,13 +370,33 @@ chaeshin_update(
 
 ## 부록 — 실행해보기
 
+두 종류가 있다:
+
+**1. 스크립트 데모** — API 키 없이 그냥 돈다. 결정적 출력.
+
 ```bash
 uv run python -m examples.lifestyle_coaching.demo
 ```
 
-`demo.py`가 보여주는 것:
+무엇을 보여주는가:
 1. 박OO 프로필로 L4부터 L1까지 트리를 pending으로 저장
 2. 1주차에 피드백만 기록 (판정 보류)
 3. 2주차에 L3 플랜 그래프 수정 → 10분 홈운동 L2가 연결 끊긴 상태가 됨
 4. 연결 끊긴 L2에 failure 판정 + 12주차에 L4 success 판정
 5. 비슷한 프로필의 새 클라이언트가 왔을 때 retrieve로 나오는 성공 후보 + 경고
+
+**2. 라이브 ReAct 데모** — OpenAI 키로 실제 LLM이 돈다. [`react_demo.py`](react_demo.py).
+
+```bash
+export OPENAI_API_KEY=sk-...
+uv run python -m examples.lifestyle_coaching.react_demo
+```
+
+ReAct 에이전트가 2부로 나뉜 흐름을 실제로 탄다:
+
+1부) T0 — retrieve → sleep_snapshot 등 데이터 수집 → L4 저장 → L3 plan 저장 → L2 몸쓰기 저장 → L2 잠 저장
+2부) habit_checkin(week=2) → "홈운동 안 붙음" 확인 → chaeshin_revise로 L3 plan 그래프 재작성
+     → 응답의 orphaned_children 에 L2_movement_id 가 나오고, 해당 L2는 pending으로 회귀
+     → Final Answer에서 사용자에게 보고
+
+저장소 결과는 temp SQLite. 영구 저장하려면 `CHAESHIN_DEMO_PERSIST=1`.

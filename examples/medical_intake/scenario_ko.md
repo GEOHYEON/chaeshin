@@ -375,18 +375,34 @@ health_agent의 `fhir/downgrade.py` 참조.
 
 ## 부록 — 실행 가능한 데모
 
-이 시나리오를 코드로 재현하는 최소 데모는 [`demo.py`](demo.py)에 있다. 실제 EMR
-없이 Chaeshin 저장소 동작만 보여준다:
+두 종류가 있다:
+
+**1. 스크립트 데모** — API 키 없이 그냥 돈다. 결정적 출력.
 
 ```bash
 uv run python -m examples.medical_intake.demo
 ```
 
-데모가 보여주는 것:
-1. L4→L1 전체 트리를 pending으로 저장
-2. 유사 쿼리로 retrieve → pending/successes/failures 분리 확인
-3. 12주 후 시점 시뮬레이션 → verdict=success 기록
-4. diff 기반 update로 다음 환자에게 적용
+무엇을 보여주는가:
+1. L4→L1 트리를 pending으로 저장
+2. 유사 쿼리 retrieve → pending/successes/failures 분리
+3. 12주 후 verdict=success 기록
+4. diff로 다음 환자에게 적용
+
+**2. 라이브 ReAct 데모** — OpenAI 키로 실제 LLM이 돈다. [`react_demo.py`](react_demo.py).
+
+```bash
+export OPENAI_API_KEY=sk-...
+uv run python -m examples.medical_intake.react_demo
+```
+
+ReAct 에이전트가 Thought/Action/Observation 루프로:
+- `chaeshin_retrieve`로 비슷한 과거 케이스 확인
+- 도메인 도구(dietary_recall_24h, gpaq_activity, medication_propose, meal_plan_tailored, ...)로 환자 정보 수집
+- `chaeshin_retain`을 **여러 번** 호출해서 L4 → L3 → L2 계층 저장 (parent_case_id 체인)
+- Final Answer로 요약
+
+저장소 결과는 temp SQLite에 들어간다. 영구 저장하려면 `CHAESHIN_DEMO_PERSIST=1`.
 
 ---
 
