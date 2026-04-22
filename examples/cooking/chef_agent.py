@@ -1,17 +1,20 @@
 """
-김치찌개 요리사 에이전트 — Chaeshin 프레임워크 데모.
+김치찌개 요리사 에이전트 — Chaeshin 기본 개념 데모 (in-memory).
 
-이 예제는 CBR의 전체 사이클을 보여줍니다:
+이 예제는 CBR 4R 사이클의 뼈대만 보여준다:
 
 1. 사용자: "김치찌개 2인분 해줘"
-2. CBR Retrieve: 유사한 레시피(Tool Graph) 검색
-3. Adapt: 현재 재료/상황에 맞게 그래프 조정
-4. Execute: 그래프를 따라 Tool Calling 실행
-5. Replan: 예상 못한 상황(전화, 재료 부족) 시 그래프 수정
-6. Retain: 성공하면 CBR에 저장
+2. Retrieve — 유사한 레시피(Tool Graph) 검색
+3. Adapt — 현재 재료/상황에 맞게 그래프 조정
+4. Execute — 그래프를 따라 Tool Calling 실행
+5. Replan — 예상 못한 상황(전화, 재료 부족) 시 그래프 수정
+6. Retain — 성공하면 CBR에 저장
+
+계층 분해, pending verdict, cascading revise 같은 주요 기능을 보려면
+`examples/medical_intake/` 또는 `examples/lifestyle_coaching/` 을 참고.
 
 실행:
-    python -m examples.cooking.chef_agent
+    uv run python -m examples.cooking.chef_agent
 """
 
 import asyncio

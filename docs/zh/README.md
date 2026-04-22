@@ -230,7 +230,7 @@ chaeshin/
 │   ├── openai.py           # LLM + 嵌入适配器
 │   ├── chroma.py           # ChromaDB向量案例存储
 │   └── chaebi.py           # Chaebi市场同步
-└── agents/                 # v2: 编排器、分解器、执行器、反思
+└── agents/                 # 编排器、分解器、执行器、反思
 chaeshin-monitor/           # Next.js Web UI
 examples/cooking/           # 演示代理（泡菜汤、大酱汤、恢复场景）
 examples/dinner-table/      # 完整演示（4种语言）

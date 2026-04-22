@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <style>
+    .bg { fill: #fafafa; }
+    .title { fill: #111; font-size: 16px; font-weight: 600; }
+    .sub { fill: #6b7280; font-size: 11px; }
+    .head { fill: #374151; font-size: 13px; font-weight: 600; }
+    .node { fill: #ffffff; stroke: #d1d5db; stroke-width: 1.5; rx: 8; }
+    .node-removed { fill: #fee2e2; stroke: #dc2626; stroke-width: 2; stroke-dasharray: 4 3; rx: 8; }
+    .node-added { fill: #dcfce7; stroke: #16a34a; stroke-width: 2; rx: 8; }
+    .node-kept { fill: #ffffff; stroke: #6b7280; stroke-width: 1.5; rx: 8; }
+    .lbl { fill: #111; font-size: 13px; text-anchor: middle; font-weight: 500; }
+    .lbl-small { fill: #111; font-size: 12px; text-anchor: middle; }
+    .edge { stroke: #9ca3af; stroke-width: 1.8; fill: none; marker-end: url(#arr); }
+    .annot { fill: #dc2626; font-size: 11px; font-style: italic; }
+    .annot-plus { fill: #16a34a; font-size: 11px; font-style: italic; }
+    .arrow-big { stroke: #4f46e5; stroke-width: 3; fill: none; marker-end: url(#arr-big); }
+    .reason { fill: #4f46e5; font-size: 12px; font-weight: 600; }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+    <marker id="arr-big" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="900" height="400"/>
+
+  <text x="450" y="28" text-anchor="middle" class="title">의료 예시 — L3 "개별 맞춤 계획" 그래프 수정 (T+8주)</text>
+  <text x="450" y="46" text-anchor="middle" class="sub">환자가 야간 근무 때 약을 자주 놓친다고 호소 → 약물 노드를 쪼갠다</text>
+
+  <!-- BEFORE -->
+  <text x="90" y="90" class="head">바꾸기 전</text>
+  <rect class="node-kept" x="40" y="110" width="90" height="40"/>
+  <text x="85" y="134" class="lbl">meal</text>
+  <path class="edge" d="M 130 130 L 160 130"/>
+  <rect class="node-kept" x="160" y="110" width="90" height="40"/>
+  <text x="205" y="134" class="lbl">activity</text>
+  <path class="edge" d="M 250 130 L 280 130"/>
+  <rect class="node-removed" x="280" y="110" width="90" height="40"/>
+  <text x="325" y="134" class="lbl">med</text>
+  <text x="325" y="168" text-anchor="middle" class="annot">removed</text>
+  <path class="edge" d="M 370 130 L 400 130"/>
+  <rect class="node-kept" x="400" y="110" width="90" height="40"/>
+  <text x="445" y="134" class="lbl">goals</text>
+
+  <!-- Arrow down: revise -->
+  <path class="arrow-big" d="M 260 185 L 260 230"/>
+  <text x="280" y="213" class="reason">chaeshin_revise</text>
+
+  <!-- AFTER -->
+  <text x="90" y="260" class="head">바꾼 후</text>
+  <rect class="node-kept" x="20" y="280" width="90" height="40"/>
+  <text x="65" y="304" class="lbl">meal</text>
+  <path class="edge" d="M 110 300 L 140 300"/>
+  <rect class="node-kept" x="140" y="280" width="90" height="40"/>
+  <text x="185" y="304" class="lbl">activity</text>
+  <path class="edge" d="M 230 300 L 260 300"/>
+  <rect class="node-added" x="260" y="280" width="130" height="40"/>
+  <text x="325" y="304" class="lbl-small">med_simplified</text>
+  <text x="325" y="336" text-anchor="middle" class="annot-plus">+ added</text>
+  <path class="edge" d="M 390 300 L 420 300"/>
+  <rect class="node-added" x="420" y="280" width="130" height="40"/>
+  <text x="485" y="304" class="lbl-small">self_monitor</text>
+  <text x="485" y="336" text-anchor="middle" class="annot-plus">+ added</text>
+  <path class="edge" d="M 550 300 L 580 300"/>
+  <rect class="node-kept" x="580" y="280" width="90" height="40"/>
+  <text x="625" y="304" class="lbl">goals</text>
+
+  <!-- Cascade callout -->
+  <rect fill="#fff1f2" stroke="#e11d48" stroke-width="1.5" rx="8" x="700" y="245" width="180" height="110"/>
+  <text x="790" y="268" text-anchor="middle" class="head">Cascade</text>
+  <text x="790" y="290" text-anchor="middle" class="lbl-small">'med' 제거됨 →</text>
+  <text x="790" y="308" text-anchor="middle" class="lbl-small">L2 "메트포르민 시작"</text>
+  <text x="790" y="326" text-anchor="middle" class="lbl-small">연결 끊김</text>
+  <text x="790" y="346" text-anchor="middle" class="annot">status → pending</text>
+</svg>

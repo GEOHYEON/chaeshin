@@ -55,12 +55,12 @@ class TestUpsertAndLoad:
         case = _case("build")
         backend.upsert_case(case)
 
-        case.problem_features.request = "build v2"
+        case.problem_features.request = "build (updated)"
         backend.upsert_case(case)
 
         loaded = backend.load_all_cases()
         assert len(loaded) == 1
-        assert loaded[0].problem_features.request == "build v2"
+        assert loaded[0].problem_features.request == "build (updated)"
 
 
 class TestHierarchy:

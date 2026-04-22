@@ -148,8 +148,8 @@ class CaseStore:
     ) -> List[Tuple[Case, float]]:
         """임베딩 기반 유사도 검색.
 
-        v2: feedback_count 가중치 반영.
-        final_score = similarity * 0.7 + feedback_weight * 0.3
+        feedback_count 가중치 반영:
+            final_score = similarity * 0.7 + feedback_weight * 0.3
         """
         query_text = f"{problem.request} {' '.join(problem.keywords)}"
         query_vec = self.embed_fn(query_text)
@@ -162,7 +162,7 @@ class CaseStore:
 
             sim = self._cosine_similarity(query_vec, self._embeddings[case_id])
 
-            # v2: 피드백 가중치 — 피드백 많은 케이스 우선
+            # 피드백 가중치 — 피드백 많은 케이스 우선
             fb_count = getattr(case.metadata, "feedback_count", 0)
             feedback_weight = min(fb_count / 10.0, 1.0) if fb_count > 0 else 0.0
             final_score = sim * 0.7 + feedback_weight * 0.3
@@ -352,7 +352,7 @@ class CaseStore:
         # 성공 케이스 저장
         return self.retain(successful_case)
 
-    # ── v2: Hierarchy (계층 연쇄 로드) ──────────────────────────────────
+    # ── Hierarchy (계층 연쇄 로드) ──────────────────────────────────
 
     def get_case_by_id(self, case_id: str) -> Optional[Case]:
         """case_id로 케이스 조회."""
@@ -418,7 +418,7 @@ class CaseStore:
                 break
         return result
 
-    # ── v3: Diff 기반 Update & Verdict ────────────────────────────────
+    # ── Diff 기반 Update & Verdict ────────────────────────────────────
 
     def update_case(self, case_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """케이스를 diff로 업데이트 (얕은 merge).
@@ -636,7 +636,7 @@ class CaseStore:
         logger.info("verdict_set", case_id=case_id, status=status)
         return case
 
-    # ── v2: Feedback (피드백 반영) ────────────────────────────────────
+    # ── Feedback (피드백 반영) ────────────────────────────────────────
 
     def add_feedback(
         self,

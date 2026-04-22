@@ -430,7 +430,7 @@ class GraphExecutor:
         sequential = [nid for nid in ready if nid not in parallel]
         return parallel, sequential
 
-    # ── v2: Layered Execution ────────────────────────────────────────
+    # ── Layered Execution ────────────────────────────────────────────
 
     async def execute_layered(
         self,

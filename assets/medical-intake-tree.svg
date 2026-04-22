@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <style>
+    .bg { fill: #fafafa; }
+    .title { fill: #111; font-size: 16px; font-weight: 600; }
+    .sub { fill: #6b7280; font-size: 11px; }
+    .l4 { fill: #4338ca; }
+    .l3 { fill: #2563eb; }
+    .l2 { fill: #0891b2; }
+    .l1 { fill: #059669; }
+    .lbl { fill: #ffffff; font-size: 10px; font-weight: 700; }
+    .node-l4 { fill: #eef2ff; stroke: #4338ca; stroke-width: 2; rx: 8; }
+    .node-l3 { fill: #eff6ff; stroke: #2563eb; stroke-width: 1.5; rx: 7; }
+    .node-l2 { fill: #f0f9ff; stroke: #0891b2; stroke-width: 1.2; rx: 6; }
+    .node-l1 { fill: #ecfdf5; stroke: #059669; stroke-width: 1; rx: 5; }
+    .txt { fill: #111; font-size: 11px; }
+    .txt-bold { fill: #111; font-size: 12px; font-weight: 600; }
+    .edge { stroke: #9ca3af; stroke-width: 1.3; fill: none; }
+  </style>
+  <rect class="bg" width="1080" height="720"/>
+
+  <text x="540" y="28" text-anchor="middle" class="title">신환 T2DM 초진 — 개별 맞춤 관리 계획 (L4 → L1 트리)</text>
+  <text x="540" y="46" text-anchor="middle" class="sub">의료 예시 · 각 노드는 Tool Graph를 포함. 리프(L1)는 도구 한 번 호출 = FHIR 리소스 한 개.</text>
+
+  <!-- Legend -->
+  <rect class="l4" x="40" y="65" width="14" height="14" rx="3"/>
+  <text x="60" y="77" class="txt">L4 root</text>
+  <rect class="l3" x="125" y="65" width="14" height="14" rx="3"/>
+  <text x="145" y="77" class="txt">L3 composite</text>
+  <rect class="l2" x="230" y="65" width="14" height="14" rx="3"/>
+  <text x="250" y="77" class="txt">L2 workflow</text>
+  <rect class="l1" x="335" y="65" width="14" height="14" rx="3"/>
+  <text x="355" y="77" class="txt">L1 leaf (tool call)</text>
+
+  <!-- L4 root -->
+  <rect class="node-l4" x="420" y="100" width="240" height="46"/>
+  <rect class="l4" x="428" y="108" width="22" height="14" rx="3"/>
+  <text x="439" y="119" text-anchor="middle" class="lbl">L4</text>
+  <text x="540" y="131" text-anchor="middle" class="txt-bold">3개월 관리 계획 (depth=3)</text>
+
+  <!-- Edges L4 → L3 x4 -->
+  <path class="edge" d="M 540 146 L 540 165 L 140 165 L 140 195"/>
+  <path class="edge" d="M 540 146 L 540 165 L 400 165 L 400 195"/>
+  <path class="edge" d="M 540 146 L 540 165 L 680 165 L 680 195"/>
+  <path class="edge" d="M 540 146 L 540 165 L 940 165 L 940 195"/>
+
+  <!-- L3 nodes: intake / stratify / plan / followup -->
+  <g>
+    <rect class="node-l3" x="55" y="195" width="170" height="40"/>
+    <rect class="l3" x="63" y="203" width="22" height="14" rx="3"/>
+    <text x="74" y="214" text-anchor="middle" class="lbl">L3</text>
+    <text x="140" y="220" text-anchor="middle" class="txt-bold">생활습관 문진</text>
+  </g>
+  <g>
+    <rect class="node-l3" x="315" y="195" width="170" height="40"/>
+    <rect class="l3" x="323" y="203" width="22" height="14" rx="3"/>
+    <text x="334" y="214" text-anchor="middle" class="lbl">L3</text>
+    <text x="400" y="220" text-anchor="middle" class="txt-bold">위험·현실성 평가</text>
+  </g>
+  <g>
+    <rect class="node-l3" x="595" y="195" width="170" height="40"/>
+    <rect class="l3" x="603" y="203" width="22" height="14" rx="3"/>
+    <text x="614" y="214" text-anchor="middle" class="lbl">L3</text>
+    <text x="680" y="220" text-anchor="middle" class="txt-bold">개별 맞춤 계획</text>
+  </g>
+  <g>
+    <rect class="node-l3" x="855" y="195" width="170" height="40"/>
+    <rect class="l3" x="863" y="203" width="22" height="14" rx="3"/>
+    <text x="874" y="214" text-anchor="middle" class="lbl">L3</text>
+    <text x="940" y="220" text-anchor="middle" class="txt-bold">추적 관리</text>
+  </g>
+
+  <!-- L2 under intake -->
+  <path class="edge" d="M 140 235 L 140 255 L 75 255 L 75 290"/>
+  <path class="edge" d="M 140 235 L 140 255 L 205 255 L 205 290"/>
+  <rect class="node-l2" x="25" y="290" width="100" height="36"/>
+  <rect class="l2" x="32" y="297" width="22" height="14" rx="3"/>
+  <text x="43" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="90" y="312" text-anchor="middle" class="txt">식이 평가</text>
+  <rect class="node-l2" x="155" y="290" width="100" height="36"/>
+  <rect class="l2" x="162" y="297" width="22" height="14" rx="3"/>
+  <text x="173" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="220" y="312" text-anchor="middle" class="txt">신체활동 평가</text>
+
+  <!-- L2 under stratify -->
+  <path class="edge" d="M 400 235 L 400 260"/>
+  <rect class="node-l2" x="335" y="290" width="130" height="36"/>
+  <rect class="l2" x="342" y="297" width="22" height="14" rx="3"/>
+  <text x="353" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="415" y="312" text-anchor="middle" class="txt">동반질환 · 약물 금기</text>
+
+  <!-- L2 under plan -->
+  <path class="edge" d="M 680 235 L 680 255 L 615 255 L 615 290"/>
+  <path class="edge" d="M 680 235 L 680 255 L 745 255 L 745 290"/>
+  <rect class="node-l2" x="565" y="290" width="100" height="36"/>
+  <rect class="l2" x="572" y="297" width="22" height="14" rx="3"/>
+  <text x="583" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="630" y="312" text-anchor="middle" class="txt">저예산 식단</text>
+  <rect class="node-l2" x="695" y="290" width="100" height="36"/>
+  <rect class="l2" x="702" y="297" width="22" height="14" rx="3"/>
+  <text x="713" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="758" y="312" text-anchor="middle" class="txt">메트포르민 시작</text>
+
+  <!-- L2 under followup -->
+  <path class="edge" d="M 940 235 L 940 255 L 875 255 L 875 290"/>
+  <path class="edge" d="M 940 235 L 940 255 L 1005 255 L 1005 290"/>
+  <rect class="node-l2" x="825" y="290" width="100" height="36"/>
+  <rect class="l2" x="832" y="297" width="22" height="14" rx="3"/>
+  <text x="843" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="887" y="312" text-anchor="middle" class="txt">안전망 구축</text>
+  <rect class="node-l2" x="955" y="290" width="100" height="36"/>
+  <rect class="l2" x="962" y="297" width="22" height="14" rx="3"/>
+  <text x="973" y="308" text-anchor="middle" class="lbl">L2</text>
+  <text x="1020" y="312" text-anchor="middle" class="txt">재평가 예약</text>
+
+  <!-- L1 leaves — show a few under 식이 평가 -->
+  <path class="edge" d="M 75 326 L 75 360"/>
+  <rect class="node-l1" x="20" y="360" width="110" height="32"/>
+  <rect class="l1" x="27" y="366" width="22" height="14" rx="3"/>
+  <text x="38" y="377" text-anchor="middle" class="lbl">L1</text>
+  <text x="84" y="380" text-anchor="middle" class="txt">dietary_recall_24h</text>
+  <path class="edge" d="M 75 326 L 75 410 L 75 410"/>
+  <rect class="node-l1" x="20" y="405" width="110" height="32"/>
+  <rect class="l1" x="27" y="411" width="22" height="14" rx="3"/>
+  <text x="38" y="422" text-anchor="middle" class="lbl">L1</text>
+  <text x="84" y="425" text-anchor="middle" class="txt">food_security_screen</text>
+
+  <!-- L1 under 저예산 식단 -->
+  <path class="edge" d="M 615 326 L 615 360"/>
+  <rect class="node-l1" x="555" y="360" width="125" height="32"/>
+  <rect class="l1" x="562" y="366" width="22" height="14" rx="3"/>
+  <text x="573" y="377" text-anchor="middle" class="lbl">L1</text>
+  <text x="625" y="380" text-anchor="middle" class="txt">meal_plan_tailored</text>
+  <rect class="node-l1" x="555" y="405" width="125" height="32"/>
+  <rect class="l1" x="562" y="411" width="22" height="14" rx="3"/>
+  <text x="573" y="422" text-anchor="middle" class="lbl">L1</text>
+  <text x="625" y="425" text-anchor="middle" class="txt">편의점 조합 규칙</text>
+  <path class="edge" d="M 615 326 L 615 405"/>
+
+  <!-- L1 under 메트포르민 -->
+  <path class="edge" d="M 745 326 L 745 360"/>
+  <rect class="node-l1" x="685" y="360" width="125" height="32"/>
+  <rect class="l1" x="692" y="366" width="22" height="14" rx="3"/>
+  <text x="703" y="377" text-anchor="middle" class="lbl">L1</text>
+  <text x="755" y="380" text-anchor="middle" class="txt">medication_propose</text>
+  <rect class="node-l1" x="685" y="405" width="125" height="32"/>
+  <rect class="l1" x="692" y="411" width="22" height="14" rx="3"/>
+  <text x="703" y="422" text-anchor="middle" class="lbl">L1</text>
+  <text x="755" y="425" text-anchor="middle" class="txt">복약 코칭</text>
+  <path class="edge" d="M 745 326 L 745 405"/>
+
+  <!-- Annotation boxes -->
+  <rect fill="#fff7ed" stroke="#f59e0b" stroke-width="1" rx="8" x="40" y="500" width="470" height="170"/>
+  <text x="60" y="524" class="txt-bold">각 L1 = 도구 1회 호출 = FHIR 리소스 1개</text>
+  <text x="60" y="546" class="txt">• dietary_recall_24h → Observation (LOINC 9271-8)</text>
+  <text x="60" y="564" class="txt">• food_security_screen → Observation (LOINC 88121-9)</text>
+  <text x="60" y="582" class="txt">• meal_plan_tailored → CarePlan.activity</text>
+  <text x="60" y="600" class="txt">• medication_propose → MedicationRequest</text>
+  <text x="60" y="624" class="txt">• 전체 L4 root → CarePlan (category=assess-plan)</text>
+  <text x="60" y="648" class="txt">• 각 변경은 AuditEvent / Provenance로 기록 가능</text>
+
+  <rect fill="#f0fdf4" stroke="#059669" stroke-width="1" rx="8" x="540" y="500" width="490" height="170"/>
+  <text x="560" y="524" class="txt-bold">환자마다 트리 모양이 다르다</text>
+  <text x="560" y="546" class="txt">· 인테이크(문진) 결과에 따라 L3 "개별 맞춤 계획"의 L2</text>
+  <text x="560" y="562" class="txt">  구성이 달라진다. 야간 근무자는 저예산 식단 · 교대 운동</text>
+  <text x="560" y="578" class="txt">  L2가 생성되고, 다른 프로필은 다른 L2가 생성된다.</text>
+  <text x="560" y="602" class="txt">· 저장되는 건 "이 환자 프로필에는 이 트리가 통했다"는</text>
+  <text x="560" y="618" class="txt">  사실. 다음에 비슷한 환자가 오면 retrieve로 부른다.</text>
+  <text x="560" y="642" class="txt">· 판정(verdict)은 12주 후 실제 종료점을 보고 의료진이</text>
+  <text x="560" y="658" class="txt">  직접 내린다. 그 전까지는 전부 pending.</text>
+</svg>

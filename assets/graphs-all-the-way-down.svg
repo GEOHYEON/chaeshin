@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <style>
+    .bg { fill: #fafafa; }
+    .label { fill: #111; font-size: 16px; font-weight: 600; }
+    .sub { fill: #6b7280; font-size: 11px; }
+    .node { fill: #ffffff; stroke: #d1d5db; stroke-width: 1.5; rx: 8; }
+    .node-active { fill: #eef2ff; stroke: #4f46e5; stroke-width: 2; rx: 8; }
+    .node-atomic { fill: #ecfdf5; stroke: #059669; stroke-width: 2; rx: 8; }
+    .node-label { fill: #111; font-size: 13px; font-weight: 500; text-anchor: middle; }
+    .edge { stroke: #9ca3af; stroke-width: 1.8; fill: none; marker-end: url(#arr); }
+    .zoom { stroke: #4f46e5; stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; marker-end: url(#arr-z); }
+    .zoom-label { fill: #4f46e5; font-size: 11px; font-style: italic; }
+    .layer { fill: #f3f4f6; stroke: #d1d5db; stroke-width: 1; rx: 12; }
+    .layer-label { fill: #6b7280; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+    <marker id="arr-z" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4f46e5"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="900" height="520"/>
+
+  <text x="450" y="32" text-anchor="middle" class="label">It's graphs all the way down</text>
+  <text x="450" y="52" text-anchor="middle" class="sub">한 그래프의 노드를 줌인하면 또 그래프. 리프(도구 1회)에 도달할 때까지.</text>
+
+  <!-- L3 outer layer -->
+  <rect class="layer" x="40" y="90" width="260" height="140"/>
+  <text x="52" y="110" class="layer-label">L3 · THE WHOLE PLAN</text>
+  <rect class="node" x="60" y="130" width="70" height="44"/>
+  <text x="95" y="157" class="node-label">decide</text>
+  <rect class="node-active" x="150" y="130" width="70" height="44"/>
+  <text x="185" y="157" class="node-label">cook</text>
+  <rect class="node" x="240" y="130" width="50" height="44"/>
+  <text x="265" y="157" class="node-label">plate</text>
+  <path class="edge" d="M 130 152 L 150 152"/>
+  <path class="edge" d="M 220 152 L 240 152"/>
+  <text x="170" y="198" text-anchor="middle" class="sub">"cook"은 원자 단위가 아니다 —</text>
+  <text x="170" y="214" text-anchor="middle" class="sub">줌인하면 또 다른 그래프</text>
+
+  <!-- zoom arrow L3 → L2 -->
+  <path class="zoom" d="M 185 176 C 250 240, 350 260, 420 270"/>
+  <text x="340" y="235" class="zoom-label">unfold</text>
+
+  <!-- L2 middle layer -->
+  <rect class="layer" x="400" y="220" width="260" height="140"/>
+  <text x="412" y="240" class="layer-label">L2 · "COOK" UNFOLDED</text>
+  <rect class="node" x="420" y="260" width="70" height="44"/>
+  <text x="455" y="287" class="node-label">recipe</text>
+  <rect class="node-active" x="510" y="260" width="70" height="44"/>
+  <text x="545" y="287" class="node-label">prep</text>
+  <rect class="node" x="600" y="260" width="50" height="44"/>
+  <text x="625" y="287" class="node-label">simmer</text>
+  <path class="edge" d="M 490 282 L 510 282"/>
+  <path class="edge" d="M 580 282 L 600 282"/>
+  <text x="530" y="328" text-anchor="middle" class="sub">"prep"은 여전히 복합 —</text>
+  <text x="530" y="344" text-anchor="middle" class="sub">한 번 더 줌인</text>
+
+  <!-- zoom arrow L2 → L1 -->
+  <path class="zoom" d="M 545 306 C 615 360, 700 390, 760 400"/>
+  <text x="680" y="370" class="zoom-label">unfold</text>
+
+  <!-- L1 leaf -->
+  <rect class="layer" x="680" y="380" width="190" height="100"/>
+  <text x="692" y="400" class="layer-label">L1 · LEAF (depth=0)</text>
+  <rect class="node-atomic" x="700" y="415" width="150" height="44"/>
+  <text x="775" y="442" class="node-label">Bash: mise-en-place</text>
+  <text x="775" y="476" text-anchor="middle" class="sub">도구 1회 호출. 여기서 멈춘다.</text>
+</svg>

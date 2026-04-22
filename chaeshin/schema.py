@@ -224,8 +224,8 @@ class Outcome:
 class CaseMetadata:
     """케이스 관리 정보 — CBR의 (metadata).
 
-    계층 구조(layer/parent/child)와 피드백은 이제 1등 필드.
-    version=2 이상이면 layer 기본값 "L1" 보장.
+    계층 구조(layer/parent/child)와 피드백이 1등 필드.
+    layer 기본값 "L1" (depth=0, 리프).
     """
 
     case_id: str = field(default_factory=lambda: str(uuid.uuid4()))

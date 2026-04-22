@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <style>
+    .bg { fill: #fafafa; }
+    .title { fill: #111; font-size: 17px; font-weight: 600; }
+    .sub { fill: #6b7280; font-size: 12px; }
+    .user-box { fill: #fef3c7; stroke: #f59e0b; stroke-width: 1.5; rx: 10; }
+    .api-box { fill: #eef2ff; stroke: #4f46e5; stroke-width: 2; rx: 10; }
+    .action-box { fill: #ffffff; stroke: #d1d5db; stroke-width: 1.5; rx: 10; }
+    .cascade-box { fill: #fff1f2; stroke: #e11d48; stroke-width: 1.8; rx: 10; }
+    .good-box { fill: #ecfdf5; stroke: #059669; stroke-width: 1.5; rx: 10; }
+    .head { fill: #111; font-size: 13px; font-weight: 600; text-anchor: middle; }
+    .body { fill: #374151; font-size: 12px; text-anchor: middle; }
+    .mono { fill: #111; font-size: 11px; font-family: ui-monospace, monospace; text-anchor: middle; }
+    .edge { stroke: #9ca3af; stroke-width: 2; fill: none; marker-end: url(#arr); }
+    .edge-red { stroke: #e11d48; stroke-width: 2; fill: none; marker-end: url(#arr-r); }
+  </style>
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/>
+    </marker>
+    <marker id="arr-r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e11d48"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="860" height="600"/>
+
+  <text x="430" y="32" text-anchor="middle" class="title">Cascading feedback — 레이어 편집이 다운스트림으로 번진다</text>
+
+  <!-- User feedback -->
+  <rect class="user-box" x="260" y="60" width="340" height="56"/>
+  <text x="430" y="83" class="head">사용자 피드백</text>
+  <text x="430" y="102" class="body">"전략 바꿔. followup 빼고 reassess 넣어."</text>
+
+  <path class="edge" d="M 430 116 L 430 146"/>
+
+  <!-- chaeshin_revise call -->
+  <rect class="api-box" x="180" y="150" width="500" height="70"/>
+  <text x="430" y="175" class="head">chaeshin_revise(case_id, graph={nodes:[decide, cook, plate, reassess]})</text>
+  <text x="430" y="200" class="body">이 레이어의 Tool Graph를 새로 쓴다</text>
+
+  <path class="edge" d="M 430 220 L 430 250"/>
+
+  <!-- Diff computed -->
+  <rect class="action-box" x="220" y="255" width="420" height="70"/>
+  <text x="430" y="279" class="head">그래프 교체 완료 · Diff 계산</text>
+  <text x="430" y="302" class="mono">added = [reassess]   removed = [followup]   retained = [decide, cook, plate]</text>
+
+  <!-- Two branches -->
+  <path class="edge" d="M 320 325 L 200 365"/>
+  <path class="edge-red" d="M 540 325 L 660 365"/>
+
+  <!-- Left: retained survivors -->
+  <rect class="good-box" x="60" y="370" width="320" height="90"/>
+  <text x="220" y="395" class="head">유지된 노드의 자식들</text>
+  <text x="220" y="416" class="body">그대로 살아남는다.</text>
+  <text x="220" y="434" class="body">되고 있는 건 건드리지 않는다.</text>
+  <text x="220" y="452" class="mono">(decide / cook / plate의 자식들)</text>
+
+  <!-- Right: orphaned -->
+  <rect class="cascade-box" x="480" y="370" width="320" height="150"/>
+  <text x="640" y="395" class="head">연결이 끊긴 자식 — Cascade</text>
+  <text x="640" y="416" class="body">followup에 매달려 있던 케이스 →</text>
+  <text x="640" y="434" class="body">outcome.status 가 pending으로 회귀</text>
+  <text x="640" y="456" class="mono">feedback_log += "[cascade] parent node</text>
+  <text x="640" y="472" class="mono">'followup' removed by revise; needs review"</text>
+  <text x="640" y="497" class="body">모니터에서 orphan 배지로 노출</text>
+
+  <!-- Bottom: event log -->
+  <rect class="action-box" x="230" y="540" width="400" height="44"/>
+  <text x="430" y="562" class="head">이벤트 로그에 'revise' 이벤트 기록</text>
+  <text x="430" y="578" class="mono">added / removed / retained / orphaned_children</text>
+
+  <path class="edge" d="M 220 460 C 220 530, 350 540, 350 540"/>
+  <path class="edge" d="M 640 520 C 640 535, 530 540, 510 540"/>
+</svg>

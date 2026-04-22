@@ -230,7 +230,7 @@ chaeshin/
 │   ├── openai.py           # Adaptador LLM + embeddings
 │   ├── chroma.py           # Almacén de casos vectorial ChromaDB
 │   └── chaebi.py           # Sincronización con marketplace Chaebi
-└── agents/                 # v2: Orchestrator, Decomposer, Executor, Reflection
+└── agents/                 # Orchestrator, Decomposer, Executor, Reflection
 chaeshin-monitor/           # Interfaz web Next.js
 examples/cooking/           # Agente demo (estofado de kimchi, estofado de doenjang, escenarios de recuperación)
 examples/dinner-table/      # Recorrido completo (4 idiomas)

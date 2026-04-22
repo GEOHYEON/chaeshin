@@ -74,6 +74,13 @@ Chaeshin은 이 개별성을 케이스 트리로 포착한다.
 
 ## 3. 전체 케이스 트리 — L4 → L1
 
+<p align="center">
+  <img src="../../assets/medical-intake-tree.svg" alt="T2DM 초진 L4→L1 트리" width="900"/>
+</p>
+
+구조의 전체 형태는 위 다이어그램. 아래는 노드 레벨까지 펼친 상세 트리다.
+
+
 ```
 L4  "신환 T2DM 초진 — 개별 맞춤 관리 계획 수립"                     [depth=3]
 │   graph.nodes = [intake, stratify, plan, followup]
@@ -240,11 +247,9 @@ L4  "신환 T2DM 초진 — 개별 맞춤 관리 계획 수립"                 
 의료진은 계획의 뼈대를 손본다 — 단순 피드백으로는 부족하다. **L3 "개별 맞춤 관리
 계획"의 그래프 자체를** 수정한다:
 
-```
-바꾸기 전:  식사 → 운동 → 약물 → 목표
-바꾼 후:    식사 → 운동 → 약물_간소화 → 자가 모니터링 → 목표
-                        └── "약물" 노드를 두 덩어리로: 단일정 + 자가 모니터링
-```
+<p align="center">
+  <img src="../../assets/medical-revise.svg" alt="L3 plan 그래프 수정 — 전/후 + cascade" width="820"/>
+</p>
 
 호스트 AI가 `chaeshin_update`가 아니라 `chaeshin_revise`를 호출한다:
 

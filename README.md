@@ -140,24 +140,9 @@ Tool calls are structured as a **graph** — not a simple list. Nodes are tool i
 
 Every layer is a graph. **Zoom in on any node — and you find another graph.** L2 isn't a "separate" graph linked to L3; L2 *is what you see when you unfold one L3 node*. Graph structure is preserved at every depth of zoom.
 
-```
-L3 — the whole plan is a graph:
-  ┌────────┐   ┌────────┐   ┌────────┐
-  │ decide ├──►│  cook  │──►│  plate │
-  └────────┘   └────┬───┘   └────────┘
-                    │   ← "cook" isn't atomic.
-                    │      Zoom in. It's another graph:
-                    ▼
-                ┌─────────┐  ┌────────┐  ┌──────┐
-                │ recipe  ├─►│  prep  │─►│simmer│      (L2 — still a graph)
-                └─────────┘  └───┬────┘  └──────┘
-                                 │   ← "prep" still composite?
-                                 │      Zoom in again:
-                                 ▼
-                          ┌────────────────────┐
-                          │ Bash mise-en-place │            (L1 — atomic tool call)
-                          └────────────────────┘
-```
+<p align="center">
+  <img src="assets/graphs-all-the-way-down.svg" alt="Graphs all the way down — zoom into any node and find another graph" width="820"/>
+</p>
 
 You keep unfolding nodes until every leaf is a single tool call. How many zoom levels that takes is up to the problem — simple requests stop at `depth=0`, tangled ones go `L4`, `L5`, deeper. There's no fixed count.
 
@@ -167,20 +152,9 @@ Under the hood: each "fold" is a separate `Case` with its own `solution.tool_gra
 
 Edit the graph at any zoom level and Chaeshin propagates the change to the deeper layers automatically:
 
-```
-User: "전략 바꿔. followup 빼고 reassess 넣어."
-     │
-     ▼
-chaeshin_revise(L3_case, graph={nodes:[decide, cook, plate, reassess]})
-     │
-     ├─ This layer's graph replaced. Diff: added=[reassess], removed=[followup]
-     │
-     └─ Cascade: any deeper case that was the unfolding of "followup"
-                 has lost its anchor → flipped back to outcome="pending".
-                 feedback_log: "[cascade] parent node 'followup' removed —
-                 needs review". Logged as a `revise` event with the list of
-                 orphaned cases.
-```
+<p align="center">
+  <img src="assets/cascading-feedback.svg" alt="Cascading feedback — revise propagates to orphan children" width="780"/>
+</p>
 
 Orphans aren't deleted — in high-stakes domains a human decides whether to revise, re-link to a different parent node, or retire them. `added_nodes` are returned so the host AI can decide whether each new node is atomic (leaf tool call) or still composite (unfold into yet another graph).
 

@@ -1,6 +1,6 @@
 """m002 — 기존 cases.outcome에 status/verdict 필드 추가.
 
-v2 schema: outcome에 status ("success"|"failure"|"pending") + verdict_note/verdict_at,
+확장된 스키마: outcome에 status ("success"|"failure"|"pending") + verdict_note/verdict_at,
 metadata에 depth/wait_mode/deadline_at.
 
 이 마이그레이션은 기존 20건을 대상으로:

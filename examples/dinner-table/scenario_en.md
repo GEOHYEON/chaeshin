@@ -80,7 +80,7 @@ warnings: []        # No failure history either
 
 ### STEP 2: Decompose (Hierarchical Breakdown)
 
-Chaeshin v2 decomposes complex requests into **3 layers**.
+Chaeshin recursively decomposes complex requests until every leaf is a single tool call. For this scenario, the tree naturally settles at 3 layers — simpler requests stop at L1, hairier ones grow L4 or deeper.
 
 ```
 L3 (Strategy): "Set dinner table"

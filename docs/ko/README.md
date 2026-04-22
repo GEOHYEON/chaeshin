@@ -230,7 +230,7 @@ chaeshin/
 │   ├── openai.py           # LLM + 임베딩 어댑터
 │   ├── chroma.py           # ChromaDB 벡터 케이스 저장소
 │   └── chaebi.py           # Chaebi 마켓플레이스 연동
-└── agents/                 # v2: Orchestrator, Decomposer, Executor, Reflection
+└── agents/                 # Orchestrator, Decomposer, Executor, Reflection
 chaeshin-monitor/           # Next.js 웹 UI
 examples/cooking/           # 데모 에이전트 (김치찌개, 된장찌개, 복구 시나리오)
 examples/dinner-table/      # 전체 워크스루 (4개 언어)

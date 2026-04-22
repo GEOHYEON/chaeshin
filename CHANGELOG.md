@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] — v3 아키텍처 업그레이드
+## [Unreleased] — 아키텍처 업그레이드
 
 ### Graphs All the Way Down (후속)
 - **`chaeshin_revise(case_id, graph, cascade=true)`** — 특정 레이어의 Tool Graph를 새로

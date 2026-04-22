@@ -353,7 +353,7 @@ class GraphPlanner:
 
         return new_graph
 
-    # ── v2: Hierarchical Decomposition ──────────────────────────────────
+    # ── Hierarchical Decomposition ──────────────────────────────────
 
     async def create_tree(
         self,
