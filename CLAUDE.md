@@ -1,5 +1,12 @@
 # Chaeshin Project — Claude Code Rules
 
+**공통 규칙은 bananatouch-harness를 정본으로 따른다.**
+공용 규칙 수정은 여기가 아니라 harness repo에 PR.
+
+@../bananatouch-harness/rules/ai-agent-principles.md
+@../bananatouch-harness/rules/commit-conventions.md
+@../bananatouch-harness/rules/security.md
+
 ## Chaeshin CBR Memory (MCP)
 
 This project has a Chaeshin MCP server registered. Use it to build up memory of successful (and failed) patterns.
