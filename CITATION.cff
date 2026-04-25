@@ -9,6 +9,13 @@ authors:
     alias: "GEOHYEON"
 repository-code: "https://github.com/GEOHYEON/chaeshin"
 url: "https://github.com/GEOHYEON/chaeshin"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.19764253"
+    description: "Concept DOI (latest version)"
+  - type: doi
+    value: "10.5281/zenodo.19764254"
+    description: "v0.2.0 release"
 abstract: >-
   Chaeshin is a persistent memory layer for tool-using LLM agents based on
   case-based reasoning. Each case stores a Tool Graph; nodes can themselves
