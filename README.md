@@ -1,5 +1,8 @@
 # Chaeshin (채신) 採薪
 
+[![DOI](https://zenodo.org/badge/1191706697.svg)](https://zenodo.org/badge/latestdoi/1191706697)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **LLM agents that remember what worked.** Instead of improvising tool calls every time, Chaeshin stores successful execution patterns and reuses them — so your agent gets better with every task.
 
 <p align="center">
@@ -366,6 +369,24 @@ Chaeshin builds on ideas from:
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+## Citation
+
+If Chaeshin is useful in your work, please cite via the GitHub "Cite this repository" button (which reads [CITATION.cff](CITATION.cff)) or use the Zenodo DOI:
+
+```bibtex
+@software{chaeshin,
+  author       = {No, Geohyeon},
+  title        = {{Chaeshin: Persistent Recursive Case Memory for
+                   Tool-Using LLM Agents}},
+  year         = {2026},
+  publisher    = {Zenodo},
+  url          = {https://github.com/GEOHYEON/chaeshin},
+  doi          = {10.5281/zenodo.LATEST}
+}
+```
+
+The DOI badge at the top of this README always resolves to the latest minted version.
 
 ---
 

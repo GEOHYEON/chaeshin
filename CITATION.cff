@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+title: "Chaeshin: Persistent Recursive Case Memory for Tool-Using LLM Agents"
+message: "If you use Chaeshin in your work, please cite it as below."
+type: software
+authors:
+  - family-names: "No"
+    given-names: "Geohyeon"
+    email: "me@geohyeon.com"
+    alias: "GEOHYEON"
+repository-code: "https://github.com/GEOHYEON/chaeshin"
+url: "https://github.com/GEOHYEON/chaeshin"
+abstract: >-
+  Chaeshin is a persistent memory layer for tool-using LLM agents based on
+  case-based reasoning. Each case stores a Tool Graph; nodes can themselves
+  unfold into child cases, giving a graph-of-graphs structure with no fixed
+  decomposition depth. Outcomes are tri-state (success / failure / pending),
+  with success and failure transitions reserved for an explicit user verdict.
+  Editing a parent layer's graph cascades to descendants — children whose
+  anchor node was removed are automatically flipped back to pending for
+  review. Ships with an MCP server for Claude Code integration, a Next.js
+  observability monitor, and ReAct demos for cooking, lifestyle coaching,
+  and clinical intake domains.
+keywords:
+  - case-based-reasoning
+  - llm-agents
+  - tool-use
+  - hierarchical-planning
+  - persistent-memory
+  - mcp
+  - human-in-the-loop
+license: MIT
+version: 0.2.0
+date-released: 2026-04-26
