@@ -333,7 +333,23 @@ examples/lifestyle_coaching/ # Chronic-fatigue reset plan — non-medical parall
 
 - Python 3.10+
 - No required dependencies for core usage
-- Optional: `openai` (LLM adapter), `chromadb` (vector store), `httpx` (Chaebi marketplace)
+- Optional extras:
+  - `pip install 'chaeshin[llm]'` — `openai` + `python-dotenv` (needed for ReAct demos and embedding-based retrieval)
+  - `pip install 'chaeshin[chroma]'` — ChromaDB vector backend (alternative to embeddings cache)
+  - `pip install 'chaeshin[demo]'` — extras for the legacy Gradio cooking demo
+
+## Environment Variables
+
+| Var | Default | Used by |
+|-----|---------|---------|
+| `OPENAI_API_KEY` | — | `OpenAIAdapter` (LLM + embeddings), all ReAct demos |
+| `CHAESHIN_STORE_DIR` | `~/.chaeshin/` | MCP server / migrations — override DB directory |
+| `CHAESHIN_DB_PATH` | `~/.chaeshin/chaeshin.db` | Monitor (`better-sqlite3` reader) |
+| `CHAESHIN_DEMO_PERSIST` | `0` | Examples — set to `1` so ReAct demos write to the real DB instead of a temp |
+| `CHAESHIN_LLM_MODEL` | `gpt-4o-mini` | Override LLM model used by `OpenAIAdapter` |
+| `CHAESHIN_EMBEDDING_MODEL` | `text-embedding-3-small` | Override embedding model |
+
+Most demos auto-load a `.env` file via `python-dotenv`. Copy `.env.example` to `.env` to get started.
 
 ## Related Work
 

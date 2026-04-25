@@ -7,84 +7,98 @@
 @../bananatouch-harness/rules/commit-conventions.md
 @../bananatouch-harness/rules/security.md
 
+---
+
 ## Chaeshin CBR Memory (MCP)
 
-This project has a Chaeshin MCP server registered. Use it to build up memory of successful (and failed) patterns.
+이 프로젝트에는 Chaeshin MCP 서버가 등록되어 있다. 코드 작업을 하면서 패턴을
+기억으로 쌓아 다음 작업에 재사용한다. 사용자에게 노출되는 통합 가이드는
+[`chaeshin/integrations/claude_code/CLAUDE.md`](chaeshin/integrations/claude_code/CLAUDE.md) — 이게 정본이고, 아래는 그 요약 + 이 repo에서 작업할 때의 추가 지침이다.
 
-### Before multi-step tasks
+### 기본 원칙
 
-Always call `chaeshin_retrieve` before starting any non-trivial task:
+- **그래프가 모든 레이어에 있다.** L1=리프(도구 1회), L{n}=상위. 고정 3단계 아님.
+- **outcome.status 는 3-state.** retain은 항상 `pending`. 성공/실패는 사용자 verdict로만 전환.
+- **그래프 자체를 바꾸면 `chaeshin_revise`** — 다운스트림 자식이 자동으로 `pending` 회귀.
 
-- Bug fix, feature implementation, refactoring, deployment, CI fix, etc.
-- Pass the user's request as `query`, extract `keywords` from context
-- If a matching case exists (similarity > 0.7), follow that tool graph
-- If `failures` are returned, **avoid** those patterns — they failed before
+### 작업 시작 전 — `chaeshin_retrieve`
 
-### Judging success vs failure — read user reactions
+3+ tool call 또는 multi-step 작업이면 먼저 호출:
 
-Do NOT wait for explicit "save this" instructions. Judge from the user's natural reactions:
+- `query` = 사용자 요청, `keywords` = 핵심 단어 콤마 구분
+- 응답: `successes`(>0.7 유사도면 따라가기), `warnings`(피해야 할 패턴), `pending`(아직 판정 안 난 비슷한 케이스)
+- 복잡한 트리는 `include_children=true` 로 한 번에 가져오기
 
-**Success signals** (retain with `success: true`):
-- Positive: "됐다", "고마워", "완벽해", "좋아", "ㅇㅇ", "응응"
-- Task completion: "커밋해줘", "푸쉬 해줘", "다음 거 해줘"
-- Acceptance: user moves on to next topic without complaint
-- Technical: tests pass, build succeeds, CI green
+### 작업 끝나면 — `chaeshin_retain` (pending)
 
-**Failure signals** (retain with `success: false`):
-- Correction: "아니 그게 아니라", "이거 아닌데", "다시 해줘"
-- Frustration: "이거 왜 안돼?", "왜 이래", "이상한데"
-- Rollback: "되돌려줘", "롤백해줘", "원래대로"
-- Technical: test fail, build error, CI red, runtime error
+```
+chaeshin_retain(
+  request="<사용자 요청>",
+  category="<bug-fix|feature|deploy|...>",
+  keywords="...",
+  graph={"nodes":[...], "edges":[...]},
+  layer="L1"  # 도구 호출 하나하나면 L1
+)
+```
 
-**Satisfaction scoring**:
-- 1.0: user explicitly happy, no corrections needed
-- 0.85: task done, minor tweaks
-- 0.7: done after 1-2 corrections
-- 0.5: done but user seemed unsatisfied
-- 0.0: failed, user gave up or asked to undo
+`success` 파라미터는 없다. status 는 항상 `pending` 으로 들어간다.
 
-### After completing a task
+### 사용자 verdict 신호 읽기 — `chaeshin_verdict`
 
-**Success** — call `chaeshin_retain`:
-- `request`: what the user asked
-- `category`: type of work (e.g. "bug-fix", "feature", "ci", "refactor", "deploy")
-- `keywords`: relevant terms for future matching
-- `graph`: the tool execution steps as nodes/edges
-- `satisfaction`: estimate 0-1 based on user reaction (see above)
+**Success signals** (status="success"):
+- "됐다", "고마워", "완벽해", "좋아", "ㅇㅇ"
+- "커밋해줘", "푸쉬 해줘", "다음 거 해줘"
+- 기술적: tests pass, build succeeds, CI green
 
-**Failure** — also call `chaeshin_retain`:
-- Set `success: false`
-- Set `error_reason`: what went wrong + user's complaint (e.g. "UI layout broken — user said '이거 왜 이래'")
-- This prevents repeating the same mistake
+**Failure signals** (status="failure"):
+- "아니 그게 아니라", "이거 아닌데", "다시 해줘"
+- "이거 왜 안돼?", "왜 이래"
+- "되돌려줘", "롤백해줘"
+- 기술적: test fail, build error, CI red
 
-### Tool graph structure
+**모호하면 그냥 pending 유지.** 추측해서 verdict 호출하지 마라.
 
-When saving a graph, map your actions to nodes:
-- Each significant step = one node (read file, edit, run test, git commit, etc.)
-- Edges connect sequential steps
-- Conditions on edges for branching (e.g. "test passed" → commit, "test failed" → fix)
+`note`에는 사용자 원문을 가능하면 인용.
 
-Example for a typical fix-and-push flow:
+### 그래프 자체가 바뀔 때 — `chaeshin_revise`
+
+피드백이 그래프 구조에 대한 거면 (`이 단계 빼`, `순서 바꿔`, `이걸 두 개로 쪼개`)
+단순 feedback이 아니라 revise:
+
+```
+chaeshin_revise(
+  case_id=<...>,
+  graph={"nodes":[...], "edges":[...]},
+  reason="<왜>",
+  cascade=true
+)
+```
+
+응답의 `orphaned_children` 은 사용자에게 보고 — 어떻게 처리할지 사용자 결정.
+
+### 분해가 필요한 복잡 작업
+
+L4 → L3 → L2 → L1 순서로 retain, 매 단계 `parent_case_id` + `parent_node_id` 로 체인 연결.
+도구 한 번 호출로 끝나는 leaf까지 내려갈 때까지 재귀.
+
+### Tool graph 형식
+
 ```json
 {
   "nodes": [
-    {"id": "n1", "tool": "read_code", "note": "Understand the issue"},
-    {"id": "n2", "tool": "edit_code", "note": "Apply fix"},
-    {"id": "n3", "tool": "run_tests", "note": "Verify fix"},
-    {"id": "n4", "tool": "git_commit", "note": "Commit changes"},
-    {"id": "n5", "tool": "git_push", "note": "Push to remote"},
-    {"id": "n6", "tool": "check_ci", "note": "Verify CI passes"}
+    {"id": "n1", "tool": "Read", "note": "Understand the issue"},
+    {"id": "n2", "tool": "Edit", "note": "Apply fix"},
+    {"id": "n3", "tool": "Bash", "note": "Run tests"}
   ],
   "edges": [
-    {"from": "n1", "to": "n2"},
-    {"from": "n2", "to": "n3"},
-    {"from": "n3", "to": "n4", "condition": "n3.output.passed == true"},
-    {"from": "n3", "to": "n2", "condition": "n3.output.passed == false"},
-    {"from": "n4", "to": "n5"},
-    {"from": "n5", "to": "n6"}
+    {"from": "n2", "to": "n3", "condition": "n2.output.applied == true"}
   ]
 }
 ```
+
+`params_hint`(node), `condition`(edge) 옵션. 분기/루프 흐름에 유용.
+
+---
 
 ## Project Conventions
 
@@ -96,3 +110,14 @@ Example for a typical fix-and-push flow:
 - Entry point: `chaeshin` CLI via `[project.scripts]`
 - Korean comments in core code, English in README/docs
 - Monitor UI: Next.js (chaeshin-monitor/), shadcn/ui + React Flow
+
+## Environment Variables
+
+| Var | Default | Used by |
+|-----|---------|---------|
+| `OPENAI_API_KEY` | — | OpenAIAdapter (LLM + 임베딩), ReAct demos |
+| `CHAESHIN_STORE_DIR` | `~/.chaeshin/` | MCP server / migrations — DB 위치 오버라이드 |
+| `CHAESHIN_DB_PATH` | `~/.chaeshin/chaeshin.db` | monitor 의 better-sqlite3 reader |
+| `CHAESHIN_DEMO_PERSIST` | `0` | examples — `1`이면 ReAct 데모가 실제 DB에 저장 |
+| `CHAESHIN_LLM_MODEL` | `gpt-4o-mini` | OpenAIAdapter 모델 오버라이드 |
+| `CHAESHIN_EMBEDDING_MODEL` | `text-embedding-3-small` | 임베딩 모델 오버라이드 |

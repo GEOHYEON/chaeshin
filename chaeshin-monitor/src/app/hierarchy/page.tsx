@@ -119,6 +119,51 @@ export default function HierarchyPage() {
     }
   }
 
+  async function handleRevise(caseId: string) {
+    // 현재 그래프를 가져와서 prompt에 채워주고, 사용자가 새 JSON으로 덮어쓰면 revise.
+    const cur = await fetch(`/api/chaeshin/${caseId}`).then((r) => r.json()) as {
+      solution?: { tool_graph?: { nodes?: unknown[]; edges?: unknown[] } };
+    };
+    const currentGraph = {
+      nodes: cur?.solution?.tool_graph?.nodes ?? [],
+      edges: cur?.solution?.tool_graph?.edges ?? [],
+    };
+    const initial = JSON.stringify(currentGraph, null, 2);
+    const next = window.prompt(
+      "새 그래프 JSON (nodes/edges). 제거된 노드에 매달린 자식은 자동으로 pending 회귀.",
+      initial,
+    );
+    if (next === null) return;
+    let parsed: { nodes?: unknown[]; edges?: unknown[] };
+    try {
+      parsed = JSON.parse(next) as { nodes?: unknown[]; edges?: unknown[] };
+    } catch (e) {
+      toast.error(`JSON 파싱 실패: ${(e as Error).message}`);
+      return;
+    }
+    const reason = window.prompt("수정 사유 (이유 한 줄)", "") || "";
+    const res = await fetch(`/api/chaeshin/${caseId}/revise`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ graph: parsed, reason, cascade: true }),
+    });
+    if (!res.ok) {
+      toast.error("Revise 저장 실패");
+      return;
+    }
+    const result = (await res.json()) as {
+      added_nodes?: string[];
+      removed_nodes?: string[];
+      orphaned_children?: string[];
+    };
+    const orphans = result.orphaned_children?.length ?? 0;
+    toast.success(
+      `Revise 완료 — 추가 ${result.added_nodes?.length ?? 0} · 제거 ${result.removed_nodes?.length ?? 0}` +
+        (orphans > 0 ? ` · 고아 ${orphans} (검토 필요)` : ""),
+    );
+    fetchData();
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-30 border-b bg-white">
@@ -199,7 +244,13 @@ export default function HierarchyPage() {
           ) : (
             <ul className="space-y-1">
               {visibleRoots.map((r) => (
-                <TreeNode key={r.case_id} node={r} depth={0} onVerdict={handleVerdict} />
+                <TreeNode
+                  key={r.case_id}
+                  node={r}
+                  depth={0}
+                  onVerdict={handleVerdict}
+                  onRevise={handleRevise}
+                />
               ))}
             </ul>
           )}
@@ -259,10 +310,12 @@ function TreeNode({
   node,
   depth,
   onVerdict,
+  onRevise,
 }: {
   node: Tree;
   depth: number;
   onVerdict: (caseId: string, status: "success" | "failure") => void;
+  onRevise: (caseId: string) => void;
 }) {
   const [open, setOpen] = useState(depth < 1);
   const hasChildren = node.children.length > 0;
@@ -308,22 +361,31 @@ function TreeNode({
           </span>
         )}
         <GraphSummary summary={node.graph_summary} />
-        {node.status === "pending" && (
-          <div className="opacity-0 group-hover:opacity-100 transition flex gap-1 shrink-0">
-            <button
-              onClick={() => onVerdict(node.case_id, "success")}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"
-            >
-              ✓ 성공
-            </button>
-            <button
-              onClick={() => onVerdict(node.case_id, "failure")}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200"
-            >
-              ✗ 실패
-            </button>
-          </div>
-        )}
+        <div className="opacity-0 group-hover:opacity-100 transition flex gap-1 shrink-0">
+          {node.status === "pending" && (
+            <>
+              <button
+                onClick={() => onVerdict(node.case_id, "success")}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200"
+              >
+                ✓ 성공
+              </button>
+              <button
+                onClick={() => onVerdict(node.case_id, "failure")}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-700 hover:bg-red-200"
+              >
+                ✗ 실패
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => onRevise(node.case_id)}
+            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+            title="이 케이스의 그래프 수정 — 사라진 노드의 자식은 pending 회귀"
+          >
+            ✎ revise
+          </button>
+        </div>
         {node.category && (
           <span className="text-[10px] text-gray-400 shrink-0">{node.category}</span>
         )}
@@ -337,7 +399,13 @@ function TreeNode({
       {hasChildren && open && (
         <ul>
           {node.children.map((c) => (
-            <TreeNode key={c.case_id} node={c} depth={depth + 1} onVerdict={onVerdict} />
+            <TreeNode
+              key={c.case_id}
+              node={c}
+              depth={depth + 1}
+              onVerdict={onVerdict}
+              onRevise={onRevise}
+            />
           ))}
         </ul>
       )}

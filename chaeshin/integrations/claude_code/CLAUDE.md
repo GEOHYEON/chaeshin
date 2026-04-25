@@ -1,120 +1,168 @@
-# Chaeshin — Auto-Learning Rules
+# Chaeshin — Auto-Learning Rules (Claude Code)
 
-You have access to Chaeshin MCP tools for Case-Based Reasoning memory.
-These tools let you remember how tasks were done before — both successes and failures.
+You have access to Chaeshin MCP tools — a persistent memory layer for case-based reasoning. The model: every layer is a graph, you keep unfolding nodes until each leaf is a single tool call, and outcomes start as `pending` until a human gives a verdict.
 
-## Before Starting Multi-Step Tasks
+---
 
-When the user asks you to do something that involves 3+ tool calls or a multi-step workflow:
+## Mental Model — read this once
 
-1. Call `chaeshin_retrieve` with the user's request as `query`
-2. If `successes` are returned (similarity > 0.7), follow that tool graph as a reference
-3. If `failures` are returned, avoid those patterns — they failed before
-4. If no similar cases found, proceed normally
+- **Graphs all the way down.** Every `Case` stores a Tool Graph. A node in that graph isn't necessarily atomic — if it's still composite, save it as another `Case` with `parent_case_id` + `parent_node_id` linking back. Keep unfolding until every leaf is one tool call. No fixed L1/L2/L3 ceiling.
+- **Tri-state outcome.** `outcome.status` is `pending` | `success` | `failure`. `chaeshin_retain` always saves as `pending`. **Never** infer success/failure yourself. Only call `chaeshin_verdict` when the user explicitly judges (their own words quoted in `note`).
+- **No verdict ≠ failure.** A case that times past its `deadline_at` without a verdict stays `pending`. That's a real state, not a missing one.
+- **Edits cascade.** `chaeshin_revise` rewrites this layer's graph and Chaeshin auto-flips downstream children whose anchor node disappeared back to `pending`.
 
-## After Completing Tasks
+---
 
-When you finish a multi-step task:
+## Tool Reference (8 tools)
 
-1. Call `chaeshin_retain` with:
-   - `request`: the original user request
-   - `graph`: JSON of the tool execution steps you took (nodes = tools, edges = order)
-   - `category`: task type (e.g. "bug-fix", "feature", "deploy", "refactor")
-   - `keywords`: comma-separated terms for future matching
-   - `success`: true/false
-   - `error_reason`: why it failed (only when success=false)
+| Tool | When |
+|------|------|
+| `chaeshin_retrieve` | **Always first.** Search past cases before you start any non-trivial task. |
+| `chaeshin_retain` | After completing a step, save the graph. Always saved as `pending`. |
+| `chaeshin_update` | Patch metadata / problem_features / outcome (not the graph itself). |
+| `chaeshin_revise` | Replace this layer's Tool Graph. Cascades to orphan children. |
+| `chaeshin_delete` | Remove a case (with reason). |
+| `chaeshin_verdict` | Record user's `success` / `failure` judgment. **User authority only.** |
+| `chaeshin_feedback` | Free-form natural-language feedback (escalate/modify/correct/…). |
+| `chaeshin_decompose` | Get decomposition context for complex tasks. |
 
-2. Save both successes AND failures — failures prevent repeating the same mistake
+---
 
-## Graph Format
+## Before Multi-Step Tasks — `chaeshin_retrieve`
+
+Call **before** any task involving 3+ tool calls or that spans sessions:
+
+- bug fix · feature implementation · refactoring · deploy · CI fix · planning · etc.
+- Pass the user's request as `query`, extract `keywords` from context.
+
+The response splits into three lists:
+- `successes` — past cases with verdict=success. Follow if similarity > 0.7.
+- `warnings` — past cases with verdict=failure. **Avoid** these patterns.
+- `pending` — past cases still awaiting verdict. Treat as "unknown signal" — informational only.
+
+If `include_children=true` you get the unfolded sub-graphs too. Use this on retrieved roots for full plan context.
+
+---
+
+## After Completing a Task — `chaeshin_retain` (pending)
+
+Always save what you actually executed. Pattern:
+
+```
+chaeshin_retain(
+  request: "<what the user asked>",
+  category: "<bug-fix|feature|deploy|...>",
+  keywords: "<comma-separated>",
+  graph: { nodes: [...], edges: [...] },
+  layer: "L1"    # leaf if your nodes are all atomic tool calls
+)
+```
+
+The case enters as `outcome.status="pending"`. You do **not** decide success/failure — that's the user's job (see `chaeshin_verdict` below).
+
+### Decomposing Complex Tasks — Multiple Retains
+
+For tasks that span multiple decomposition layers, call `chaeshin_retain` once per layer, top-down, chaining `parent_case_id` / `parent_node_id`:
+
+```
+1) chaeshin_retain(layer="L{n}", depth=n-1, graph={...}, ...)         → root_id
+2) For each composite node in the root graph, recurse:
+   chaeshin_retain(
+     layer="L{n-1}", depth=n-2,
+     parent_case_id=root_id,
+     parent_node_id=<that node's id>,
+     graph={... unfolded ...}
+   )
+3) Stop when graph.nodes are all atomic tool calls (depth=0, layer="L1").
+```
+
+Chaeshin links parent ↔ child automatically when you pass `parent_case_id` + `parent_node_id`.
+
+### Graph Format
 
 ```json
 {
   "nodes": [
-    {"id": "n1", "tool": "Read", "note": "Read config file"},
-    {"id": "n2", "tool": "Edit", "note": "Fix the bug"},
+    {"id": "n1", "tool": "Read", "note": "Read config"},
+    {"id": "n2", "tool": "Edit", "note": "Apply fix"},
     {"id": "n3", "tool": "Bash", "note": "Run tests"}
   ],
   "edges": [
     {"from": "n1", "to": "n2"},
-    {"from": "n2", "to": "n3"}
+    {"from": "n2", "to": "n3", "condition": "n2.output.applied == true"}
   ]
 }
 ```
 
-### Optional fields
+`params_hint` (node) and `condition` (edge) are optional but useful for branchy flows.
 
-- **`params_hint`** (node): 도구 파라미터 힌트. 어떤 파일을 수정했는지 등 구체적 맥락을 남길 때 사용.
-  ```json
-  {"id": "n1", "tool": "Read", "note": "설정 확인", "params_hint": {"file_path": "mcp_server.py"}}
-  ```
-- **`condition`** (edge): 분기 조건. 테스트 결과에 따라 다른 경로를 탈 때 사용.
-  ```json
-  {"from": "n3", "to": "n2", "condition": "test failed"}
-  ```
+---
 
-필수는 아니지만, 복잡한 워크플로우를 저장할 때 유용하다.
+## Reading User Verdict Signals — `chaeshin_verdict`
 
-## Graphs All the Way Down — Mental Model
+You only call `chaeshin_verdict` when the user **explicitly** signals a judgment. Don't infer.
 
-Every case stores a Tool Graph. **A node in that graph isn't necessarily atomic.** If one node still needs more than a single tool call, unfold it — that unfolding is another case with its own Tool Graph, linked back through `parent_node_id`.
+### Success signals — call `chaeshin_verdict(status="success", note="<quote user>")`
+- Positive: "됐다", "고마워", "완벽해", "좋아", "ㅇㅇ"
+- Task acceptance: "커밋해줘", "푸쉬해줘", "다음 거 해줘"
+- User moves to next topic without complaint after CI green / tests pass
 
-Keep unfolding until every leaf is one tool call:
-- `depth=0` / `layer="L1"` — atomic tool call (the leaf). Don't unfold further.
-- `depth=n>0` / `layer="L{n+1}"` — a node that still needs its own graph to describe it.
+### Failure signals — call `chaeshin_verdict(status="failure", note="<quote user> + reason")`
+- Correction: "아니 그게 아니라", "이거 아닌데", "다시 해줘"
+- Frustration: "이거 왜 안돼?", "이상한데"
+- Rollback: "되돌려줘", "롤백해줘"
 
-The layer label is just a display name. The real question is always: "can this node be accomplished in one tool call? if yes, stop. if no, unfold."
+### Ambiguous → leave as pending
+- User goes silent
+- Mixed feedback ("그래 그건 됐고 다음은…")
+- Partial completion you're unsure about
 
-## Decomposing Complex Requests
+`note` should quote the user's own words. Avoid paraphrasing.
 
-For complex tasks (multi-step, high-stakes, spans sessions), call `chaeshin_decompose` first. It returns:
-- similar past cases for reference
-- the `layer_schema` (recursive model, not fixed 3 levels)
-- a `retain_protocol` with example call sequences including verdict
+---
 
-You (the host AI) do the actual unfolding, then persist the tree yourself — always from the outermost layer downward:
+## When the Plan Itself Changes — `chaeshin_revise`
 
-```
-1. chaeshin_retain(layer="L{n}", depth=n-1, request=..., graph={...})    → root case_id
-2. For each still-composite node, recurse:
-     chaeshin_retain(layer="L{n-1}", depth=n-2,
-                     parent_case_id=<upper case_id>,
-                     parent_node_id=<that node's id>,
-                     graph={... the unfolding ...})
-3. Stop when graph.nodes are all atomic tool calls (depth=0).
-```
-
-Chaeshin sets parent/child links automatically when you pass `parent_case_id` + `parent_node_id`.
-
-## Editing a Layer's Graph — Use `chaeshin_revise`
-
-When the user's feedback is about the graph structure itself ("이 단계 빼", "순서 바꿔", "이 중간 단계를 두 개로 쪼개"), don't just log feedback — rewrite the graph:
+When user feedback is about the **graph structure** ("이 단계 빼", "순서 바꿔", "이걸 두 개로 쪼개"), don't just log feedback — rewrite the graph:
 
 ```
 chaeshin_revise(
-  case_id=<this layer's id>,
-  graph={"nodes":[...], "edges":[...]},
-  reason="<why the graph changed>",
-  cascade=true   # default
+  case_id: <this layer's case_id>,
+  graph: { nodes: [...new...], edges: [...new...] },
+  reason: "<why>",
+  cascade: true   # default
 )
 ```
 
-Chaeshin replaces this layer's graph and then handles the cascade:
-- Children whose `parent_node_id` no longer exists in the new graph are flipped back to `outcome="pending"` with a `[cascade]` entry in `feedback_log` — they're orphaned and need your review.
-- `added_nodes` (nodes that didn't exist before) come back in the response. For each new node: is it atomic? retain no child. Still composite? retain a child case under it via `parent_node_id`.
+The response includes:
+- `added_nodes` — new ids that weren't in the old graph. For each: is it atomic (leaf) or still composite? If composite, retain a child case under it.
+- `removed_nodes` — nodes that disappeared.
+- `orphaned_children` — child cases whose `parent_node_id` was in `removed_nodes`. They're auto-flipped back to `pending`. Surface this list to the user — they decide whether to revise / re-link / delete each.
 
-Use `chaeshin_update` for non-graph edits (outcome, metadata, problem_features). Use `chaeshin_revise` when the graph itself changes — the cascading is the point.
+Use `chaeshin_update` (not `revise`) for non-graph edits like changing `outcome` fields or `metadata` directly. Use `revise` whenever the graph changes.
 
-## Authoritative Verdicts — `chaeshin_verdict`
+---
 
-Never infer success/failure from vibes. When the user gives an explicit judgment ("됐다", "이거 아닌데"), call `chaeshin_verdict(case_id, "success"|"failure", note=<user's own words>)`. No verdict yet? Leave it as `pending` — that's a real state, not a missing one.
+## Retrieve Cascade — Reading Trees Back
 
-## Retrieve Cascade
+`chaeshin_retrieve(query=..., include_children=true)` walks the tree downward from each match, returning the unfolded graphs. Use this when bringing context back for a complex task.
 
-`include_children=true` on a retrieved case returns the full unfolding (deeper graphs) in one call. `include_parent=true` on a leaf hit walks back up so you discover which higher-layer strategy it belonged to.
+`include_parent=true` walks upward — useful when you hit a leaf and want to know which strategy it belonged to.
 
-## When NOT to Use
+---
 
-- Simple single-tool operations (reading one file, running one command)
-- Pure conversation with no tool use
-- Tasks the user explicitly says are one-off
+## When NOT to Use Chaeshin
+
+- Single-tool operations (read one file, run one command).
+- Pure conversation with no tool execution.
+- Tasks the user explicitly says are one-off.
+
+---
+
+## Common Anti-Patterns to Avoid
+
+- ❌ Calling `chaeshin_retain` with a `success` parameter — it doesn't exist anymore. Status is always `pending` at retain time.
+- ❌ Calling `chaeshin_verdict` on your own without explicit user signal.
+- ❌ Editing a graph via `chaeshin_update` instead of `chaeshin_revise` — you'll skip the cascade and leave orphaned children pointing to dead nodes.
+- ❌ Saving everything as a flat L1 case when the task naturally has sub-structure. Decompose and chain via `parent_case_id`.
+- ❌ Treating `pending` as failure during retrieve. It's its own state.

@@ -208,19 +208,19 @@ class OrchestratorAgent(BaseAgent):
                 "output": ns.output_data,
             }
 
-        # 자동 retain
+        # 자동 retain — 항상 pending. 성공/실패는 사용자 verdict로만 결정됨.
         if self.auto_retain and self.case_store:
             case = Case(
                 problem_features=problem,
                 solution=Solution(tool_graph=graph),
                 outcome=Outcome(
-                    success=ctx.completed,
+                    status="pending",
                     tools_executed=len(graph.nodes),
                 ),
                 metadata=CaseMetadata(
                     source="orchestrator",
-                    layer="",  # flat
-                    difficulty=0,
+                    layer="L1",
+                    depth=0,
                 ),
             )
             self.case_store.retain(case)
@@ -325,10 +325,18 @@ class OrchestratorAgent(BaseAgent):
             yield event
 
     async def _retain_tree(self, tree: TaskTree, original_request: str):
-        """TaskTree를 Chaeshin에 계층적으로 저장."""
+        """TaskTree를 Chaeshin에 계층적으로 저장.
+
+        모든 케이스는 pending으로 저장된다. 성공/실패는 나중에 사용자가
+        chaeshin_verdict로 명시적으로 결정한다.
+        """
         if not self.case_store:
             return
 
+        # depth = 자식이 없으면 0(leaf), 있으면 자식의 max depth + 1
+        depth = 0
+        if tree.children:
+            depth = 1  # 일단 1, 자식 처리 후 재계산
         case = Case(
             problem_features=ProblemFeatures(
                 request=original_request,
@@ -336,10 +344,11 @@ class OrchestratorAgent(BaseAgent):
                 keywords=[],
             ),
             solution=Solution(tool_graph=tree.graph),
-            outcome=Outcome(success=True),
+            outcome=Outcome(status="pending"),
             metadata=CaseMetadata(
                 source="orchestrator",
-                layer=tree.layer,
+                layer=tree.layer or "L1",
+                depth=depth,
                 difficulty=tree.difficulty,
             ),
         )

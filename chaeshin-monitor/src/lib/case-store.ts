@@ -142,6 +142,137 @@ export function appendEvent(
   );
 }
 
+export interface ReviseResult {
+  case_id: string;
+  added_nodes: string[];
+  removed_nodes: string[];
+  retained_nodes: string[];
+  orphaned_children: string[];
+  reason: string;
+}
+
+/**
+ * Replace a case's Tool Graph and cascade orphaned children to pending.
+ *
+ * Mirrors `case_store.revise_graph` in the Python core. Children whose
+ * `parent_node_id` no longer exists in the new graph have their
+ * `outcome.status` flipped back to "pending" and a `[cascade]` line
+ * appended to `feedback_log`.
+ */
+export function reviseCaseGraph(
+  caseId: string,
+  args: {
+    nodes: Array<{ id?: string; tool?: string; note?: string; params_hint?: Record<string, unknown> }>;
+    edges?: Array<{ from?: string; from_node?: string; to?: string | null; to_node?: string | null; condition?: string }>;
+    reason?: string;
+    cascade?: boolean;
+  },
+): ReviseResult | null {
+  const found = readCaseById(caseId);
+  if (!found) return null;
+  const cascade = args.cascade !== false;
+
+  const sol = found.solution as Record<string, unknown>;
+  const oldGraph = (sol.tool_graph || {}) as {
+    nodes?: Array<{ id?: string }>;
+  };
+  const beforeIds = new Set((oldGraph.nodes || []).map((n) => n.id || ""));
+
+  const newNodes = args.nodes.map((n, i) => ({
+    id: n.id || `n${i}`,
+    tool: n.tool || "unknown",
+    params_hint: n.params_hint || {},
+    note: n.note || "",
+  }));
+  const newEdges = (args.edges || []).map((e) => ({
+    from_node: e.from_node ?? e.from ?? "",
+    to_node: e.to_node ?? e.to ?? null,
+    condition: e.condition ?? null,
+  }));
+
+  sol.tool_graph = {
+    ...(oldGraph as Record<string, unknown>),
+    nodes: newNodes,
+    edges: newEdges,
+  };
+  const meta = found.metadata as Record<string, unknown>;
+  meta.updated_at = new Date().toISOString();
+  if (args.reason) {
+    const log = (meta.feedback_log as string[] | undefined) || [];
+    log.push(`[revise] ${args.reason}`);
+    meta.feedback_log = log;
+  }
+  writeCase(found);
+
+  const afterIds = new Set(newNodes.map((n) => n.id));
+  const retained = [...beforeIds].filter((id) => afterIds.has(id));
+  const removed = [...beforeIds].filter((id) => !afterIds.has(id));
+  const added = [...afterIds].filter((id) => !beforeIds.has(id));
+
+  // Cascade — find children whose parent_node_id was in `removed`.
+  const orphaned: string[] = [];
+  if (cascade && removed.length > 0) {
+    const db = openDb();
+    const childRows = db
+      .prepare(
+        `SELECT case_id, outcome_json, metadata_json
+           FROM cases
+          WHERE parent_case_id = ?`,
+      )
+      .all(caseId) as Array<{
+        case_id: string;
+        outcome_json: string;
+        metadata_json: string;
+      }>;
+    for (const row of childRows) {
+      const childMeta = JSON.parse(row.metadata_json) as Record<string, unknown>;
+      const pnode = (childMeta.parent_node_id as string) || "";
+      if (!pnode || !removed.includes(pnode)) continue;
+
+      const childOutcome = JSON.parse(row.outcome_json) as Record<string, unknown>;
+      childOutcome.status = "pending";
+      childOutcome.success = false;
+      childOutcome.verdict_at = "";
+      childOutcome.verdict_note = `parent revised — node '${pnode}' removed from upstream graph`;
+      const log = (childMeta.feedback_log as string[] | undefined) || [];
+      log.push(`[cascade] parent node '${pnode}' removed by revise; needs review`);
+      childMeta.feedback_log = log;
+      childMeta.updated_at = new Date().toISOString();
+
+      db.prepare(
+        `UPDATE cases SET outcome_json = ?, metadata_json = ?, updated_at = ? WHERE case_id = ?`,
+      ).run(
+        JSON.stringify(childOutcome),
+        JSON.stringify(childMeta),
+        new Date().toISOString(),
+        row.case_id,
+      );
+      orphaned.push(row.case_id);
+    }
+  }
+
+  appendEvent(
+    "revise",
+    {
+      reason: args.reason || "",
+      added_nodes: added,
+      removed_nodes: removed,
+      retained_nodes: retained,
+      orphaned_children: orphaned,
+    },
+    [caseId, ...orphaned],
+  );
+
+  return {
+    case_id: caseId,
+    added_nodes: added,
+    removed_nodes: removed,
+    retained_nodes: retained,
+    orphaned_children: orphaned,
+    reason: args.reason || "",
+  };
+}
+
 export function setVerdict(
   caseId: string,
   status: "success" | "failure",
