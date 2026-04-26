@@ -14,3 +14,6 @@ venv/
 uv.lock
 .DS_Store
 .Rhistory
+
+# Local paper drafts (preprint 제출 전까지 비공개)
+paper/
