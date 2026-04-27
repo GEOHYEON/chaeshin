@@ -1,0 +1,26 @@
+# Python deps for the chaeshin paper experiments harness.
+#
+# Install only what you need:
+#   pip install -r experiments/requirements.txt          # core (mock benchmark only)
+#   pip install -r experiments/requirements.txt -r experiments/requirements-alfworld.txt
+#
+# Or, with uv inside the chaeshin repo:
+#   uv pip install -r experiments/requirements.txt
+
+# --- core (always required) ----------------------------------------------
+pyyaml>=6.0          # config loader for run_matrix.py
+python-dotenv>=1.0   # OPENAI_API_KEY from .env (runner.py)
+
+# chaeshin itself + its OpenAI integration are used via `from chaeshin...`
+# imports — they come from the parent package (uv sync at the repo root).
+# We list them here for clarity even though pyproject already declares them.
+openai>=1.40
+numpy>=1.24
+
+# --- benchmark adapters (optional, install per-benchmark) ---------------
+# ALFWorld:    pip install alfworld textworld
+# WebShop:     git clone https://github.com/princeton-nlp/WebShop && pip install -e WebShop
+# tau-bench:   pip install tau-bench  (or git+https://github.com/sierra-research/tau-bench)
+#
+# These are NOT listed here because each pulls in ~1-2 GB of game data.
+# Install only the benchmark you intend to run.

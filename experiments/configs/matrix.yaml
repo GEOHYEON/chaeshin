@@ -1,0 +1,35 @@
+# Full benchmark × agent × seed grid for the chaeshin paper.
+#
+# 3 benchmarks × 8 agents × 3 seeds = 72 cells.
+# Estimated cost (gpt-4o-mini, ~30 tasks/cell, ~10 LLM calls/task):
+#   72 cells × 30 tasks × 10 calls × ~$0.0001/call ≈ $216 total
+#
+# To run a smaller sanity sweep first, override `limit` to 10 and `seeds` to [0].
+# To reproduce just the paper main results without ablations, drop the
+# chaeshin_no_* agents from the `agents` list.
+
+benchmarks:
+  - alfworld
+  - webshop
+  - taubench
+
+agents:
+  # Baselines
+  - react
+  - reflexion
+  - voyager_style
+  - adapt
+  # Chaeshin variants
+  - chaeshin_full
+  - chaeshin_no_cascade
+  - chaeshin_no_pending
+  - chaeshin_no_recursion
+
+seeds: [0, 1, 2]
+
+# Common options applied to every cell
+limit: null            # full benchmark; set to e.g. 10 for sanity sweeps
+max_steps: 30
+trials_per_task: 1     # for τ-bench pass^k, override to 8 in a separate cell
+model: gpt-4o-mini
+output: experiments/logs

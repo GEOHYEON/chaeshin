@@ -1,0 +1,11 @@
+# Run output — never check in. Tracked outputs are tables_inline.tex
+# under results/, but that's regenerated, so ignore by default and
+# let the user re-export via `experiments.to_latex` after a run.
+logs/
+results/
+*.jsonl
+
+# Local benchmark caches (alfworld game data, webshop product index, etc.)
+alfworld_data/
+webshop_data/
+taubench_data/

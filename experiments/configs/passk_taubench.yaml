@@ -1,0 +1,19 @@
+# τ-bench pass^k subset — 8 trials per task on 4 systems.
+# Used for Table 5 of the paper.
+# Estimated cost: 4 agents × 30 tasks × 8 trials × ~10 calls × ~$0.0001 ≈ $96.
+
+benchmarks:
+  - taubench
+
+agents:
+  - react
+  - voyager_style
+  - adapt
+  - chaeshin_full
+
+seeds: [0]
+limit: 30          # subset for cost; paper uses full set
+max_steps: 30
+trials_per_task: 8 # ← key: enables pass^8 calculation
+model: gpt-4o-mini
+output: experiments/logs

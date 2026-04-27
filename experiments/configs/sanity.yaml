@@ -1,0 +1,25 @@
+# Sanity sweep — runs every (benchmark, agent) combo on 5 tasks
+# with 1 seed. Use this to verify the harness end-to-end before
+# launching the full matrix.
+#
+# Cost: ~8 agents × 5 tasks × ~10 calls = ~$2.
+
+benchmarks:
+  - mock           # no external deps; runs locally with just an OpenAI key
+
+agents:
+  - react
+  - reflexion
+  - voyager_style
+  - adapt
+  - chaeshin_full
+  - chaeshin_no_cascade
+  - chaeshin_no_pending
+  - chaeshin_no_recursion
+
+seeds: [0]
+limit: 3
+max_steps: 8
+trials_per_task: 1
+model: gpt-4o-mini
+output: experiments/logs
