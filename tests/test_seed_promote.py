@@ -100,3 +100,53 @@ class TestPromote:
         main2 = _open_main(tmp_path)
         assert len(main2.cases) == 1
         assert main2.cases[0].metadata.source.startswith(PROMOTED_PREFIX)
+
+
+class TestPromoteTopology:
+    """v2: 입력에 부모-자식이 같이 있으면 토폴로지 보존 + id 재매핑."""
+
+    def test_parent_child_keeps_link_with_remapped_ids(self, tmp_path: Path):
+        seed = open_seed_store(db_path=str(tmp_path / "seed.db"))
+        main = _open_main(tmp_path)
+        parent = _seed_case("p")
+        child = _seed_case("c")
+        seed.retain(parent)
+        seed.retain(child)
+        seed.link_parent_child(parent.metadata.case_id, child.metadata.case_id, "n1")
+
+        # 자식을 먼저 입력해도 결과는 부모 먼저 promote.
+        results = promote_cases(
+            seed,
+            main,
+            [child.metadata.case_id, parent.metadata.case_id],
+        )
+        ordered_olds = [o for o, _ in results]
+        assert ordered_olds == [parent.metadata.case_id, child.metadata.case_id]
+
+        new_parent_id = results[0][1]
+        new_child_id = results[1][1]
+        assert new_parent_id and new_child_id
+        assert new_parent_id != parent.metadata.case_id
+        assert new_child_id != child.metadata.case_id
+
+        new_parent = main.get_case_by_id(new_parent_id)
+        new_child = main.get_case_by_id(new_child_id)
+        assert new_child.metadata.parent_case_id == new_parent_id
+        assert new_child.metadata.parent_node_id == "n1"
+        assert new_child_id in new_parent.metadata.child_case_ids
+
+    def test_orphan_child_promoted_alone_clears_parent_link(self, tmp_path: Path):
+        seed = open_seed_store(db_path=str(tmp_path / "seed.db"))
+        main = _open_main(tmp_path)
+        parent = _seed_case("p2")
+        child = _seed_case("c2")
+        seed.retain(parent)
+        seed.retain(child)
+        seed.link_parent_child(parent.metadata.case_id, child.metadata.case_id, "n1")
+
+        # 자식만 promote — 부모는 main 에 없으니 parent_case_id 끊는다.
+        results = promote_cases(seed, main, [child.metadata.case_id])
+        new_id = results[0][1]
+        promoted = main.get_case_by_id(new_id)
+        assert promoted.metadata.parent_case_id == ""
+        assert promoted.metadata.parent_node_id == ""

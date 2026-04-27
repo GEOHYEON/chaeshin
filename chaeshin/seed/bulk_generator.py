@@ -67,6 +67,73 @@ class BulkGenerator:
         self.similarity_threshold = similarity_threshold
         self.jaccard_threshold = jaccard_threshold
 
+    async def expand_seed_node(
+        self,
+        parent_case_id: str,
+        parent_node_id: str,
+        sub_topic: str,
+        tool_allowlist: List[str],
+        max_attempts: int = 3,
+    ) -> Optional[Case]:
+        """Seed 트리 빌더 — 부모 케이스의 한 노드를 sub-graph 로 분해해 자식 케이스로 retain.
+
+        주로 monitor UI / CLI 에서 사용자가 "이 노드 expand" 액션을 누를 때 호출하는
+        단일-스텝 헬퍼. 트리 깊이 자동 확장은 호스트가 루프로 돌릴 책임.
+
+        Args:
+            parent_case_id: 이미 store 에 있는 부모 seed case_id.
+            parent_node_id: 부모 graph 안에서 expand 대상이 되는 노드 id.
+            sub_topic: 자식 case 의 시나리오 토픽 — 보통 부모 노드의 ``note`` 텍스트.
+            tool_allowlist: 자식 graph 에 허용할 도구 이름.
+            max_attempts: LLM 재시도 횟수.
+
+        Returns:
+            성공 시 자식 ``Case``, 실패 시 ``None``.
+        """
+        parent = self.store.get_case_by_id(parent_case_id)
+        if parent is None:
+            logger.warning("seed_expand_parent_not_found", parent_case_id=parent_case_id)
+            return None
+
+        in_flight_embeddings: List[List[float]] = []
+        in_flight_keywords: List[tuple[str, set]] = []
+        marker = f"{getattr(parent.metadata, 'source', 'seed:expand')}:expand"
+
+        for attempt in range(1, max_attempts + 1):
+            event = await self._try_one(
+                topic=sub_topic,
+                tool_allowlist=tool_allowlist,
+                sample_seeds=None,
+                avoid_themes=None,
+                in_flight_embeddings=in_flight_embeddings,
+                in_flight_keywords=in_flight_keywords,
+                source_marker=marker,
+                attempt=attempt,
+            )
+            if event.kind == "accept":
+                child = self.store.get_case_by_id(event.case_id)
+                if child is None:
+                    return None
+                # 부모-자식 링크
+                self.store.link_parent_child(
+                    parent_case_id, event.case_id, parent_node_id
+                )
+                logger.info(
+                    "seed_expanded",
+                    parent_case_id=parent_case_id,
+                    parent_node_id=parent_node_id,
+                    child_case_id=event.case_id,
+                )
+                return child
+            logger.info(
+                "seed_expand_attempt_failed",
+                parent_case_id=parent_case_id,
+                attempt=attempt,
+                kind=event.kind,
+            )
+
+        return None
+
     async def generate(
         self,
         topic: str,

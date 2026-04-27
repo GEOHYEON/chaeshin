@@ -154,3 +154,51 @@ class TestKeywordJaccardFallback:
             )
         )
         assert len(accepted) == 1
+
+
+class TestExpandSeedNode:
+    """v2: 부모 케이스의 한 노드를 sub-graph 로 분해 → 자식 case 로 retain + 링크."""
+
+    def test_expand_creates_child_and_links(self, tmp_path: Path):
+        from chaeshin.schema import (
+            Case,
+            CaseMetadata,
+            GraphNode,
+            Outcome,
+            ProblemFeatures,
+            Solution,
+            ToolGraph,
+        )
+
+        store = open_seed_store(db_path=str(tmp_path / "seed.db"))
+        # 부모 케이스 미리 retain
+        parent = Case(
+            problem_features=ProblemFeatures(request="parent task", category="t"),
+            solution=Solution(
+                tool_graph=ToolGraph(nodes=[GraphNode(id="root", tool="plan")])
+            ),
+            outcome=Outcome(status="pending"),
+            metadata=CaseMetadata(source="seed:demo"),
+        )
+        parent_id = store.retain(parent)
+
+        gen = BulkGenerator(
+            llm_fn=_stub_llm_factory([SAMPLE_PAYLOAD]),
+            store=store,
+            embed_fn=None,
+            similarity_threshold=0.85,
+        )
+        child = asyncio.run(
+            gen.expand_seed_node(
+                parent_case_id=parent_id,
+                parent_node_id="root",
+                sub_topic="cleanup tmp files",
+                tool_allowlist=["Bash"],
+            )
+        )
+        assert child is not None
+        assert child.metadata.parent_case_id == parent_id
+        assert child.metadata.parent_node_id == "root"
+        # store 에서 다시 조회 — 부모의 child_case_ids 에 포함
+        reloaded_parent = store.get_case_by_id(parent_id)
+        assert child.metadata.case_id in reloaded_parent.metadata.child_case_ids
