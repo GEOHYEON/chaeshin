@@ -289,7 +289,12 @@ export default function SeedPage() {
                         <span>tools: {tools.join(", ")}</span>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
-                        {/* 그래프 편집기 통합은 PR 3 (graph-builder 가 store 인자 받게 일반화) 에서. */}
+                        <Link
+                          href={`/graph-builder?caseId=${cid}&store=seed&mode=edit`}
+                          className="text-[11px] text-blue-600 hover:underline"
+                        >
+                          그래프 편집기
+                        </Link>
                         <Button
                           variant="ghost"
                           size="sm"

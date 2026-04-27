@@ -25,7 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import type { ChaeshinToolGraph, ChaeshinTool, ChaeshinCase } from "@/lib/chaeshin-types";
 import { nodeTypes, edgeTypes, graphToFlow, flowToGraph } from "@/lib/graph-flow-utils";
-import { api, toolApi } from "@/lib/api";
+import { toolApi } from "@/lib/api";
 import { ToolPalette } from "@/components/chaeshin/ToolPalette";
 import { ToolManageDialog } from "@/components/chaeshin/ToolManageDialog";
 import { ArrowLeft, Save, FileText, GitBranch } from "lucide-react";
@@ -39,6 +39,15 @@ const EMPTY_GRAPH: ChaeshinToolGraph = {
   max_loops: 3,
 };
 
+// 두 store (main / seed) 가 동일한 응답 모양을 갖도록 정합화돼있음.
+// graph-builder 는 query param ?store=seed 면 seed.db 의 케이스를 편집한다.
+type StoreName = "main" | "seed";
+
+function caseEndpoint(store: StoreName, caseId?: string): string {
+  const base = store === "seed" ? "/api/seed" : "/api/chaeshin";
+  return caseId ? `${base}/${caseId}` : base;
+}
+
 // ── Inner component (needs ReactFlowProvider) ─────────────────
 
 function GraphBuilderInner() {
@@ -48,6 +57,7 @@ function GraphBuilderInner() {
 
   const mode = searchParams.get("mode") || "create";
   const caseId = searchParams.get("caseId");
+  const store: StoreName = searchParams.get("store") === "seed" ? "seed" : "main";
 
   // Tab
   const [tab, setTab] = useState<"info" | "graph">("info");
@@ -85,23 +95,29 @@ function GraphBuilderInner() {
     fetchTools();
 
     if (caseId) {
-      api.getCase(caseId).then((c) => {
-        setBaseGraph(c.solution.tool_graph);
-        const flow = graphToFlow(c.solution.tool_graph, onDeleteEdge);
-        setNodes(flow.nodes);
-        setEdges(flow.edges);
-        nodeCounter.current = c.solution.tool_graph.nodes.length;
-        // Fill info
-        setRequest(c.problem_features.request);
-        setCategory(c.problem_features.category);
-        setKeywords(c.problem_features.keywords.join(", "));
-        setTags(c.metadata.tags.join(", "));
-        setSuccess(c.outcome.success);
-        setSatisfaction(c.outcome.user_satisfaction);
-        setErrorReason(c.outcome.error_reason || "");
-      }).catch(() => toast.error("케이스를 불러올 수 없습니다"));
+      fetch(caseEndpoint(store, caseId))
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return (await res.json()) as ChaeshinCase;
+        })
+        .then((c) => {
+          setBaseGraph(c.solution.tool_graph);
+          const flow = graphToFlow(c.solution.tool_graph, onDeleteEdge);
+          setNodes(flow.nodes);
+          setEdges(flow.edges);
+          nodeCounter.current = c.solution.tool_graph.nodes.length;
+          // Fill info
+          setRequest(c.problem_features.request);
+          setCategory(c.problem_features.category);
+          setKeywords(c.problem_features.keywords.join(", "));
+          setTags(c.metadata.tags.join(", "));
+          setSuccess(c.outcome.success);
+          setSatisfaction(c.outcome.user_satisfaction);
+          setErrorReason(c.outcome.error_reason || "");
+        })
+        .catch(() => toast.error("케이스를 불러올 수 없습니다"));
     }
-  }, [caseId, fetchTools, setNodes, setEdges]);
+  }, [caseId, store, fetchTools, setNodes, setEdges]);
 
   // Delete edge via X button
   const onDeleteEdge = useCallback(
@@ -183,8 +199,8 @@ function GraphBuilderInner() {
 
     try {
       if (caseId) {
-        // Edit mode
-        await api.updateCase(caseId, {
+        // Edit mode — store-aware PUT
+        const payload = {
           problem_features: {
             request,
             category,
@@ -206,10 +222,18 @@ function GraphBuilderInner() {
           metadata: {
             tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
           },
-        } as unknown as Partial<ChaeshinCase>);
-        toast.success("케이스가 저장되었습니다");
+        };
+        const res = await fetch(caseEndpoint(store, caseId), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        toast.success(
+          store === "seed" ? "Seed 케이스 저장됨" : "케이스가 저장되었습니다",
+        );
       } else {
-        // Create mode
+        // Create mode — store-aware POST
         const newCase: ChaeshinCase = {
           problem_features: {
             request,
@@ -235,38 +259,42 @@ function GraphBuilderInner() {
             updated_at: new Date().toISOString(),
             used_count: 0,
             avg_satisfaction: 0,
-            source: "monitor_ui",
-            version: 1,
+            source: store === "seed" ? "seed:monitor_ui" : "monitor_ui",
+            version: 3,
             tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
           },
         };
-        const res = await fetch("/api/chaeshin", {
+        const res = await fetch(caseEndpoint(store), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newCase),
         });
         if (!res.ok) throw new Error();
-        toast.success("새 케이스가 생성되었습니다");
+        toast.success(
+          store === "seed"
+            ? "새 Seed 케이스가 생성되었습니다"
+            : "새 케이스가 생성되었습니다",
+        );
       }
 
-      // Close or navigate back
+      // Close or navigate back to the originating list
       if (window.opener) {
         window.close();
       } else {
-        router.push("/");
+        router.push(store === "seed" ? "/seed" : "/");
       }
     } catch {
       toast.error("저장에 실패했습니다");
     } finally {
       setSaving(false);
     }
-  }, [nodes, edges, baseGraph, caseId, mode, request, category, keywords, tags, success, satisfaction, errorReason, router]);
+  }, [nodes, edges, baseGraph, caseId, mode, store, request, category, keywords, tags, success, satisfaction, errorReason, router]);
 
   const handleBack = () => {
     if (window.opener) {
       window.close();
     } else {
-      router.push("/");
+      router.push(store === "seed" ? "/seed" : "/");
     }
   };
 

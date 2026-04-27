@@ -1,8 +1,14 @@
+/**
+ * /api/seed/[caseId] — main /api/chaeshin/[caseId] 와 동일한 응답 모양.
+ *
+ * GET: case 객체 직접 반환 (data 래핑 없음).
+ * PUT: shallow merge — graph-builder 같은 공용 컴포넌트가 store 만 바꿔서 호출 가능.
+ * DELETE: { success }.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import {
   deleteSeedCase,
   readSeedCaseById,
-  reviseSeedGraph,
   writeSeedCase,
 } from "@/lib/seed-store";
 
@@ -13,9 +19,9 @@ export async function GET(
   const { caseId } = await params;
   const c = readSeedCaseById(caseId);
   if (!c) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json({ data: c });
+  return NextResponse.json(c);
 }
 
 export async function PUT(
@@ -24,30 +30,18 @@ export async function PUT(
 ) {
   const { caseId } = await params;
   const body = await req.json();
-  // graph 변경이면 reviseSeedGraph 가, 그 외 metadata 패치는 writeSeedCase 가 처리
-  if (body.kind === "graph" && body.nodes) {
-    const result = reviseSeedGraph(caseId, {
-      nodes: body.nodes,
-      edges: body.edges,
-      reason: body.reason,
-    });
-    if (!result) return NextResponse.json({ error: "not found" }, { status: 404 });
-    return NextResponse.json({ data: result });
+  const found = readSeedCaseById(caseId);
+  if (!found) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  // 전체 case 객체 받아서 덮어쓰기
-  const existing = readSeedCaseById(caseId);
-  if (!existing) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
-  const meta = (body.metadata ?? existing.metadata) as Record<string, unknown>;
-  meta.case_id = caseId;
-  writeSeedCase({
-    problem_features: body.problem_features ?? existing.problem_features,
-    solution: body.solution ?? existing.solution,
-    outcome: body.outcome ?? existing.outcome,
-    metadata: meta,
-  });
-  return NextResponse.json({ success: true });
+  const merged = {
+    problem_features: { ...found.problem_features, ...(body.problem_features ?? {}) },
+    solution: { ...found.solution, ...(body.solution ?? {}) },
+    outcome: { ...found.outcome, ...(body.outcome ?? {}) },
+    metadata: { ...found.metadata, ...(body.metadata ?? {}), case_id: caseId },
+  };
+  writeSeedCase(merged);
+  return NextResponse.json(merged);
 }
 
 export async function DELETE(
@@ -57,7 +51,7 @@ export async function DELETE(
   const { caseId } = await params;
   const ok = deleteSeedCase(caseId);
   if (!ok) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   return NextResponse.json({ success: true });
 }
