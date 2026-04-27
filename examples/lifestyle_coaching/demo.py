@@ -59,8 +59,8 @@ CLIENT_B = {
 def _case(
     request: str,
     *,
-    layer: str,
-    depth: int,
+    layer: str = "",  # 표시용 — derived
+    depth: int = 0,   # 표시용 — derived
     nodes: list[GraphNode],
     edges: list[GraphEdge] | None = None,
     category: str = "lifestyle-coaching/reset",
@@ -71,8 +71,6 @@ def _case(
 ) -> Case:
     meta = CaseMetadata(
         source="lifestyle-coaching-demo",
-        layer=layer,
-        depth=depth,
         parent_case_id=parent_case_id,
         parent_node_id=parent_node_id,
         wait_mode="deadline",
@@ -354,10 +352,16 @@ def main():
 
     print("성공 사례 (가져다 쓸 후보):")
     for c, s in result["cases"][:3]:
-        print(f"  • [{c.metadata.layer}] 유사도={s:.3f} — {c.problem_features.request}")
+        print(
+            f"  • [{store.derive_layer(c.metadata.case_id)}] 유사도={s:.3f} "
+            f"— {c.problem_features.request}"
+        )
     print("\n경고 (과거에 안 먹혔던 패턴):")
     for c, s in result["warnings"][:3]:
-        print(f"  ⚠ [{c.metadata.layer}] 유사도={s:.3f} — {c.problem_features.request}")
+        print(
+            f"  ⚠ [{store.derive_layer(c.metadata.case_id)}] 유사도={s:.3f} "
+            f"— {c.problem_features.request}"
+        )
         if c.outcome.verdict_note:
             print(f"    교훈: {c.outcome.verdict_note[:70]}...")
     print(f"\n아직 판정 안 난 비슷한 케이스: {len(result.get('pending', []))}건")

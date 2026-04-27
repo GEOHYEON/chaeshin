@@ -152,14 +152,31 @@ JSON만 출력하세요:
 
 @dataclass
 class TaskTree:
-    """계층적 태스크 트리 — Decomposer의 출력물."""
+    """계층적 태스크 트리 — Decomposer의 출력물.
+
+    layer/depth/difficulty 는 자식 트리에서 derived. 저장하지 않음.
+    """
     request: str                      # 원본 요청
-    layer: str                        # "L1", "L2", "L3"
     graph: ToolGraph                  # 이 레이어의 그래프
-    children: List["TaskTree"]        # 하위 레이어 트리들
-    difficulty: int = 0               # 분해 깊이
+    children: List["TaskTree"] = field(default_factory=list)  # 하위 레이어 트리들
     is_leaf: bool = False             # tool call 직접 실행 가능한 최하위
     case_id: str = ""                 # retain 후 할당되는 케이스 ID
+
+    @property
+    def depth(self) -> int:
+        """자식 없으면 0, 있으면 1 + max(자식 depth)."""
+        if not self.children:
+            return 0
+        return 1 + max(c.depth for c in self.children)
+
+    @property
+    def layer(self) -> str:
+        return f"L{self.depth + 1}"
+
+    @property
+    def difficulty(self) -> int:
+        """분해 깊이 = depth (의미적으로 동일)."""
+        return self.depth
 
     def get_all_layers(self) -> Dict[str, List["TaskTree"]]:
         """레이어별로 그룹핑."""
@@ -184,7 +201,6 @@ class TaskTree:
         return leaves
 
     def to_dict(self) -> Dict[str, Any]:
-        from dataclasses import asdict
         return {
             "request": self.request,
             "layer": self.layer,
@@ -379,10 +395,8 @@ class GraphPlanner:
             graph = await self.create_graph(problem)
             return TaskTree(
                 request=problem.request,
-                layer=f"L{max_depth - current_depth}",
                 graph=graph,
                 children=[],
-                difficulty=0,
                 is_leaf=True,
             )
 
@@ -417,10 +431,8 @@ class GraphPlanner:
                 )]
                 children.append(TaskTree(
                     request=sub.get("task", ""),
-                    layer="L1",
                     graph=ToolGraph(nodes=nodes, edges=[]),
                     children=[],
-                    difficulty=0,
                     is_leaf=True,
                 ))
             else:
@@ -457,15 +469,10 @@ class GraphPlanner:
             entry_nodes=[layer_nodes[0].id] if layer_nodes else [],
         )
 
-        depth = 1 + max((c.difficulty for c in children), default=0)
-        layer_name = f"L{depth + 1}" if depth > 0 else "L1"
-
         return TaskTree(
             request=problem.request,
-            layer=layer_name,
             graph=layer_graph,
             children=children,
-            difficulty=depth,
             is_leaf=False,
         )
 

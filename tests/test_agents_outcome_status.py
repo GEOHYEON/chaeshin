@@ -58,12 +58,13 @@ class TestOrchestratorRetainStaysPending:
                 tool_graph=ToolGraph(nodes=[GraphNode(id="n1", tool="echo")])
             ),
             outcome=Outcome(status="pending"),  # ← 새 정합화: 'pending'
-            metadata=CaseMetadata(source="orchestrator", layer="L1", depth=0),
+            metadata=CaseMetadata(source="orchestrator"),  # layer/depth 는 derived
         )
         cid = store.retain(case)
         loaded = store.get_case_by_id(cid)
         assert loaded.outcome.status == "pending"
         assert loaded.outcome.success is False  # status에서 자동 동기화
+        assert store.derive_layer(cid) == "L1"  # 자식 없음 → leaf
 
 
 class TestReflectionEscalateDepthAware:

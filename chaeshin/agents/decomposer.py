@@ -102,7 +102,7 @@ class DecomposerAgent(BaseAgent):
                         "case_id": case.metadata.case_id,
                         "similarity": score,
                         "request": case.problem_features.request,
-                        "layer": getattr(case.metadata, "layer", ""),
+                        "layer": self.case_store.derive_layer(case.metadata.case_id),
                         "difficulty": getattr(case.metadata, "difficulty", 0),
                     })
 

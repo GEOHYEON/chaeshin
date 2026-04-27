@@ -123,9 +123,9 @@ def chaeshin_tools(
             top_k_failures=int(args.get("top_k_failures", 2)),
         )
         payload = {
-            "successes": [_brief(c, s) for c, s in result["cases"]],
-            "warnings": [_brief(c, s) for c, s in result["warnings"]],
-            "pending": [_brief(c, s) for c, s in result.get("pending", [])],
+            "successes": [_brief(c, s, store) for c, s in result["cases"]],
+            "warnings": [_brief(c, s, store) for c, s in result["warnings"]],
+            "pending": [_brief(c, s, store) for c, s in result.get("pending", [])],
             "total_in_store": len(store.cases),
         }
         events.record(
@@ -179,8 +179,6 @@ def chaeshin_tools(
             outcome=Outcome(status="pending"),
             metadata=CaseMetadata(
                 source=source,
-                layer=args.get("layer", "L1"),
-                depth=int(args.get("depth", 0)),
                 parent_case_id=args.get("parent_case_id", ""),
                 parent_node_id=args.get("parent_node_id", ""),
                 wait_mode=args.get("wait_mode", "deadline"),
@@ -191,12 +189,14 @@ def chaeshin_tools(
         parent = args.get("parent_case_id", "")
         if parent:
             store.link_parent_child(parent, case_id, args.get("parent_node_id", ""))
+        derived_layer = store.derive_layer(case_id)
+        derived_depth = store.derive_depth(case_id)
         events.record(
             "retain",
             {
                 "request": request,
-                "layer": case.metadata.layer,
-                "depth": case.metadata.depth,
+                "layer": derived_layer,
+                "depth": derived_depth,
                 "parent_case_id": parent,
                 "node_count": len(nodes),
             },
@@ -206,7 +206,7 @@ def chaeshin_tools(
             "case_id": case_id,
             "status": "saved",
             "outcome_status": "pending",
-            "layer": case.metadata.layer,
+            "layer": derived_layer,
         }
 
     def _revise(args: Dict[str, Any]) -> Dict[str, Any]:
@@ -268,8 +268,8 @@ def chaeshin_tools(
         ),
         "chaeshin_retain": ToolSpec(
             name="chaeshin_retain",
-            description="실행한 tool graph를 pending 상태로 저장. 작업을 끝내기 전에 호출. layer/depth/parent_case_id로 계층 연결.",
-            example_input='{"request": "kimchi stew for 2", "category": "cooking", "keywords": "kimchi,stew", "layer": "L1", "depth": 0, "graph": {"nodes": [{"id":"n1","tool":"check_fridge"}], "edges": []}}',
+            description="실행한 tool graph를 pending 상태로 저장. 작업을 끝내기 전에 호출. parent_case_id로 계층 연결 (layer 는 derived).",
+            example_input='{"request": "kimchi stew for 2", "category": "cooking", "keywords": "kimchi,stew", "graph": {"nodes": [{"id":"n1","tool":"check_fridge"}], "edges": []}}',
             fn=_retain,
         ),
         "chaeshin_revise": ToolSpec(
@@ -293,13 +293,13 @@ def chaeshin_tools(
     }
 
 
-def _brief(case: Case, score: float) -> Dict[str, Any]:
+def _brief(case: Case, score: float, store: CaseStore) -> Dict[str, Any]:
     meta = case.metadata
     return {
         "case_id": meta.case_id,
         "similarity": round(float(score), 4),
         "request": case.problem_features.request,
-        "layer": meta.layer,
+        "layer": store.derive_layer(meta.case_id),
         "status": case.outcome.status,
         "graph": {
             "nodes": [

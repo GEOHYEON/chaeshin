@@ -64,8 +64,8 @@ PATIENT_B = {
 def _case(
     request: str,
     *,
-    layer: str,
-    depth: int,
+    layer: str = "",  # 표시용/호출 호환만 — 저장 안 함, derived
+    depth: int = 0,   # 표시용/호출 호환만 — 저장 안 함, derived
     nodes: list[GraphNode],
     edges: list[GraphEdge] | None = None,
     category: str = "primary-care/T2DM",
@@ -74,11 +74,13 @@ def _case(
     parent_node_id: str = "",
     deadline_weeks: int | None = None,
 ) -> Case:
-    """의료 케이스 한 건을 pending 상태로 만든다."""
+    """의료 케이스 한 건을 pending 상태로 만든다.
+
+    ``layer``/``depth`` 는 더 이상 저장되지 않는다 (트리에서 derived). 인자는 데모
+    호출부 호환을 위해 받지만 무시.
+    """
     meta = CaseMetadata(
         source="medical-intake-demo",
-        layer=layer,
-        depth=depth,
         parent_case_id=parent_case_id,
         parent_node_id=parent_node_id,
         wait_mode="deadline",
@@ -258,13 +260,15 @@ def section(title: str):
     print("═" * 68)
 
 
-def describe_case(case: Case, indent: int = 0):
+def describe_case(store: CaseStore, case: Case, indent: int = 0):
     pad = "  " * indent
     meta = case.metadata
     status = case.outcome.status
     deadline = meta.deadline_at[:10] if meta.deadline_at else "—"
+    layer = store.derive_layer(meta.case_id)
+    depth = store.derive_depth(meta.case_id)
     print(
-        f"{pad}[{meta.layer} depth={meta.depth}] {case.problem_features.request}"
+        f"{pad}[{layer} depth={depth}] {case.problem_features.request}"
     )
     print(
         f"{pad}  id={meta.case_id[:8]} status={status}"
@@ -276,7 +280,7 @@ def walk_tree(store: CaseStore, case_id: str, indent: int = 0):
     case = store.get_case_by_id(case_id)
     if not case:
         return
-    describe_case(case, indent)
+    describe_case(store, case, indent)
     for child_id in case.metadata.child_case_ids:
         walk_tree(store, child_id, indent + 1)
 
@@ -403,7 +407,10 @@ def main():
     )
     print("성공 사례 (가져다 쓸 후보):")
     for c, s in result["cases"][:3]:
-        print(f"  • [{c.metadata.layer}] 유사도={s:.3f} — {c.problem_features.request}")
+        print(
+            f"  • [{store.derive_layer(c.metadata.case_id)}] 유사도={s:.3f} "
+            f"— {c.problem_features.request}"
+        )
     print(f"경고 (과거에 안 먹혔던 패턴): {len(result['warnings'])}건")
     print(f"아직 판정 안 난 비슷한 케이스: {len(result.get('pending', []))}건")
 

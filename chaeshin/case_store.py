@@ -15,8 +15,8 @@ from __future__ import annotations
 import json
 import structlog
 from datetime import datetime
-from dataclasses import asdict
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple
+from dataclasses import asdict, fields as dataclass_fields
+from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple
 
 from chaeshin.schema import (
     Case,
@@ -418,6 +418,28 @@ class CaseStore:
                 break
         return result
 
+    # ── Derived layer / depth ─────────────────────────────────────────
+
+    def derive_depth(self, case_id: str, _visited: Optional[Set[str]] = None) -> int:
+        """리프로부터의 거리. 자식 없으면 0, 있으면 1 + max(자식 depth).
+
+        ``parent_case_id`` 만 저장하고 layer/depth 는 항상 트리에서 계산 — 다운스트림이
+        깊어지면 자동 반영. 사이클 방어.
+        """
+        if _visited is None:
+            _visited = set()
+        if case_id in _visited:
+            return 0
+        _visited.add(case_id)
+        children = self.get_children(case_id)
+        if not children:
+            return 0
+        return 1 + max(self.derive_depth(c.metadata.case_id, _visited) for c in children)
+
+    def derive_layer(self, case_id: str) -> str:
+        """``f"L{derive_depth+1}"`` — leaf=L1, composite=L2/L3/...."""
+        return f"L{self.derive_depth(case_id) + 1}"
+
     # ── Diff 기반 Update & Verdict ────────────────────────────────────
 
     def update_case(self, case_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -742,14 +764,18 @@ class CaseStore:
 
     @staticmethod
     def _dict_to_case(d: Dict[str, Any]) -> Case:
-        """딕셔너리 → Case 변환."""
+        """딕셔너리 → Case 변환. 미지 키 (legacy layer/depth 등) 는 무시."""
         from chaeshin.schema import (
             GraphNode, GraphEdge, ToolGraph,
             ProblemFeatures, Solution, Outcome, CaseMetadata,
         )
 
+        pf_fields = {f.name for f in dataclass_fields(ProblemFeatures)}
+        out_fields = {f.name for f in dataclass_fields(Outcome)}
+        meta_fields = {f.name for f in dataclass_fields(CaseMetadata)}
+
         pf = ProblemFeatures(**{
-            k: v for k, v in d["problem_features"].items()
+            k: v for k, v in d["problem_features"].items() if k in pf_fields
         })
 
         tg_data = d["solution"]["tool_graph"]
@@ -762,8 +788,8 @@ class CaseStore:
         )
 
         sol = Solution(tool_graph=tg)
-        out = Outcome(**d["outcome"])
-        meta = CaseMetadata(**d["metadata"])
+        out = Outcome(**{k: v for k, v in d["outcome"].items() if k in out_fields})
+        meta = CaseMetadata(**{k: v for k, v in d["metadata"].items() if k in meta_fields})
 
         return Case(
             problem_features=pf,

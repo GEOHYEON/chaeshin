@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
-from dataclasses import asdict
+from dataclasses import asdict, fields as dataclass_fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -32,6 +32,10 @@ from chaeshin.schema import (
     ToolGraph,
 )
 
+_META_FIELD_NAMES = {f.name for f in dataclass_fields(CaseMetadata)}
+_PROBLEM_FIELD_NAMES = {f.name for f in dataclass_fields(ProblemFeatures)}
+_OUTCOME_FIELD_NAMES = {f.name for f in dataclass_fields(Outcome)}
+
 logger = structlog.get_logger(__name__)
 
 
@@ -40,20 +44,18 @@ CREATE TABLE IF NOT EXISTS cases (
     case_id        TEXT PRIMARY KEY,
     created_at     TEXT NOT NULL,
     updated_at     TEXT NOT NULL,
-    layer          TEXT NOT NULL DEFAULT 'L1',
     parent_case_id TEXT NOT NULL DEFAULT '',
     category       TEXT NOT NULL DEFAULT '',
     success        INTEGER NOT NULL DEFAULT 1,
     feedback_count INTEGER NOT NULL DEFAULT 0,
     difficulty     INTEGER NOT NULL DEFAULT 0,
-    version        INTEGER NOT NULL DEFAULT 2,
+    version        INTEGER NOT NULL DEFAULT 3,
     problem_json   TEXT NOT NULL,
     solution_json  TEXT NOT NULL,
     outcome_json   TEXT NOT NULL,
     metadata_json  TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_cases_layer    ON cases(layer);
 CREATE INDEX IF NOT EXISTS idx_cases_parent   ON cases(parent_case_id);
 CREATE INDEX IF NOT EXISTS idx_cases_category ON cases(category);
 CREATE INDEX IF NOT EXISTS idx_cases_success  ON cases(success);
@@ -118,13 +120,12 @@ class SQLiteBackend:
             conn.execute(
                 """
                 INSERT INTO cases (
-                    case_id, created_at, updated_at, layer, parent_case_id,
+                    case_id, created_at, updated_at, parent_case_id,
                     category, success, feedback_count, difficulty, version,
                     problem_json, solution_json, outcome_json, metadata_json
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(case_id) DO UPDATE SET
                     updated_at     = excluded.updated_at,
-                    layer          = excluded.layer,
                     parent_case_id = excluded.parent_case_id,
                     category       = excluded.category,
                     success        = excluded.success,
@@ -140,13 +141,12 @@ class SQLiteBackend:
                     meta.case_id,
                     meta.created_at,
                     meta.updated_at,
-                    getattr(meta, "layer", "L1") or "L1",
                     getattr(meta, "parent_case_id", "") or "",
                     case.problem_features.category or "",
                     1 if case.outcome.success else 0,
                     getattr(meta, "feedback_count", 0),
                     getattr(meta, "difficulty", 0),
-                    getattr(meta, "version", 2),
+                    getattr(meta, "version", 3),
                     json.dumps(asdict(case.problem_features), ensure_ascii=False),
                     json.dumps(asdict(case.solution), ensure_ascii=False),
                     json.dumps(asdict(case.outcome), ensure_ascii=False),
@@ -277,7 +277,7 @@ def _row_to_case(row: sqlite3.Row) -> Case:
     out_raw = json.loads(row["outcome_json"])
     meta_raw = json.loads(row["metadata_json"])
 
-    pf = ProblemFeatures(**pf_raw)
+    pf = ProblemFeatures(**{k: v for k, v in pf_raw.items() if k in _PROBLEM_FIELD_NAMES})
 
     tg_raw = sol_raw.get("tool_graph", {})
     tg = ToolGraph(
@@ -288,6 +288,7 @@ def _row_to_case(row: sqlite3.Row) -> Case:
         max_loops=tg_raw.get("max_loops", 3),
     )
     sol = Solution(tool_graph=tg)
-    out = Outcome(**out_raw)
-    meta = CaseMetadata(**meta_raw)
+    out = Outcome(**{k: v for k, v in out_raw.items() if k in _OUTCOME_FIELD_NAMES})
+    # 레거시 metadata_json 에 남아있는 layer/depth 같은 derived 필드를 무시.
+    meta = CaseMetadata(**{k: v for k, v in meta_raw.items() if k in _META_FIELD_NAMES})
     return Case(problem_features=pf, solution=sol, outcome=out, metadata=meta)
