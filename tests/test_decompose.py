@@ -70,6 +70,7 @@ class TestHostDrivenDecomposition:
         """호스트 AI가 decompose 응답을 받아 L3→L2→L1 트리를 저장하는 시나리오."""
         srv = isolated_mcp
 
+        # 루트부터 retain — layer/depth 는 안 넘김 (derived)
         l3_raw = srv.chaeshin_retain(
             request="production hotfix rollout",
             graph={
@@ -80,7 +81,6 @@ class TestHostDrivenDecomposition:
                 "edges": [{"from": "s1", "to": "s2"}],
             },
             category="strategy",
-            layer="L3",
         )
         l3_id = json.loads(l3_raw)["case_id"]
 
@@ -94,7 +94,6 @@ class TestHostDrivenDecomposition:
                 "edges": [{"from": "w1", "to": "w2"}],
             },
             category="workflow",
-            layer="L2",
             parent_case_id=l3_id,
             parent_node_id="s2",
         )
@@ -104,19 +103,20 @@ class TestHostDrivenDecomposition:
             request="kubectl rollout",
             graph={"nodes": [{"id": "n1", "tool": "Bash", "note": "kubectl rollout status"}]},
             category="atomic",
-            layer="L1",
             parent_case_id=l2_id,
             parent_node_id="w2",
         )
         l1_id = json.loads(l1_raw)["case_id"]
 
-        # 재조회
+        # 재조회 — layer 는 derived. 트리 깊이로 자동 계산.
         store = CaseStore(backend=srv._backend, auto_load=True)
         l3_case = store.get_case_by_id(l3_id)
         l2_case = store.get_case_by_id(l2_id)
         l1_case = store.get_case_by_id(l1_id)
 
-        assert l3_case.metadata.layer == "L3"
+        assert store.derive_layer(l3_id) == "L3"
+        assert store.derive_layer(l2_id) == "L2"
+        assert store.derive_layer(l1_id) == "L1"
         assert l2_id in l3_case.metadata.child_case_ids
         assert l2_case.metadata.parent_case_id == l3_id
         assert l1_id in l2_case.metadata.child_case_ids
@@ -150,12 +150,12 @@ class TestHostDrivenDecomposition:
         raw = srv.chaeshin_retain(
             request="set up CI",
             graph={"nodes": [{"id": "n1", "tool": "Bash"}]},
-            layer="L1",
         )
         payload = json.loads(raw)
         assert payload["outcome_status"] == "pending"
         assert payload["wait_mode"] == "deadline"
         assert payload["deadline_at"]  # 기본 deadline 설정됨
+        assert payload["layer"] == "L1"  # 자식 없음 → derived L1
 
     def test_verdict_transitions_pending_to_success(self, isolated_mcp):
         srv = isolated_mcp
@@ -191,25 +191,25 @@ class TestHostDrivenDecomposition:
             case_id=cid,
             patch={
                 "problem_features": {"request": "updated request"},
-                "metadata": {"layer": "L2"},
+                "metadata": {"difficulty": 2},
             },
         ))
         assert set(updated["changed_fields"]) >= {
             "problem_features.request",
-            "metadata.layer",
+            "metadata.difficulty",
         }
 
         from chaeshin.case_store import CaseStore
         store = CaseStore(backend=srv._backend, auto_load=True)
         case = store.get_case_by_id(cid)
         assert case.problem_features.request == "updated request"
-        assert case.metadata.layer == "L2"
+        assert case.metadata.difficulty == 2
 
     def test_revise_cascades_to_orphan_children(self, isolated_mcp):
         """상위 그래프에서 노드를 제거하면, 그 노드를 parent_node_id로 가진 자식은 pending으로 되돌림."""
         srv = isolated_mcp
 
-        # L3 그래프: s1 → s2 → s3 (세 노드)
+        # 루트 그래프: s1 → s2 → s3 (세 노드). layer 는 자식 붙은 후 derived L2.
         l3 = json.loads(srv.chaeshin_retain(
             request="multi-step strategy",
             graph={
@@ -223,25 +223,19 @@ class TestHostDrivenDecomposition:
                     {"from": "s2", "to": "s3"},
                 ],
             },
-            layer="L3",
-            depth=2,
         ))
         l3_id = l3["case_id"]
 
-        # s2 노드에 매달린 L2 자식, s3 노드에 매달린 L2 자식
+        # s2 노드에 매달린 자식, s3 노드에 매달린 자식
         l2_a = json.loads(srv.chaeshin_retain(
             request="execute workflow",
             graph={"nodes": [{"id": "n1", "tool": "Bash"}]},
-            layer="L2",
-            depth=1,
             parent_case_id=l3_id,
             parent_node_id="s2",
         ))
         l2_b = json.loads(srv.chaeshin_retain(
             request="followup workflow",
             graph={"nodes": [{"id": "n1", "tool": "Read"}]},
-            layer="L2",
-            depth=1,
             parent_case_id=l3_id,
             parent_node_id="s3",
         ))
@@ -285,12 +279,10 @@ class TestHostDrivenDecomposition:
         parent = json.loads(srv.chaeshin_retain(
             request="p",
             graph={"nodes": [{"id": "a", "tool": "t"}]},
-            layer="L2",
         ))
         child = json.loads(srv.chaeshin_retain(
             request="c",
             graph={"nodes": [{"id": "n1", "tool": "t"}]},
-            layer="L1",
             parent_case_id=parent["case_id"],
             parent_node_id="a",
         ))
@@ -330,11 +322,10 @@ class TestHostDrivenDecomposition:
         retained = json.loads(srv.chaeshin_retain(
             request="x step",
             graph={"nodes": [{"id": "n1", "tool": "Read"}]},
-            layer="L1",
         ))
         cid = retained["case_id"]
         srv.chaeshin_retrieve(query="x", min_similarity=0.0)
-        srv.chaeshin_update(case_id=cid, patch={"metadata": {"layer": "L2"}})
+        srv.chaeshin_update(case_id=cid, patch={"metadata": {"difficulty": 1}})
         srv.chaeshin_revise(
             case_id=cid,
             graph={"nodes": [{"id": "n2", "tool": "Edit"}]},

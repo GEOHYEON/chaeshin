@@ -67,10 +67,8 @@ def migrate(
         if cid in existing_ids and not overwrite:
             skipped += 1
             continue
-        # flat → L1 정규화 (CaseMetadata.__post_init__ 에서도 처리되지만 안전망)
-        if not getattr(case.metadata, "layer", ""):
-            case.metadata.layer = "L1"
-        case.metadata.version = 2
+        # m003 이후 layer 는 derived — 더 이상 normalize 안 함. version 만 bump.
+        case.metadata.version = 3
         backend.upsert_case(case, embedding=None)
         imported += 1
 

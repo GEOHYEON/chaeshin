@@ -27,19 +27,21 @@ function openDb(): Database.Database {
   _db = new Database(p);
   _db.pragma("journal_mode = WAL");
   _db.pragma("foreign_keys = ON");
-  // 스키마 보증 (Python 측이 먼저 생성했다면 no-op)
+  // 스키마 보증 (Python 측이 먼저 생성했다면 no-op).
+  // m003 이후 layer 는 derived — 컬럼 없는 신 schema. 기존 DB 에 layer 컬럼이
+  // 남아있어도 CREATE IF NOT EXISTS 라 보존되며, INSERT 에서 layer 를 명시하지
+  // 않으므로 DEFAULT 가 들어가거나 NULL 허용 시 NULL.
   _db.exec(`
     CREATE TABLE IF NOT EXISTS cases (
       case_id        TEXT PRIMARY KEY,
       created_at     TEXT NOT NULL,
       updated_at     TEXT NOT NULL,
-      layer          TEXT NOT NULL DEFAULT 'L1',
       parent_case_id TEXT NOT NULL DEFAULT '',
       category       TEXT NOT NULL DEFAULT '',
       success        INTEGER NOT NULL DEFAULT 1,
       feedback_count INTEGER NOT NULL DEFAULT 0,
       difficulty     INTEGER NOT NULL DEFAULT 0,
-      version        INTEGER NOT NULL DEFAULT 2,
+      version        INTEGER NOT NULL DEFAULT 3,
       problem_json   TEXT NOT NULL,
       solution_json  TEXT NOT NULL,
       outcome_json   TEXT NOT NULL,
@@ -298,15 +300,16 @@ export function writeCase(c: CaseRow): void {
   const meta = c.metadata as Record<string, unknown>;
   const caseId = (meta.case_id as string) || crypto.randomUUID();
   const now = new Date().toISOString();
+  // layer 는 derived — INSERT/UPDATE 에 명시하지 않음. legacy DB 에 layer 컬럼이
+  // 남아있어도 NOT NULL DEFAULT 'L1' 이므로 INSERT 시 default 가 들어간다.
   db.prepare(
     `INSERT INTO cases (
-       case_id, created_at, updated_at, layer, parent_case_id, category,
+       case_id, created_at, updated_at, parent_case_id, category,
        success, feedback_count, difficulty, version,
        problem_json, solution_json, outcome_json, metadata_json
-     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(case_id) DO UPDATE SET
        updated_at     = excluded.updated_at,
-       layer          = excluded.layer,
        parent_case_id = excluded.parent_case_id,
        category       = excluded.category,
        success        = excluded.success,
@@ -321,13 +324,12 @@ export function writeCase(c: CaseRow): void {
     caseId,
     (meta.created_at as string) || now,
     now,
-    (meta.layer as string) || "L1",
     (meta.parent_case_id as string) || "",
     ((c.problem_features as Record<string, unknown>).category as string) || "",
     (c.outcome as Record<string, unknown>).success ? 1 : 0,
     (meta.feedback_count as number) || 0,
     (meta.difficulty as number) || 0,
-    (meta.version as number) || 2,
+    (meta.version as number) || 3,
     JSON.stringify(c.problem_features),
     JSON.stringify(c.solution),
     JSON.stringify(c.outcome),
@@ -428,13 +430,12 @@ export function readHierarchyNodes(): HierarchyNode[] {
   const db = openDb();
   const rows = db
     .prepare(
-      `SELECT case_id, layer, parent_case_id, category, feedback_count,
+      `SELECT case_id, parent_case_id, category, feedback_count,
               problem_json, solution_json, outcome_json, metadata_json
-       FROM cases`
+       FROM cases`,
     )
     .all() as Array<{
       case_id: string;
-      layer: string;
       parent_case_id: string;
       category: string;
       feedback_count: number;
@@ -443,6 +444,31 @@ export function readHierarchyNodes(): HierarchyNode[] {
       outcome_json: string;
       metadata_json: string;
     }>;
+
+  // layer/depth 는 derived — 트리 토폴로지 (parent_case_id) 에서 max depth_from_leaf
+  // 계산. Python 의 CaseStore.derive_depth (case_store.py) 와 동일 로직.
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    const pid = r.parent_case_id || "";
+    if (!pid) continue;
+    if (!childrenOf.has(pid)) childrenOf.set(pid, []);
+    childrenOf.get(pid)!.push(r.case_id);
+  }
+  const depthCache = new Map<string, number>();
+  const computeDepth = (caseId: string, visited = new Set<string>()): number => {
+    const cached = depthCache.get(caseId);
+    if (cached !== undefined) return cached;
+    if (visited.has(caseId)) return 0; // 사이클 방어
+    visited.add(caseId);
+    const kids = childrenOf.get(caseId) || [];
+    let depth = 0;
+    if (kids.length > 0) {
+      depth = 1 + Math.max(...kids.map((k) => computeDepth(k, visited)));
+    }
+    depthCache.set(caseId, depth);
+    return depth;
+  };
+
   return rows.map((r) => {
     const pf = JSON.parse(r.problem_json) as { request?: string };
     const sol = JSON.parse(r.solution_json) as {
@@ -456,7 +482,6 @@ export function readHierarchyNodes(): HierarchyNode[] {
       success?: boolean;
     };
     const meta = JSON.parse(r.metadata_json) as {
-      depth?: number;
       parent_node_id?: string;
       deadline_at?: string;
       wait_mode?: string;
@@ -474,10 +499,12 @@ export function readHierarchyNodes(): HierarchyNode[] {
       line.startsWith("[cascade]"),
     );
 
+    const depth = computeDepth(r.case_id);
+
     return {
       case_id: r.case_id,
-      layer: r.layer || "L1",
-      depth: meta.depth ?? 0,
+      layer: `L${depth + 1}`,
+      depth,
       request: pf.request || "",
       category: r.category || "",
       parent_case_id: r.parent_case_id || "",

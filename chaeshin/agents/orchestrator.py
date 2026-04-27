@@ -217,11 +217,7 @@ class OrchestratorAgent(BaseAgent):
                     status="pending",
                     tools_executed=len(graph.nodes),
                 ),
-                metadata=CaseMetadata(
-                    source="orchestrator",
-                    layer="L1",
-                    depth=0,
-                ),
+                metadata=CaseMetadata(source="orchestrator"),
             )
             self.case_store.retain(case)
 
@@ -328,15 +324,12 @@ class OrchestratorAgent(BaseAgent):
         """TaskTree를 Chaeshin에 계층적으로 저장.
 
         모든 케이스는 pending으로 저장된다. 성공/실패는 나중에 사용자가
-        chaeshin_verdict로 명시적으로 결정한다.
+        chaeshin_verdict로 명시적으로 결정한다. layer/depth 는 store 가 트리에서
+        derived — 여기선 부모-자식 링크만 신경쓰면 됨.
         """
         if not self.case_store:
             return
 
-        # depth = 자식이 없으면 0(leaf), 있으면 자식의 max depth + 1
-        depth = 0
-        if tree.children:
-            depth = 1  # 일단 1, 자식 처리 후 재계산
         case = Case(
             problem_features=ProblemFeatures(
                 request=original_request,
@@ -347,8 +340,6 @@ class OrchestratorAgent(BaseAgent):
             outcome=Outcome(status="pending"),
             metadata=CaseMetadata(
                 source="orchestrator",
-                layer=tree.layer or "L1",
-                depth=depth,
                 difficulty=tree.difficulty,
             ),
         )

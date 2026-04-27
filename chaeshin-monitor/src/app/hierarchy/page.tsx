@@ -187,6 +187,9 @@ export default function HierarchyPage() {
             <Link href="/hierarchy" className="font-medium text-gray-900">
               Hierarchy
             </Link>
+            <Link href="/seed" className="text-gray-500 hover:text-gray-900">
+              Seed
+            </Link>
           </nav>
         </div>
       </header>

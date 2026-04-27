@@ -224,8 +224,9 @@ class Outcome:
 class CaseMetadata:
     """케이스 관리 정보 — CBR의 (metadata).
 
-    계층 구조(layer/parent/child)와 피드백이 1등 필드.
-    layer 기본값 "L1" (depth=0, 리프).
+    저장 단위는 parent_case_id / parent_node_id / child_case_ids 만. 깊이/레이어는
+    트리 walk 로 derived (CaseStore.derive_depth / derive_layer). 다운스트림이 더
+    깊어지면 자동 반영 — stale 위험 없음.
     """
 
     case_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -234,13 +235,10 @@ class CaseMetadata:
     used_count: int = 0
     avg_satisfaction: float = 0.0
     source: str = "user_session"
-    version: int = 2
+    version: int = 3
     tags: List[str] = field(default_factory=list)
 
-    # 계층 구조 — depth=0은 leaf(atomic tool call). n > 0은 composite(하위 케이스 묶음).
-    # layer는 표시 라벨 ("L1" = leaf, "Ln" = depth n). 고정 3단계 아님 — tool로 해결될 때까지 재귀 분해.
-    layer: str = "L1"
-    depth: int = 0                   # 0 = leaf, n = composite (n단계 하위 트리 보유)
+    # 계층 구조 — 트리 토폴로지만 저장. layer/depth 는 derived (CaseStore에 helper).
     parent_case_id: str = ""         # 상위 레이어 케이스 ID
     parent_node_id: str = ""         # 상위 케이스에서 이 케이스에 대응하는 노드 ID
     child_case_ids: List[str] = field(default_factory=list)  # 직속 하위 케이스 IDs
@@ -250,17 +248,9 @@ class CaseMetadata:
     deadline_at: str = ""            # ISO ts — 경과 시 retrieve에서 pending으로 노출. "" = 없음
 
     # 난이도 & 피드백
-    difficulty: int = 0              # 이 케이스를 루트로 할 때의 분해 깊이
+    difficulty: int = 0              # 이 케이스를 루트로 할 때의 분해 깊이 추정 (derived와는 별개 — 사용자 신호용)
     feedback_count: int = 0          # 유저 피드백 누적 횟수
     feedback_log: List[str] = field(default_factory=list)  # 피드백 이력 요약
-
-    def __post_init__(self):
-        # 레거시 저장본에서 layer가 빈 문자열로 들어오면 L1로 정규화.
-        if not self.layer:
-            self.layer = "L1"
-        # layer에서 depth 역유도 (Ln → n-1). 저장된 depth가 있으면 그대로 사용.
-        if self.depth == 0 and self.layer.startswith("L") and self.layer[1:].isdigit():
-            self.depth = max(0, int(self.layer[1:]) - 1)
 
 
 @dataclass

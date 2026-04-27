@@ -18,7 +18,7 @@ from chaeshin.schema import (
 from chaeshin.storage.sqlite_backend import SQLiteBackend
 
 
-def _case(request: str, layer: str = "L1", success: bool = True) -> Case:
+def _case(request: str, success: bool = True) -> Case:
     return Case(
         problem_features=ProblemFeatures(
             request=request,
@@ -32,14 +32,14 @@ def _case(request: str, layer: str = "L1", success: bool = True) -> Case:
             ),
         ),
         outcome=Outcome(success=success, user_satisfaction=0.9 if success else 0.0),
-        metadata=CaseMetadata(source="test", layer=layer),
+        metadata=CaseMetadata(source="test"),
     )
 
 
 class TestUpsertAndLoad:
     def test_round_trip(self, tmp_path: Path):
         backend = SQLiteBackend(tmp_path / "chaeshin.db")
-        case = _case("deploy to staging", layer="L2")
+        case = _case("deploy to staging")
         backend.upsert_case(case, embedding=[0.1, 0.2, 0.3])
 
         loaded = backend.load_all_cases()
@@ -47,7 +47,6 @@ class TestUpsertAndLoad:
 
         assert len(loaded) == 1
         assert loaded[0].metadata.case_id == case.metadata.case_id
-        assert loaded[0].metadata.layer == "L2"
         assert embeddings[case.metadata.case_id] == [0.1, 0.2, 0.3]
 
     def test_upsert_updates_existing(self, tmp_path: Path):
@@ -66,8 +65,8 @@ class TestUpsertAndLoad:
 class TestHierarchy:
     def test_link_and_query(self, tmp_path: Path):
         backend = SQLiteBackend(tmp_path / "chaeshin.db")
-        parent = _case("strategy", layer="L3")
-        child = _case("workflow", layer="L2")
+        parent = _case("strategy")
+        child = _case("workflow")
         backend.upsert_case(parent)
         backend.upsert_case(child)
 
@@ -81,8 +80,8 @@ class TestHierarchy:
 
     def test_link_is_idempotent(self, tmp_path: Path):
         backend = SQLiteBackend(tmp_path / "chaeshin.db")
-        p = _case("p", layer="L3")
-        c = _case("c", layer="L2")
+        p = _case("p")
+        c = _case("c")
         backend.upsert_case(p)
         backend.upsert_case(c)
 
@@ -132,8 +131,8 @@ class TestCaseStoreBackendIntegration:
     def test_link_parent_child_persists(self, tmp_path: Path):
         backend = SQLiteBackend(tmp_path / "chaeshin.db")
         store = CaseStore(backend=backend, auto_load=False)
-        parent = _case("plan", layer="L3")
-        child = _case("step", layer="L2")
+        parent = _case("plan")
+        child = _case("step")
         store.retain(parent)
         store.retain(child)
 
@@ -144,3 +143,22 @@ class TestCaseStoreBackendIntegration:
         reloaded_child = store2.get_case_by_id(child.metadata.case_id)
         assert child.metadata.case_id in reloaded_parent.metadata.child_case_ids
         assert reloaded_child.metadata.parent_case_id == parent.metadata.case_id
+
+    def test_layer_is_derived_from_tree(self, tmp_path: Path):
+        backend = SQLiteBackend(tmp_path / "chaeshin.db")
+        store = CaseStore(backend=backend, auto_load=False)
+        leaf = _case("leaf")
+        mid = _case("mid")
+        root = _case("root")
+        store.retain(leaf)
+        store.retain(mid)
+        store.retain(root)
+        store.link_parent_child(mid.metadata.case_id, leaf.metadata.case_id)
+        store.link_parent_child(root.metadata.case_id, mid.metadata.case_id)
+
+        assert store.derive_depth(leaf.metadata.case_id) == 0
+        assert store.derive_layer(leaf.metadata.case_id) == "L1"
+        assert store.derive_depth(mid.metadata.case_id) == 1
+        assert store.derive_layer(mid.metadata.case_id) == "L2"
+        assert store.derive_depth(root.metadata.case_id) == 2
+        assert store.derive_layer(root.metadata.case_id) == "L3"

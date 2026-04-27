@@ -79,6 +79,7 @@ export default function EventsPage() {
             <Link href="/" className="text-gray-500 hover:text-gray-900">Cases</Link>
             <Link href="/events" className="font-medium text-gray-900">Events</Link>
             <Link href="/hierarchy" className="text-gray-500 hover:text-gray-900">Hierarchy</Link>
+            <Link href="/seed" className="text-gray-500 hover:text-gray-900">Seed</Link>
           </nav>
         </div>
       </header>

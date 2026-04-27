@@ -36,10 +36,10 @@ from chaeshin.planner import GraphPlanner, TaskTree
 
 
 def _bump_layer(layer: str, delta: int) -> str:
-    """레이어 라벨을 ±delta만큼 이동.
+    """레이어 라벨을 ±delta만큼 이동 — 표시용 라벨 헬퍼.
 
-    "L1"+1 → "L2", "L2"-1 → "L1". 고정 3단계 가정 없음 — L4/L5도 자연스럽게 이동.
-    파싱 실패하거나 결과가 0 이하면 "L1"로 폴백.
+    실제 layer 는 트리에서 derived 라 reflection 의 escalation 같은 시나리오 표시 텍스트
+    용으로만 쓰임. "L1"+1 → "L2", "L2"-1 → "L1". 결과가 0 이하면 "L1"로 폴백.
     """
     if not layer.startswith("L"):
         return "L1"
@@ -212,14 +212,8 @@ class ReflectionAgent(BaseAgent):
         saved_ids = {}
         if self.case_store and case:
             old_meta = case.metadata
-            # 기존 케이스를 한 단계 아래로 — depth 기반 일반 계산.
-            # 고정 L1/L2/L3 가정 없음. 깊이가 무제한이어도 작동.
-            old_depth = getattr(old_meta, "depth", 0)
-            old_layer = getattr(old_meta, "layer", "L1") or "L1"
-            new_parent_depth = old_depth + 1
-            new_parent_layer = _bump_layer(old_layer, +1)
-
             # 새 상위 케이스 생성 — pending 으로 저장. verdict는 사용자 권한.
+            # layer/depth 는 자식 링크에서 자동 derived (한 단계 위로).
             new_case_id = str(uuid.uuid4())
             new_case = Case(
                 problem_features=ProblemFeatures(
@@ -231,8 +225,6 @@ class ReflectionAgent(BaseAgent):
                 outcome=Outcome(status="pending"),
                 metadata=CaseMetadata(
                     case_id=new_case_id,
-                    layer=new_parent_layer,
-                    depth=new_parent_depth,
                     difficulty=getattr(old_meta, "difficulty", 0) + 1,
                     child_case_ids=[old_meta.case_id],
                     source="reflection_escalate",

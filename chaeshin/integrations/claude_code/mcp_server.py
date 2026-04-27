@@ -106,16 +106,17 @@ def _format_case(
     score: float,
     include_children: bool = False,
     include_parent: bool = False,
-    depth: int = 0,
+    recursion_depth: int = 0,
 ) -> Dict[str, Any]:
     g = case.solution.tool_graph
     meta = case.metadata
+    derived_depth = store.derive_depth(meta.case_id)
     formatted: Dict[str, Any] = {
         "case_id": meta.case_id,
         "similarity": round(score, 4),
         "request": case.problem_features.request,
         "category": case.problem_features.category,
-        "layer": getattr(meta, "layer", "L1") or "L1",
+        "layer": f"L{derived_depth + 1}",
         "graph": {
             "nodes": [
                 {"id": n.id, "tool": n.tool, "note": n.note, "params_hint": n.params_hint}
@@ -136,9 +137,8 @@ def _format_case(
         },
     }
 
-    depth = getattr(meta, "depth", 0)
-    if depth:
-        formatted["depth"] = depth
+    if derived_depth:
+        formatted["depth"] = derived_depth
     wait_mode = getattr(meta, "wait_mode", "deadline")
     deadline_at = getattr(meta, "deadline_at", "")
     if deadline_at or wait_mode != "deadline":
@@ -154,18 +154,24 @@ def _format_case(
     if difficulty > 0:
         formatted["difficulty"] = difficulty
 
-    if include_children and depth < 6:
+    if include_children and recursion_depth < 6:
         children = store.get_children(meta.case_id)
         if children:
             formatted["children"] = [
-                _format_case(store, c, 0.0, include_children=True, depth=depth + 1)
+                _format_case(
+                    store, c, 0.0,
+                    include_children=True,
+                    recursion_depth=recursion_depth + 1,
+                )
                 for c in children
             ]
 
-    if include_parent and depth == 0:
+    if include_parent and recursion_depth == 0:
         parent = store.get_parent(meta.case_id)
         if parent:
-            formatted["parent"] = _format_case(store, parent, 0.0, depth=depth + 1)
+            formatted["parent"] = _format_case(
+                store, parent, 0.0, recursion_depth=recursion_depth + 1,
+            )
 
     return formatted
 
@@ -277,8 +283,6 @@ def chaeshin_retain(
     category: str = "",
     keywords: str = "",
     summary: str = "",
-    layer: str = "L1",
-    depth: int = 0,
     parent_case_id: str = "",
     parent_node_id: str = "",
     difficulty: int = 0,
@@ -293,9 +297,10 @@ def chaeshin_retain(
     If no verdict arrives by `deadline_at`, the case stays `pending` (중간 상태).
 
     Hierarchy:
-        depth=0 = leaf (atomic tool call). depth=n = composite of depth=n-1 children.
-        Decompose recursively until every leaf is a single tool call — no fixed 3 layers.
-        `layer` is a free-form display label (e.g. "L1" for leaf, "L3" for root).
+        Layer/depth are **derived** from the tree topology — never passed in. A case
+        with no children is L1 (leaf, atomic tool call). One with children is L{N+1}
+        where N is the max child depth. Decompose recursively until every leaf is
+        a single tool call. To form a tree, pass `parent_case_id` + `parent_node_id`.
 
     Args:
         request: Original user request
@@ -303,11 +308,9 @@ def chaeshin_retain(
         category: Task category (e.g. "bug-fix", "feature", "ci")
         keywords: Comma-separated keywords for future matching
         summary: Short result summary
-        layer: Free-form display label ("L1" = leaf, higher = composite)
-        depth: 0 for leaf, n for composite (recursive decomposition depth)
         parent_case_id: Parent case ID when building a hierarchy tree
         parent_node_id: Which node in the parent case this case corresponds to
-        difficulty: Decomposition depth when this case is the root
+        difficulty: Optional difficulty estimate (for retrieve ranking)
         child_case_ids: Comma-separated direct child case IDs
         wait_mode: "deadline" (default — auto-release after deadline) or "blocking" (wait forever)
         deadline_seconds: Seconds until verdict deadline (default 7200 = 2h). 0 = no deadline.
@@ -351,8 +354,6 @@ def chaeshin_retain(
         metadata=CaseMetadata(
             source="claude_code",
             tags=kw_list + ["claude_code"],
-            layer=layer or "L1",
-            depth=depth,
             parent_case_id=parent_case_id,
             parent_node_id=parent_node_id,
             difficulty=difficulty,
@@ -367,13 +368,15 @@ def chaeshin_retain(
     if parent_case_id:
         store.link_parent_child(parent_case_id, case.metadata.case_id, parent_node_id)
 
+    derived_depth = store.derive_depth(case_id)
+    derived_layer = f"L{derived_depth + 1}"
     _event_log.record(
         "retain",
         payload={
             "request": request,
             "category": category,
-            "layer": case.metadata.layer,
-            "depth": depth,
+            "layer": derived_layer,
+            "depth": derived_depth,
             "status": "pending",
             "parent_case_id": parent_case_id,
             "wait_mode": wait_mode,
@@ -388,8 +391,8 @@ def chaeshin_retain(
             "status": "saved",
             "case_id": case_id,
             "outcome_status": "pending",
-            "layer": case.metadata.layer,
-            "depth": depth,
+            "layer": derived_layer,
+            "depth": derived_depth,
             "parent_case_id": parent_case_id or None,
             "wait_mode": wait_mode,
             "deadline_at": deadline_at,
@@ -596,7 +599,7 @@ def chaeshin_stats() -> str:
     now = datetime.now()
     overdue_pending = 0
     for c in store.cases:
-        layer = getattr(c.metadata, "layer", "L1") or "L1"
+        layer = store.derive_layer(c.metadata.case_id)
         layers[layer] = layers.get(layer, 0) + 1
         status = getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")
         statuses[status] = statuses.get(status, 0) + 1
@@ -656,13 +659,14 @@ def chaeshin_feedback(
     if not updated:
         return json.dumps({"error": "Failed to add feedback"}, ensure_ascii=False)
 
+    derived_layer = store.derive_layer(case_id)
     _event_log.record(
         "feedback",
         payload={
             "feedback_type": feedback_type,
             "feedback": feedback,
             "feedback_count": updated.metadata.feedback_count,
-            "layer": getattr(updated.metadata, "layer", "L1"),
+            "layer": derived_layer,
         },
         case_ids=[case_id],
     )
@@ -674,7 +678,7 @@ def chaeshin_feedback(
             "feedback_type": feedback_type,
             "feedback_count": updated.metadata.feedback_count,
             "feedback_log": updated.metadata.feedback_log[-3:],
-            "layer": getattr(updated.metadata, "layer", "L1"),
+            "layer": derived_layer,
         },
         ensure_ascii=False,
         indent=2,
@@ -720,7 +724,7 @@ def chaeshin_decompose(
                 "case_id": meta.case_id,
                 "similarity": round(score, 4),
                 "request": case.problem_features.request,
-                "layer": getattr(meta, "layer", "L1") or "L1",
+                "layer": store.derive_layer(meta.case_id),
                 "difficulty": getattr(meta, "difficulty", 0),
                 "feedback_count": getattr(meta, "feedback_count", 0),
                 "has_children": bool(getattr(meta, "child_case_ids", [])),
@@ -728,17 +732,18 @@ def chaeshin_decompose(
         )
 
     leaf_rule = (
-        "리프 기준: 해당 노드가 available_tools 중 하나로 **한 번의 tool-call**로 완결되면 리프(depth=0, 'L1'). "
-        "그렇지 않으면 더 세분화된 자식 케이스로 분해. 깊이는 고정 3단계 아님 — tool로 해결 가능할 때까지 계속."
+        "리프 기준: 해당 노드가 available_tools 중 하나로 **한 번의 tool-call**로 완결되면 리프('L1'). "
+        "그렇지 않으면 더 세분화된 자식 케이스로 분해. 깊이는 고정 3단계 아님 — tool로 해결 가능할 때까지 계속. "
+        "layer/depth 는 retain 시 인자로 넘기지 않는다 — 트리에서 derived."
     )
 
     retain_protocol = {
         "style": "recursive_tree",
         "leaf_rule": leaf_rule,
-        "order": "root(depth=n) → children(depth=n-1) → ... → leaves(depth=0).",
+        "order": "루트부터 저장하고 반환된 case_id를 자식 retain 의 parent_case_id 로 전달.",
         "linkage": (
             "각 하위 retain 시 parent_case_id에 상위 case_id, parent_node_id에 해당되는 부모 노드 id를 지정하면 "
-            "chaeshin이 자동으로 부모-자식 링크를 설정합니다."
+            "chaeshin이 자동으로 부모-자식 링크를 설정합니다. layer/depth 는 derived — 응답으로 돌려받음."
         ),
         "verdict_rule": (
             "각 chaeshin_retain은 outcome=pending으로 저장됩니다. 사용자가 성공/실패를 말하면 "
@@ -750,37 +755,31 @@ def chaeshin_decompose(
                 "step": 1,
                 "call": "chaeshin_retain",
                 "args": {
-                    "layer": "L{N}",
-                    "depth": "N-1",
                     "request": query,
                     "graph": {"nodes": ["<상위 단계들>"], "edges": ["..."]},
                     "difficulty": "<estimated depth>",
                 },
-                "note": "루트를 먼저 저장하고 반환된 case_id 보관. 한 번에 tool로 해결 가능하면 이 단계에서 끝(depth=0).",
+                "note": "루트를 먼저 저장. 한 번에 tool로 해결 가능하면 이 단계에서 끝 (자식이 없으니 자동으로 L1).",
             },
             {
                 "step": 2,
-                "call": "chaeshin_retain (depth-1 자식마다 재귀)",
+                "call": "chaeshin_retain (각 비-leaf 노드마다 재귀)",
                 "args": {
-                    "layer": "L{N-1}",
-                    "depth": "N-2",
                     "parent_case_id": "<상위 case_id>",
                     "parent_node_id": "<상위 그래프의 해당 노드 id>",
                     "graph": {"nodes": ["<더 작은 단계들>"]},
                 },
-                "note": "각 노드가 여전히 tool 하나로 불가능하면 또 자식으로 분해. 리프가 될 때까지 반복.",
+                "note": "각 노드가 여전히 tool 하나로 불가능하면 또 자식으로 분해. 리프가 될 때까지 반복. 부모의 layer 는 자동으로 한 단계 올라감.",
             },
             {
                 "step": 3,
-                "call": "chaeshin_retain (리프 — depth=0)",
+                "call": "chaeshin_retain (리프)",
                 "args": {
-                    "layer": "L1",
-                    "depth": 0,
                     "parent_case_id": "<상위 case_id>",
                     "parent_node_id": "<상위 그래프의 해당 노드 id>",
                     "graph": {"nodes": [{"id": "n1", "tool": "Bash", "note": "..."}]},
                 },
-                "note": "리프: tool 단일 호출 패턴. 더 이상 분해하지 않음.",
+                "note": "리프: tool 단일 호출 패턴. 자식 없음 → derived layer = L1.",
             },
             {
                 "step": 4,
@@ -813,9 +812,9 @@ def chaeshin_decompose(
 
     layer_schema = {
         "recursive": True,
-        "leaf": "depth=0 / 'L1' — tool 하나로 해결되는 원자 패턴",
-        "composite": "depth=n>0 / 'L{n+1}' — 하위(depth=n-1) 케이스들의 묶음",
-        "note": "레이어는 고정 3단계가 아님. tool로 해결될 수 있을 때까지 계속 분해해서 그래프 위에 그래프를 쌓음.",
+        "leaf": "자식 없음 → 'L1' (tool 하나로 해결되는 원자 패턴)",
+        "composite": "자식 있음 → 'L{max(child depth)+2}' — 깊이는 트리에서 derived",
+        "note": "레이어는 고정 3단계가 아님. retain 시 layer/depth 인자는 받지 않음 — parent_case_id 만 넘기면 트리 토폴로지에서 자동 계산.",
     }
 
     return json.dumps(
