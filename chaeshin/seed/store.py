@@ -18,7 +18,7 @@ def default_seed_db_path() -> str:
     """Seed DB 기본 경로. 환경변수 ``CHAESHIN_SEED_DB_PATH`` 로 오버라이드."""
     env = os.getenv("CHAESHIN_SEED_DB_PATH", "")
     if env:
-        return env
+        return os.path.expanduser(env)
     base = os.path.expanduser(os.getenv("CHAESHIN_STORE_DIR", "~/.chaeshin"))
     return os.path.join(base, "seed.db")
 

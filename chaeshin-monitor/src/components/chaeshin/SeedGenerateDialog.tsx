@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ export function SeedGenerateDialog({
   const [similarityThreshold, setSimilarityThreshold] = useState(0.85);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<ProgressLine[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +51,22 @@ export function SeedGenerateDialog({
     });
     setProgress([]);
   }, [open]);
+
+  // 컴포넌트 unmount / Dialog close 시 진행 중 fetch 가 있으면 abort.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && running) {
+      const ok = confirm("생성이 진행 중입니다. 중단하고 닫을까요?");
+      if (!ok) return;
+      abortRef.current?.abort();
+    }
+    onOpenChange(next);
+  };
 
   const toolsByCategory = useMemo(() => {
     const out = new Map<string, ChaeshinTool[]>();
@@ -86,6 +103,9 @@ export function SeedGenerateDialog({
     setRunning(true);
     setProgress([]);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/seed/generate", {
         method: "POST",
@@ -96,6 +116,7 @@ export function SeedGenerateDialog({
           count,
           similarityThreshold,
         }),
+        signal: controller.signal,
       });
       if (!res.body) {
         toast.error("생성 응답을 받을 수 없습니다");
@@ -145,15 +166,21 @@ export function SeedGenerateDialog({
       }
       toast.success(`${acceptedCount}건 생성됨`);
       onCompleted();
-    } catch (e) {
-      toast.error(String(e));
+    } catch (e: unknown) {
+      const err = e as { name?: string };
+      if (err?.name === "AbortError") {
+        toast.message("생성 중단됨");
+      } else {
+        toast.error(String(e));
+      }
     } finally {
+      abortRef.current = null;
       setRunning(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -273,10 +300,9 @@ export function SeedGenerateDialog({
           </Badge>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={running}
+            onClick={() => handleOpenChange(false)}
           >
-            닫기
+            {running ? "중단" : "닫기"}
           </Button>
           <Button onClick={handleRun} disabled={running}>
             {running ? (

@@ -52,6 +52,13 @@ class TestSeedStoreIsolation:
         monkeypatch.setenv("CHAESHIN_SEED_DB_PATH", str(custom))
         assert default_seed_db_path() == str(custom)
 
+    def test_default_seed_db_path_expands_tilde_in_env(self, monkeypatch):
+        # env 값에 ~ 가 들어있어도 literal "~" 디렉토리가 아니라 home 확장.
+        monkeypatch.setenv("CHAESHIN_SEED_DB_PATH", "~/seed-tilde-test.db")
+        out = default_seed_db_path()
+        assert "~" not in out
+        assert out.endswith("/seed-tilde-test.db")
+
     def test_default_seed_db_path_under_store_dir(self, monkeypatch, tmp_path: Path):
         monkeypatch.delenv("CHAESHIN_SEED_DB_PATH", raising=False)
         monkeypatch.setenv("CHAESHIN_STORE_DIR", str(tmp_path))

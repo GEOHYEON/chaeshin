@@ -44,6 +44,12 @@ export async function POST(req: NextRequest) {
     const child = spawn("uv", args, { cwd, env: { ...process.env } });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (res: Response) => {
+      if (settled) return;
+      settled = true;
+      resolve(res);
+    };
     child.stdout.on("data", (c) => {
       stdout += c.toString("utf-8");
     });
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest) {
           payload = null;
         }
       }
-      resolve(
+      finish(
         NextResponse.json({
           exit_code: code ?? -1,
           payload,
@@ -70,10 +76,15 @@ export async function POST(req: NextRequest) {
         }),
       );
     });
-    child.on("error", (err) => {
-      resolve(
+    child.on("error", (err: NodeJS.ErrnoException) => {
+      const code = err.code || "";
+      const message =
+        code === "ENOENT"
+          ? "uv 명령을 찾을 수 없습니다. uv 를 설치하거나 PATH 를 확인하세요."
+          : String(err);
+      finish(
         NextResponse.json(
-          { error: String(err), exit_code: -1 },
+          { error: message, code, exit_code: -1 },
           { status: 500 },
         ),
       );

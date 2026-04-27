@@ -79,6 +79,17 @@ export async function POST(req: NextRequest) {
   }
 
   const cwd = pythonProjectCwd();
+  let childRef: ReturnType<typeof spawn> | null = null;
+
+  const cleanupSample = async () => {
+    if (tempSamplePath) {
+      try {
+        await fs.unlink(tempSamplePath);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const stream = new ReadableStream({
     start(controller) {
@@ -87,9 +98,14 @@ export async function POST(req: NextRequest) {
         cwd,
         env: { ...process.env },
       });
+      childRef = child;
 
       const emit = (event: Record<string, unknown>) => {
-        controller.enqueue(enc.encode(JSON.stringify(event) + "\n"));
+        try {
+          controller.enqueue(enc.encode(JSON.stringify(event) + "\n"));
+        } catch {
+          // controller already closed (client aborted)
+        }
       };
 
       let stdoutBuf = "";
@@ -111,7 +127,6 @@ export async function POST(req: NextRequest) {
       });
 
       child.stderr.on("data", (chunk: Buffer) => {
-        // structlog 출력 — 진행 상황 일부 표시
         const text = chunk.toString("utf-8");
         for (const line of text.split("\n")) {
           if (line.trim()) emit({ event: "log", line });
@@ -120,21 +135,50 @@ export async function POST(req: NextRequest) {
 
       child.on("close", async (code) => {
         emit({ event: "done", exit_code: code ?? -1 });
-        if (tempSamplePath) {
-          try {
-            await fs.unlink(tempSamplePath);
-          } catch {
-            // ignore
-          }
+        await cleanupSample();
+        try {
+          controller.close();
+        } catch {
+          // already closed
         }
-        controller.close();
       });
 
-      child.on("error", (err) => {
-        emit({ event: "error", message: String(err) });
-        controller.close();
+      child.on("error", (err: NodeJS.ErrnoException) => {
+        const code = err.code || "";
+        const message =
+          code === "ENOENT"
+            ? "uv 명령을 찾을 수 없습니다. uv 를 설치하거나 PATH 를 확인하세요."
+            : String(err);
+        emit({ event: "error", code, message });
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
       });
     },
+    cancel() {
+      // 클라이언트가 fetch abort → child 종료해서 LLM 비용 추가 방지.
+      if (childRef && childRef.exitCode === null) {
+        try {
+          childRef.kill("SIGTERM");
+        } catch {
+          // ignore
+        }
+      }
+      void cleanupSample();
+    },
+  });
+
+  // req.signal 이 abort 되면 stream 도 같이 cancel 하도록 연결.
+  req.signal.addEventListener("abort", () => {
+    if (childRef && childRef.exitCode === null) {
+      try {
+        childRef.kill("SIGTERM");
+      } catch {
+        // ignore
+      }
+    }
   });
 
   return new Response(stream, {
