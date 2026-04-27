@@ -432,6 +432,10 @@ def main():
     p_ret.add_argument("--top-k", type=int, default=3)
     p_ret.set_defaults(func=cmd_retrieve)
 
+    # seed (cold-start bootstrapping)
+    from chaeshin.cli import seed_cmd
+    seed_cmd.add_subparser(sub)
+
     args = parser.parse_args()
     if not args.command:
         parser.print_help()
@@ -440,6 +444,12 @@ def main():
     if args.command == "setup" and not getattr(args, "platform", None):
         p_setup.print_help()
         sys.exit(0)
+
+    if args.command == "seed" and not getattr(args, "seed_command", None):
+        seed_parser = sub.choices.get("seed")
+        if seed_parser is not None:
+            seed_parser.print_help()
+            sys.exit(0)
 
     args.func(args)
 
