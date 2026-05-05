@@ -148,27 +148,30 @@ class WeaviateCaseStore:
 
         coll = self._client.collections.get(COLLECTION_NAME)
 
-        if self.embed_fn:
-            query_vec = self.embed_fn(query_text)
-            result = coll.query.near_vector(
-                near_vector=query_vec,
-                filters=Filter.by_property("experienceType").equal(EXPERIENCE_TYPE),
-                limit=min(top_k, len(self.cases)),
-                return_metadata=weaviate.classes.query.MetadataQuery(distance=True),
-            )
-        else:
-            result = coll.query.near_text(
-                query=query_text,
-                filters=Filter.by_property("experienceType").equal(EXPERIENCE_TYPE),
-                limit=min(top_k, len(self.cases)),
-                return_metadata=weaviate.classes.query.MetadataQuery(distance=True),
-            )
+        query_vec = self.embed_fn(query_text) if self.embed_fn else None
+        result = coll.query.hybrid(
+            query=query_text,
+            vector=query_vec,
+            alpha=0.65 if query_vec else 0.0,
+            query_properties=["userQuery", "keywords", "feedback", "inputJson"],
+            filters=Filter.by_property("experienceType").equal(EXPERIENCE_TYPE),
+            limit=min(top_k, len(self.cases)),
+            return_metadata=weaviate.classes.query.MetadataQuery(distance=True, score=True),
+        )
 
         scored: List[Tuple[Case, float]] = []
         for obj in result.objects:
-            distance = obj.metadata.distance if obj.metadata and obj.metadata.distance else 0
-            similarity = round(1.0 - distance, 3)
-            case = self._find_case_by_id(str(obj.uuid))
+            distance = getattr(obj.metadata, "distance", None) if obj.metadata else None
+            raw_score = getattr(obj.metadata, "score", None) if obj.metadata else None
+            if isinstance(distance, (int, float)):
+                similarity = round(max(0.0, 1.0 - float(distance)), 3)
+            else:
+                try:
+                    similarity = round(max(0.0, min(1.0, float(raw_score))), 3)
+                except (TypeError, ValueError):
+                    similarity = 0.0
+
+            case = self._find_case_by_id(self._case_id_from_weaviate(obj.properties, str(obj.uuid)))
             if case:
                 scored.append((case, similarity))
 
@@ -334,6 +337,20 @@ class WeaviateCaseStore:
             if c.metadata.case_id == case_id:
                 return c
         return None
+
+    @staticmethod
+    def _case_id_from_weaviate(props: Dict[str, Any], uuid: str) -> str:
+        source_id = props.get("sourceLogId") or props.get("postgresId")
+        if source_id:
+            return str(source_id)
+        try:
+            meta_data = json.loads(props.get("metadataJson", "{}"))
+            case_id = meta_data.get("metadata", {}).get("case_id")
+            if case_id:
+                return str(case_id)
+        except Exception:
+            pass
+        return uuid
 
     @staticmethod
     def _problem_to_text(problem: ProblemFeatures) -> str:

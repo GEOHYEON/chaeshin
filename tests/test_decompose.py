@@ -157,6 +157,27 @@ class TestHostDrivenDecomposition:
         assert payload["deadline_at"]  # 기본 deadline 설정됨
         assert payload["layer"] == "L1"  # 자식 없음 → derived L1
 
+    def test_retrieve_uses_query_with_empty_keywords(self, isolated_mcp):
+        """MCP retrieve는 query 원문만으로 검색하고 keywords는 자동 생성하지 않는다."""
+        srv = isolated_mcp
+        retained = json.loads(srv.chaeshin_retain(
+            request="저녁 한상 알레르기 식단",
+            graph={"nodes": [{"id": "n1", "tool": "plan_meal"}]},
+            category="가정식",
+        ))
+        cid = retained["case_id"]
+        srv.chaeshin_verdict(case_id=cid, status="success", note="ok")
+
+        raw = srv.chaeshin_retrieve(
+            query="저녁 한상 차리기 3인분 알레르기 있음",
+            min_similarity=0.0,
+        )
+        payload = json.loads(raw)
+
+        assert payload["search"]["mode"] in {"hybrid", "lexical"}
+        assert payload["search"]["keywords"] == []
+        assert any(c["case_id"] == cid for c in payload["successes"])
+
     def test_verdict_transitions_pending_to_success(self, isolated_mcp):
         srv = isolated_mcp
         retained = json.loads(srv.chaeshin_retain(

@@ -26,6 +26,11 @@ from chaeshin.schema import (
     CaseMetadata,
     ToolGraph,
 )
+from chaeshin.search import (
+    build_search_problem,
+    lexical_similarity,
+    problem_to_search_text,
+)
 from chaeshin.storage.sqlite_backend import SQLiteBackend
 
 logger = structlog.get_logger(__name__)
@@ -94,10 +99,10 @@ class CaseStore:
         if not self.cases:
             return []
 
+        search_problem = build_search_problem(problem)
         if self.embed_fn:
-            return self._retrieve_by_embedding(problem, top_k)
-        else:
-            return self._retrieve_by_keywords(problem, top_k)
+            return self._retrieve_hybrid(search_problem, top_k)
+        return self._retrieve_by_keywords(search_problem, top_k)
 
     def retrieve_best(self, problem: ProblemFeatures) -> Optional[Case]:
         """가장 유사한 케이스 1개만 반환."""
@@ -111,66 +116,54 @@ class CaseStore:
         problem: ProblemFeatures,
         top_k: int,
     ) -> List[Tuple[Case, float]]:
-        """키워드 기반 유사도 검색 (임베딩 없을 때 fallback)."""
-        query_keywords = set(problem.keywords)
-        query_category = problem.category
-
-        scored = []
+        """렉시컬 유사도 검색 (임베딩 없을 때 fallback)."""
+        scored: List[Tuple[Case, float]] = []
         for case in self.cases:
-            score = 0.0
-            case_keywords = set(case.problem_features.keywords)
-
-            # 카테고리 일치 가중치
-            if case.problem_features.category == query_category:
-                score += 0.4
-
-            # 키워드 Jaccard 유사도
-            if query_keywords and case_keywords:
-                intersection = query_keywords & case_keywords
-                union = query_keywords | case_keywords
-                jaccard = len(intersection) / len(union) if union else 0
-                score += jaccard * 0.4
-
-            # 성공률/만족도 가중치
-            if case.outcome.success:
-                score += 0.1
-            score += case.outcome.user_satisfaction * 0.1
-
+            score = lexical_similarity(problem, case.problem_features) * 0.8
+            score += self._quality_score(case) * 0.2
             scored.append((case, round(score, 3)))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
 
-    def _retrieve_by_embedding(
+    def _retrieve_hybrid(
         self,
         problem: ProblemFeatures,
         top_k: int,
     ) -> List[Tuple[Case, float]]:
-        """임베딩 기반 유사도 검색.
+        """벡터 + 렉시컬 + 메타 신호를 섞은 하이브리드 검색.
 
-        feedback_count 가중치 반영:
-            final_score = similarity * 0.7 + feedback_weight * 0.3
+        final_score = dense * 0.6 + lexical * 0.3 + quality * 0.1
+        임베딩이 없는 legacy case도 lexical 점수로 검색 후보에 남긴다.
         """
-        query_text = f"{problem.request} {' '.join(problem.keywords)}"
-        query_vec = self.embed_fn(query_text)
+        query_text = problem_to_search_text(problem)
+        try:
+            query_vec = self.embed_fn(query_text) if self.embed_fn else []
+        except Exception as e:
+            logger.warning("query_embedding_failed", error=str(e))
+            return self._retrieve_by_keywords(problem, top_k)
 
-        scored = []
+        scored: List[Tuple[Case, float]] = []
         for case in self.cases:
             case_id = case.metadata.case_id
-            if case_id not in self._embeddings:
-                continue
+            dense_score = 0.0
+            if query_vec and case_id in self._embeddings:
+                dense_score = self._cosine_similarity(query_vec, self._embeddings[case_id])
 
-            sim = self._cosine_similarity(query_vec, self._embeddings[case_id])
-
-            # 피드백 가중치 — 피드백 많은 케이스 우선
-            fb_count = getattr(case.metadata, "feedback_count", 0)
-            feedback_weight = min(fb_count / 10.0, 1.0) if fb_count > 0 else 0.0
-            final_score = sim * 0.7 + feedback_weight * 0.3
+            text_score = lexical_similarity(problem, case.problem_features)
+            final_score = dense_score * 0.6 + text_score * 0.3 + self._quality_score(case) * 0.1
 
             scored.append((case, round(final_score, 3)))
 
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
+
+    def _quality_score(self, case: Case) -> float:
+        """검색 랭킹용 품질 신호. 성공/실패 bucket 분리는 별도 단계에서 한다."""
+        satisfaction = max(0.0, min(1.0, case.outcome.user_satisfaction))
+        feedback_count = getattr(case.metadata, "feedback_count", 0)
+        feedback_weight = min(feedback_count / 10.0, 1.0) if feedback_count > 0 else 0.0
+        return max(satisfaction, feedback_weight)
 
     @staticmethod
     def _cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -209,10 +202,7 @@ class CaseStore:
         # 임베딩 생성 (embed_fn이 있을 때)
         if self.embed_fn:
             try:
-                text = (
-                    f"{case.problem_features.request} "
-                    f"{' '.join(case.problem_features.keywords)}"
-                )
+                text = problem_to_search_text(build_search_problem(case.problem_features))
                 self._embeddings[case.metadata.case_id] = self.embed_fn(text)
             except Exception as e:
                 logger.warning(
@@ -283,11 +273,9 @@ class CaseStore:
         if not self.cases:
             return {"cases": [], "warnings": []}
 
-        # 전체 케이스에 대해 유사도 계산
-        if self.embed_fn:
-            all_results = self._retrieve_by_embedding(problem, len(self.cases))
-        else:
-            all_results = self._retrieve_by_keywords(problem, len(self.cases))
+        # 전체 케이스에 대해 유사도 계산. retrieve()가 사용자 입력을 검색 프로파일로
+        # 보강하고, 임베딩이 있으면 하이브리드 랭킹을 적용한다.
+        all_results = self.retrieve(problem, top_k=len(self.cases))
 
         def _status(c: Case) -> str:
             return getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")

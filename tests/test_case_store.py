@@ -56,6 +56,37 @@ class TestRetrieve:
         # 된장찌개가 2순위 (같은 카테고리 + "찌개" 키워드 공유)
         assert results[1][0].problem_features.request == "된장찌개"
 
+    def test_retrieve_uses_raw_user_input_without_keywords(self):
+        """keywords가 비어 있어도 원문 자체로 검색한다."""
+        store = CaseStore()
+        store.retain(_make_case("CI 캐시 오류 수정", "devops", ["CI", "cache", "pnpm"]))
+        store.retain(_make_case("저녁 한상 알레르기 식단", "가정식", ["저녁", "한상", "3인분", "알레르기"]))
+
+        problem = ProblemFeatures(
+            request="저녁 한상 차리기 3인분 알레르기 있음",
+            category="",
+            keywords=[],
+        )
+        results = store.retrieve(problem, top_k=2)
+
+        assert results[0][0].problem_features.request == "저녁 한상 알레르기 식단"
+        assert results[0][1] > results[1][1]
+
+    def test_embedding_retrieve_uses_hybrid_lexical_signal(self):
+        """임베딩 점수가 같아도 원문/키워드 신호로 재랭킹한다."""
+        store = CaseStore(embed_fn=lambda text: [1.0, 0.0])
+        store.retain(_make_case("CI 캐시 오류 수정", "devops", ["CI", "cache", "pnpm"]))
+        store.retain(_make_case("저녁 한상 알레르기 식단", "가정식", ["저녁", "한상", "3인분", "알레르기"]))
+
+        problem = ProblemFeatures(
+            request="저녁 한상 차리기 3인분 알레르기 있음",
+            category="",
+            keywords=[],
+        )
+        results = store.retrieve(problem, top_k=2)
+
+        assert results[0][0].problem_features.request == "저녁 한상 알레르기 식단"
+
     def test_retrieve_empty_store(self):
         """빈 저장소에서 검색."""
         store = CaseStore()

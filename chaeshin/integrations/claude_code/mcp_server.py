@@ -48,6 +48,7 @@ from chaeshin.schema import (
     GraphEdge,
 )
 from chaeshin.case_store import CaseStore
+from chaeshin.search import build_search_problem, normalize_keywords
 from chaeshin.event_log import EventLog
 from chaeshin.storage.sqlite_backend import SQLiteBackend
 
@@ -207,9 +208,11 @@ def chaeshin_retrieve(
     """
     store = _new_store()
 
-    kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
-
-    problem = ProblemFeatures(request=query, category=category, keywords=kw_list)
+    supplied_keywords = normalize_keywords(keywords)
+    problem = build_search_problem(
+        ProblemFeatures(request=query, category=category, keywords=supplied_keywords)
+    )
+    kw_list = problem.keywords
     result = store.retrieve_with_warnings(problem, top_k=top_k, top_k_failures=top_k_failures)
 
     def _passes_filter(case: Case) -> bool:
@@ -241,6 +244,7 @@ def chaeshin_retrieve(
             "query": query,
             "category": category,
             "keywords": kw_list,
+            "search_mode": "hybrid" if store.embed_fn else "lexical",
             "top_k": top_k,
             "min_similarity": min_similarity,
             "n_successes": len(successes),
@@ -257,12 +261,23 @@ def chaeshin_retrieve(
 
     if not successes and not failures and not pending:
         return json.dumps(
-            {"message": "No similar cases found", "total_in_store": len(store.cases)},
+            {
+                "message": "No similar cases found",
+                "search": {
+                    "mode": "hybrid" if store.embed_fn else "lexical",
+                    "keywords": kw_list,
+                },
+                "total_in_store": len(store.cases),
+            },
             ensure_ascii=False,
         )
 
     return json.dumps(
         {
+            "search": {
+                "mode": "hybrid" if store.embed_fn else "lexical",
+                "keywords": kw_list,
+            },
             "successes": successes,
             "failures": failures,
             "pending": pending,
@@ -336,7 +351,10 @@ def chaeshin_retain(
         for e in graph_data.get("edges", [])
     ]
 
-    kw_list = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
+    problem = build_search_problem(
+        ProblemFeatures(request=request, category=category, keywords=normalize_keywords(keywords))
+    )
+    kw_list = problem.keywords
     child_ids = [c.strip() for c in child_case_ids.split(",") if c.strip()] if child_case_ids else []
 
     deadline_at = ""
@@ -344,7 +362,7 @@ def chaeshin_retain(
         deadline_at = (datetime.now() + timedelta(seconds=deadline_seconds)).isoformat()
 
     case = Case(
-        problem_features=ProblemFeatures(request=request, category=category, keywords=kw_list),
+        problem_features=problem,
         solution=Solution(tool_graph=ToolGraph(nodes=nodes, edges=edges)),
         outcome=Outcome(
             status="pending",  # verdict 올 때까지 중간 상태
