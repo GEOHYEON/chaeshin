@@ -3,6 +3,7 @@ chaeshin-monitor/.next
 .git
 .env
 *.md
+!README.md
 docs
 tests
 examples
