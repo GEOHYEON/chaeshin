@@ -13,7 +13,9 @@ Retrieve → Reuse → Revise → Retain (CBR 4R 사이클)
 from __future__ import annotations
 
 import json
+import uuid
 import structlog
+from copy import deepcopy
 from datetime import datetime
 from dataclasses import asdict, fields as dataclass_fields
 from typing import Any, Callable, Coroutine, Dict, List, Optional, Set, Tuple
@@ -24,6 +26,8 @@ from chaeshin.schema import (
     Solution,
     Outcome,
     CaseMetadata,
+    GraphEdge,
+    GraphNode,
     ToolGraph,
 )
 from chaeshin.search import (
@@ -66,6 +70,21 @@ class CaseStore:
         if backend is not None and auto_load:
             self._load_from_backend()
 
+    @staticmethod
+    def _ensure_revision_metadata(case: Case):
+        """신규/레거시 케이스의 버전 메타 기본값을 정규화."""
+        meta = case.metadata
+        if not getattr(meta, "root_case_id", ""):
+            meta.root_case_id = meta.case_id
+        if not hasattr(meta, "is_head"):
+            meta.is_head = True
+        if not hasattr(meta, "revision_index"):
+            meta.revision_index = 0
+        if not hasattr(meta, "previous_case_id"):
+            meta.previous_case_id = ""
+        if not hasattr(meta, "revision_reason"):
+            meta.revision_reason = ""
+
     def _load_from_backend(self):
         """SQLite에서 케이스와 임베딩 로드."""
         if self.backend is None:
@@ -82,6 +101,13 @@ class CaseStore:
 
     # ── Retrieve ──────────────────────────────────────────────────────
 
+    def _retrieval_candidates(self) -> List[Case]:
+        """검색 후보는 live HEAD만 사용 — snapshot은 history 전용."""
+        return [
+            case for case in self.cases
+            if getattr(case.metadata, "is_head", True)
+        ]
+
     def retrieve(
         self,
         problem: ProblemFeatures,
@@ -96,7 +122,7 @@ class CaseStore:
         Returns:
             (Case, similarity_score) 튜플 리스트, 점수 내림차순
         """
-        if not self.cases:
+        if not self._retrieval_candidates():
             return []
 
         search_problem = build_search_problem(problem)
@@ -118,7 +144,7 @@ class CaseStore:
     ) -> List[Tuple[Case, float]]:
         """렉시컬 유사도 검색 (임베딩 없을 때 fallback)."""
         scored: List[Tuple[Case, float]] = []
-        for case in self.cases:
+        for case in self._retrieval_candidates():
             score = lexical_similarity(problem, case.problem_features) * 0.8
             score += self._quality_score(case) * 0.2
             scored.append((case, round(score, 3)))
@@ -144,7 +170,7 @@ class CaseStore:
             return self._retrieve_by_keywords(problem, top_k)
 
         scored: List[Tuple[Case, float]] = []
-        for case in self.cases:
+        for case in self._retrieval_candidates():
             case_id = case.metadata.case_id
             dense_score = 0.0
             if query_vec and case_id in self._embeddings:
@@ -184,6 +210,7 @@ class CaseStore:
         Returns:
             저장된 case_id
         """
+        self._ensure_revision_metadata(case)
         existing_idx = None
         for i, c in enumerate(self.cases):
             if c.metadata.case_id == case.metadata.case_id:
@@ -497,6 +524,169 @@ class CaseStore:
         logger.info("case_deleted", case_id=case_id)
         return True
 
+    @staticmethod
+    def _graph_from_parts(
+        nodes: List[Dict[str, Any]],
+        edges: Optional[List[Dict[str, Any]]] = None,
+    ) -> ToolGraph:
+        """dict 입력을 ToolGraph로 변환. 알려진 GraphNode/GraphEdge 필드만 반영."""
+        node_fields = {f.name for f in dataclass_fields(GraphNode)}
+        edge_fields = {f.name for f in dataclass_fields(GraphEdge)}
+
+        graph_nodes: List[GraphNode] = []
+        for i, raw in enumerate(nodes or []):
+            n = dict(raw or {})
+            data = {k: v for k, v in n.items() if k in node_fields}
+            data.setdefault("id", f"n{i}")
+            data.setdefault("tool", "unknown")
+            graph_nodes.append(GraphNode(**data))
+
+        graph_edges: List[GraphEdge] = []
+        for raw in edges or []:
+            e = dict(raw or {})
+            if "from" in e and "from_node" not in e:
+                e["from_node"] = e["from"]
+            if "to" in e and "to_node" not in e:
+                e["to_node"] = e["to"]
+            data = {k: v for k, v in e.items() if k in edge_fields}
+            data.setdefault("from_node", "")
+            data.setdefault("to_node", None)
+            graph_edges.append(GraphEdge(**data))
+
+        return ToolGraph(
+            nodes=graph_nodes,
+            edges=graph_edges,
+        )
+
+    @staticmethod
+    def _graph_diff(before: ToolGraph, after: ToolGraph) -> Dict[str, Any]:
+        """두 ToolGraph의 구조 차이를 node id와 edge dict 기준으로 계산."""
+        before_node_ids = [n.id for n in before.nodes]
+        after_node_ids = [n.id for n in after.nodes]
+        before_node_map = {n.id: asdict(n) for n in before.nodes}
+        after_node_map = {n.id: asdict(n) for n in after.nodes}
+
+        retained = [nid for nid in before_node_ids if nid in after_node_map]
+        added = [nid for nid in after_node_ids if nid not in before_node_map]
+        removed = [nid for nid in before_node_ids if nid not in after_node_map]
+        changed = [
+            nid for nid in retained
+            if before_node_map.get(nid) != after_node_map.get(nid)
+        ]
+
+        before_edges = [asdict(e) for e in before.edges]
+        after_edges = [asdict(e) for e in after.edges]
+        before_edge_keys = {json.dumps(e, sort_keys=True, ensure_ascii=False) for e in before_edges}
+        after_edge_keys = {json.dumps(e, sort_keys=True, ensure_ascii=False) for e in after_edges}
+        added_edges = [
+            e for e in after_edges
+            if json.dumps(e, sort_keys=True, ensure_ascii=False) not in before_edge_keys
+        ]
+        removed_edges = [
+            e for e in before_edges
+            if json.dumps(e, sort_keys=True, ensure_ascii=False) not in after_edge_keys
+        ]
+
+        return {
+            "before_nodes": before_node_ids,
+            "after_nodes": after_node_ids,
+            "retained_nodes": retained,
+            "added_nodes": added,
+            "removed_nodes": removed,
+            "changed_nodes": changed,
+            "added_edges": added_edges,
+            "removed_edges": removed_edges,
+        }
+
+    def _commit_graph_revision(
+        self,
+        case: Case,
+        new_graph: ToolGraph,
+        cascade: bool = True,
+        reason: str = "",
+    ) -> Dict[str, Any]:
+        """현재 HEAD를 snapshot으로 보존한 뒤 HEAD 그래프를 새 버전으로 교체."""
+        self._ensure_revision_metadata(case)
+        before_graph = deepcopy(case.solution.tool_graph)
+        diff = self._graph_diff(before_graph, new_graph)
+        now = datetime.now().isoformat()
+
+        snapshot = deepcopy(case)
+        snapshot.metadata.case_id = str(uuid.uuid4())
+        snapshot.metadata.is_head = False
+        snapshot.metadata.root_case_id = case.metadata.root_case_id or case.metadata.case_id
+        snapshot.metadata.previous_case_id = getattr(case.metadata, "previous_case_id", "") or ""
+        # snapshot의 revision_index/reason은 복사된 과거 버전의 값을 유지한다.
+        self.cases.append(snapshot)
+        self._persist(snapshot)
+
+        case.solution.tool_graph = deepcopy(new_graph)
+        case.metadata.previous_case_id = snapshot.metadata.case_id
+        case.metadata.revision_index = getattr(case.metadata, "revision_index", 0) + 1
+        case.metadata.is_head = True
+        case.metadata.root_case_id = case.metadata.root_case_id or case.metadata.case_id
+        case.metadata.revision_reason = reason
+        case.metadata.updated_at = now
+
+        if reason:
+            fb_log = getattr(case.metadata, "feedback_log", []) or []
+            fb_log.append(f"[revise] {reason}")
+            case.metadata.feedback_log = fb_log
+
+        self._persist(case)
+
+        orphaned: List[str] = []
+        if cascade:
+            # 자식 중 parent_node_id가 제거된 노드를 가리키면 → 고아화 처리
+            for child_id in list(getattr(case.metadata, "child_case_ids", []) or []):
+                child = self.get_case_by_id(child_id)
+                if not child:
+                    continue
+                pnode = getattr(child.metadata, "parent_node_id", "")
+                if pnode and pnode in diff["removed_nodes"]:
+                    child.outcome.status = "pending"
+                    child.outcome.success = False
+                    child.outcome.verdict_note = (
+                        f"parent revised — node '{pnode}' removed from upstream graph"
+                    )
+                    child.outcome.verdict_at = ""  # 재-verdict 필요
+                    fb_log = getattr(child.metadata, "feedback_log", []) or []
+                    fb_log.append(
+                        f"[cascade] parent node '{pnode}' removed by revise; needs review"
+                    )
+                    child.metadata.feedback_log = fb_log
+                    child.metadata.updated_at = now
+                    self._persist(child)
+                    orphaned.append(child_id)
+
+        logger.info(
+            "graph_revised",
+            case_id=case.metadata.case_id,
+            snapshot_case_id=snapshot.metadata.case_id,
+            revision_index=case.metadata.revision_index,
+            added=diff["added_nodes"],
+            removed=diff["removed_nodes"],
+            retained=len(diff["retained_nodes"]),
+            orphaned_children=orphaned,
+        )
+        return {
+            "case_id": case.metadata.case_id,
+            "snapshot_case_id": snapshot.metadata.case_id,
+            "previous_case_id": case.metadata.previous_case_id,
+            "root_case_id": case.metadata.root_case_id,
+            "revision_index": case.metadata.revision_index,
+            "before_nodes": diff["before_nodes"],
+            "after_nodes": diff["after_nodes"],
+            "retained_nodes": diff["retained_nodes"],
+            "added_nodes": diff["added_nodes"],
+            "removed_nodes": diff["removed_nodes"],
+            "changed_nodes": diff["changed_nodes"],
+            "added_edges": diff["added_edges"],
+            "removed_edges": diff["removed_edges"],
+            "orphaned_children": orphaned,
+            "reason": reason,
+        }
+
     def revise_graph(
         self,
         case_id: str,
@@ -532,92 +722,117 @@ class CaseStore:
             {"before": {...}, "after": {...}, "orphaned_children": [...],
              "new_nodes": [...], "retained_nodes": [...]} 또는 None (미존재).
         """
-        from chaeshin.schema import GraphNode, GraphEdge  # 순환 회피
+        case = self.get_case_by_id(case_id)
+        if not case or not getattr(case.metadata, "is_head", True):
+            return None
 
+        new_graph = self._graph_from_parts(
+            nodes,
+            edges,
+        )
+        return self._commit_graph_revision(
+            case=case,
+            new_graph=new_graph,
+            cascade=cascade,
+            reason=reason,
+        )
+
+    def _resolve_head(self, case_id: str) -> Optional[Case]:
+        """snapshot ID가 들어와도 같은 revision line의 HEAD를 찾는다."""
         case = self.get_case_by_id(case_id)
         if not case:
             return None
+        if getattr(case.metadata, "is_head", True):
+            return case
 
-        before_nodes = [n.id for n in case.solution.tool_graph.nodes]
-
-        new_nodes_obj: List[GraphNode] = []
-        for i, n in enumerate(nodes):
-            new_nodes_obj.append(
-                GraphNode(
-                    id=n.get("id", f"n{i}"),
-                    tool=n.get("tool", "unknown"),
-                    params_hint=n.get("params_hint", {}),
-                    note=n.get("note", ""),
-                )
+        root_id = getattr(case.metadata, "root_case_id", "") or case.metadata.case_id
+        for candidate in self.cases:
+            if not getattr(candidate.metadata, "is_head", True):
+                continue
+            candidate_root = (
+                getattr(candidate.metadata, "root_case_id", "")
+                or candidate.metadata.case_id
             )
-        new_edges_obj: List[GraphEdge] = []
-        for e in edges or []:
-            new_edges_obj.append(
-                GraphEdge(
-                    from_node=e.get("from_node", e.get("from", "")),
-                    to_node=e.get("to_node", e.get("to")),
-                    condition=e.get("condition"),
-                )
-            )
+            if candidate_root == root_id:
+                return candidate
+        return None
 
-        case.solution.tool_graph.nodes = new_nodes_obj
-        case.solution.tool_graph.edges = new_edges_obj
-        case.metadata.updated_at = datetime.now().isoformat()
+    def get_history(self, case_id: str) -> List[Case]:
+        """HEAD에서 previous_case_id 체인을 따라 버전 이력을 최신순으로 반환."""
+        current = self._resolve_head(case_id) or self.get_case_by_id(case_id)
+        if not current:
+            return []
 
-        after_nodes = [n.id for n in new_nodes_obj]
-        retained = [nid for nid in before_nodes if nid in after_nodes]
-        added = [nid for nid in after_nodes if nid not in before_nodes]
-        removed = [nid for nid in before_nodes if nid not in after_nodes]
+        history: List[Case] = []
+        visited: Set[str] = set()
+        while current:
+            cid = current.metadata.case_id
+            if cid in visited:
+                break
+            visited.add(cid)
+            history.append(current)
+            prev_id = getattr(current.metadata, "previous_case_id", "") or ""
+            if not prev_id:
+                break
+            current = self.get_case_by_id(prev_id)
+        return history
 
-        if reason:
-            fb_log = getattr(case.metadata, "feedback_log", []) or []
-            fb_log.append(f"[revise] {reason}")
-            case.metadata.feedback_log = fb_log
-
-        self._persist(case)
-
-        orphaned: List[str] = []
-        if cascade:
-            # 자식 중 parent_node_id가 제거된 노드를 가리키면 → 고아화 처리
-            for child_id in list(getattr(case.metadata, "child_case_ids", []) or []):
-                child = self.get_case_by_id(child_id)
-                if not child:
-                    continue
-                pnode = getattr(child.metadata, "parent_node_id", "")
-                if pnode and pnode in removed:
-                    child.outcome.status = "pending"
-                    child.outcome.success = False
-                    child.outcome.verdict_note = (
-                        f"parent revised — node '{pnode}' removed from upstream graph"
-                    )
-                    child.outcome.verdict_at = ""  # 재-verdict 필요
-                    fb_log = getattr(child.metadata, "feedback_log", []) or []
-                    fb_log.append(
-                        f"[cascade] parent node '{pnode}' removed by revise; needs review"
-                    )
-                    child.metadata.feedback_log = fb_log
-                    child.metadata.updated_at = datetime.now().isoformat()
-                    self._persist(child)
-                    orphaned.append(child_id)
-
-        logger.info(
-            "graph_revised",
-            case_id=case_id,
-            added=added,
-            removed=removed,
-            retained=len(retained),
-            orphaned_children=orphaned,
-        )
+    def diff_versions(self, a_id: str, b_id: str) -> Optional[Dict[str, Any]]:
+        """두 버전 case_id의 ToolGraph 차이를 반환."""
+        a = self.get_case_by_id(a_id)
+        b = self.get_case_by_id(b_id)
+        if not a or not b:
+            return None
+        diff = self._graph_diff(a.solution.tool_graph, b.solution.tool_graph)
         return {
-            "case_id": case_id,
-            "before_nodes": before_nodes,
-            "after_nodes": after_nodes,
-            "retained_nodes": retained,
-            "added_nodes": added,
-            "removed_nodes": removed,
-            "orphaned_children": orphaned,
-            "reason": reason,
+            "from_case_id": a_id,
+            "to_case_id": b_id,
+            "from_revision_index": getattr(a.metadata, "revision_index", 0),
+            "to_revision_index": getattr(b.metadata, "revision_index", 0),
+            "nodes": {
+                "before": diff["before_nodes"],
+                "after": diff["after_nodes"],
+                "retained": diff["retained_nodes"],
+                "added": diff["added_nodes"],
+                "removed": diff["removed_nodes"],
+                "changed": diff["changed_nodes"],
+            },
+            "edges": {
+                "added": diff["added_edges"],
+                "removed": diff["removed_edges"],
+            },
         }
+
+    def revert(
+        self,
+        case_id: str,
+        to_index: int,
+        cascade: bool = True,
+        reason: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """지정 revision_index의 그래프를 HEAD에 새 커밋으로 되돌린다."""
+        head = self._resolve_head(case_id)
+        if not head:
+            return None
+
+        target = None
+        for version in self.get_history(head.metadata.case_id):
+            if getattr(version.metadata, "revision_index", 0) == to_index:
+                target = version
+                break
+        if not target:
+            return None
+
+        commit_reason = reason or f"revert to revision {to_index}"
+        result = self._commit_graph_revision(
+            case=head,
+            new_graph=deepcopy(target.solution.tool_graph),
+            cascade=cascade,
+            reason=commit_reason,
+        )
+        result["reverted_to_case_id"] = target.metadata.case_id
+        result["reverted_to_index"] = to_index
+        return result
 
     def set_verdict(
         self,

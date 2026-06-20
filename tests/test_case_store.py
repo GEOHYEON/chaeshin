@@ -124,6 +124,31 @@ class TestRetrieve:
 
         assert best is None
 
+    def test_retrieve_excludes_revision_snapshots(self):
+        """과거 snapshot은 retrieve 후보에서 제외한다."""
+        store = CaseStore()
+        case = _make_case("배포 절차", "devops", ["deploy"])
+        case_id = store.retain(case)
+
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n1", "tool": "Bash"}, {"id": "n2", "tool": "Bash"}],
+            reason="add verify step",
+        )
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n2", "tool": "Bash"}, {"id": "n3", "tool": "Bash"}],
+            reason="replace build step",
+        )
+
+        problem = ProblemFeatures(request="배포 절차", category="devops", keywords=["deploy"])
+        results = store.retrieve(problem, top_k=10)
+
+        assert len(store.cases) == 3  # HEAD + snapshots 2개
+        assert len(results) == 1
+        assert results[0][0].metadata.case_id == case_id
+        assert results[0][0].metadata.is_head is True
+
 
 class TestRetain:
     def test_retain_new_case(self):
@@ -173,6 +198,129 @@ class TestRetain:
 
         assert store.cases[0].metadata.used_count == 2
         assert store.cases[0].metadata.avg_satisfaction == 0.9
+
+
+class TestRevisionChain:
+    def test_revise_creates_snapshot_chain(self):
+        """revise는 덮어쓰지 않고 snapshot을 남기며 previous 체인을 잇는다."""
+        store = CaseStore()
+        case = _make_case("그래프 수정", "feature", ["graph"])
+        case_id = store.retain(case)
+
+        first = store.revise_graph(
+            case_id,
+            nodes=[
+                {"id": "n1", "tool": "Read"},
+                {"id": "n2", "tool": "Edit"},
+            ],
+            reason="first revision",
+        )
+        second = store.revise_graph(
+            case_id,
+            nodes=[
+                {"id": "n2", "tool": "Edit"},
+                {"id": "n3", "tool": "Bash"},
+            ],
+            reason="second revision",
+        )
+
+        assert first["revision_index"] == 1
+        assert second["revision_index"] == 2
+        assert first["snapshot_case_id"] != second["snapshot_case_id"]
+
+        head = store.get_case_by_id(case_id)
+        history = store.get_history(case_id)
+        assert len(history) == 3
+        assert [c.metadata.revision_index for c in history] == [2, 1, 0]
+        assert history[0].metadata.case_id == case_id
+        assert history[0].metadata.is_head is True
+        assert history[1].metadata.is_head is False
+        assert history[2].metadata.is_head is False
+        assert head.metadata.previous_case_id == second["snapshot_case_id"]
+        assert history[1].metadata.previous_case_id == first["snapshot_case_id"]
+
+    def test_diff_versions_reports_node_changes(self):
+        store = CaseStore()
+        case = _make_case("diff", "feature", ["diff"])
+        case_id = store.retain(case)
+        store.revise_graph(
+            case_id,
+            nodes=[
+                {"id": "n1", "tool": "test", "note": "changed"},
+                {"id": "n2", "tool": "Bash"},
+            ],
+            edges=[{"from": "n1", "to": "n2"}],
+            reason="diff target",
+        )
+        history = store.get_history(case_id)
+
+        diff = store.diff_versions(history[-1].metadata.case_id, history[0].metadata.case_id)
+
+        assert diff["nodes"]["added"] == ["n2"]
+        assert diff["nodes"]["removed"] == []
+        assert diff["nodes"]["changed"] == ["n1"]
+        assert diff["edges"]["added"] == [
+            {
+                "from_node": "n1",
+                "to_node": "n2",
+                "condition": None,
+                "action": None,
+                "priority": 0,
+                "note": "",
+            }
+        ]
+
+    def test_revert_restores_old_graph_as_new_revision(self):
+        store = CaseStore()
+        case = _make_case("revert", "feature", ["revert"])
+        case_id = store.retain(case)
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n1", "tool": "Read"}, {"id": "n2", "tool": "Edit"}],
+            reason="rev1",
+        )
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n3", "tool": "Bash"}],
+            reason="rev2",
+        )
+
+        result = store.revert(case_id, to_index=0, reason="restore initial")
+        head = store.get_case_by_id(case_id)
+        history = store.get_history(case_id)
+
+        assert result["revision_index"] == 3
+        assert result["reverted_to_index"] == 0
+        assert [n.id for n in head.solution.tool_graph.nodes] == ["n1"]
+        assert head.solution.tool_graph.nodes[0].tool == "test"
+        assert len(history) == 4
+        assert history[1].metadata.revision_index == 2  # revert 직전 HEAD가 snapshot으로 보존됨
+
+    def test_revise_preserves_child_parent_case_id(self):
+        """HEAD case_id가 고정되므로 자식 재연결이 필요 없다."""
+        store = CaseStore()
+        parent = _make_case("parent", "workflow", ["p"])
+        parent.solution.tool_graph.nodes = [
+            GraphNode(id="keep", tool="plan"),
+            GraphNode(id="drop", tool="plan"),
+        ]
+        child = _make_case("child", "atomic", ["c"])
+        parent_id = store.retain(parent)
+        child_id = store.retain(child)
+        store.link_parent_child(parent_id, child_id, "keep")
+
+        store.revise_graph(
+            parent_id,
+            nodes=[
+                {"id": "keep", "tool": "plan"},
+                {"id": "new", "tool": "plan"},
+            ],
+            reason="replace one node",
+        )
+
+        reloaded_child = store.get_case_by_id(child_id)
+        assert reloaded_child.metadata.parent_case_id == parent_id
+        assert reloaded_child.metadata.parent_node_id == "keep"
 
 
 class TestSerialization:

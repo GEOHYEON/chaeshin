@@ -87,7 +87,7 @@ function rowToCase(row: {
   };
 }
 
-export function readCases(): CaseRow[] {
+export function readCases(includeSnapshots = false): CaseRow[] {
   const db = openDb();
   const rows = db
     .prepare(
@@ -99,7 +99,12 @@ export function readCases(): CaseRow[] {
       outcome_json: string;
       metadata_json: string;
     }>;
-  return rows.map(rowToCase);
+  const cases = rows.map(rowToCase);
+  if (includeSnapshots) return cases;
+  return cases.filter((c) => {
+    const meta = c.metadata as Record<string, unknown>;
+    return meta.is_head !== false;
+  });
 }
 
 export function readCaseById(caseId: string): CaseRow | null {
@@ -445,10 +450,15 @@ export function readHierarchyNodes(): HierarchyNode[] {
       metadata_json: string;
     }>;
 
+  const visibleRows = rows.filter((r) => {
+    const meta = JSON.parse(r.metadata_json) as Record<string, unknown>;
+    return meta.is_head !== false;
+  });
+
   // layer/depth 는 derived — 트리 토폴로지 (parent_case_id) 에서 max depth_from_leaf
   // 계산. Python 의 CaseStore.derive_depth (case_store.py) 와 동일 로직.
   const childrenOf = new Map<string, string[]>();
-  for (const r of rows) {
+  for (const r of visibleRows) {
     const pid = r.parent_case_id || "";
     if (!pid) continue;
     if (!childrenOf.has(pid)) childrenOf.set(pid, []);
@@ -469,7 +479,7 @@ export function readHierarchyNodes(): HierarchyNode[] {
     return depth;
   };
 
-  return rows.map((r) => {
+  return visibleRows.map((r) => {
     const pf = JSON.parse(r.problem_json) as { request?: string };
     const sol = JSON.parse(r.solution_json) as {
       tool_graph?: {

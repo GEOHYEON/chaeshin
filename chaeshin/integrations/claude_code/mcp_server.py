@@ -15,6 +15,9 @@ Chaeshin MCP Server — Claude Code 연동.
     - chaeshin_retain:     실행 패턴 저장 (재귀적 깊이, 기본 outcome=pending)
     - chaeshin_update:     diff 기반 부분 수정 (Update, metadata/outcome 등)
     - chaeshin_revise:     이 레이어의 Tool Graph 교체 + 다운스트림 파급 (고아 자식 처리)
+    - chaeshin_history:    HEAD에서 과거 snapshot까지 revision log 조회
+    - chaeshin_diff:       두 버전의 Tool Graph diff 조회
+    - chaeshin_revert:     과거 revision graph를 HEAD에 새 커밋으로 되돌림
     - chaeshin_delete:     케이스 삭제
     - chaeshin_verdict:    사용자 성공/실패 verdict 기록 (pending → success/failure)
     - chaeshin_feedback:   자연어 피드백 기록
@@ -154,6 +157,21 @@ def _format_case(
     difficulty = getattr(meta, "difficulty", 0)
     if difficulty > 0:
         formatted["difficulty"] = difficulty
+
+    revision = {
+        "index": getattr(meta, "revision_index", 0),
+        "is_head": getattr(meta, "is_head", True),
+        "previous_case_id": getattr(meta, "previous_case_id", ""),
+        "root_case_id": getattr(meta, "root_case_id", "") or meta.case_id,
+        "reason": getattr(meta, "revision_reason", ""),
+    }
+    if (
+        revision["index"] > 0
+        or not revision["is_head"]
+        or revision["previous_case_id"]
+        or revision["reason"]
+    ):
+        formatted["revision"] = revision
 
     if include_children and recursion_depth < 6:
         children = store.get_children(meta.case_id)
@@ -507,21 +525,28 @@ def chaeshin_revise(
         "revise",
         payload={
             "reason": reason,
+            "snapshot_case_id": result["snapshot_case_id"],
+            "revision_index": result["revision_index"],
             "added_nodes": result["added_nodes"],
             "removed_nodes": result["removed_nodes"],
             "retained_nodes": result["retained_nodes"],
             "orphaned_children": result["orphaned_children"],
         },
-        case_ids=[case_id] + result["orphaned_children"],
+        case_ids=[case_id, result["snapshot_case_id"]] + result["orphaned_children"],
     )
 
     return json.dumps(
         {
             "status": "revised",
             "case_id": case_id,
+            "snapshot_case_id": result["snapshot_case_id"],
+            "previous_case_id": result["previous_case_id"],
+            "root_case_id": result["root_case_id"],
+            "revision_index": result["revision_index"],
             "added_nodes": result["added_nodes"],
             "removed_nodes": result["removed_nodes"],
             "retained_nodes": result["retained_nodes"],
+            "changed_nodes": result["changed_nodes"],
             "orphaned_children": result["orphaned_children"],
             "next_action": (
                 "added_nodes 중 tool 단일 호출이 아닌 것은 chaeshin_retain으로 하위 "
@@ -529,6 +554,156 @@ def chaeshin_revise(
             ),
         },
         ensure_ascii=False,
+    )
+
+
+def _format_history_entry(case: Case) -> Dict[str, Any]:
+    meta = case.metadata
+    graph = case.solution.tool_graph
+    return {
+        "case_id": meta.case_id,
+        "revision_index": getattr(meta, "revision_index", 0),
+        "is_head": getattr(meta, "is_head", True),
+        "previous_case_id": getattr(meta, "previous_case_id", ""),
+        "root_case_id": getattr(meta, "root_case_id", "") or meta.case_id,
+        "revision_reason": getattr(meta, "revision_reason", ""),
+        "created_at": meta.created_at,
+        "updated_at": meta.updated_at,
+        "node_ids": [n.id for n in graph.nodes],
+        "edge_count": len(graph.edges),
+        "outcome_status": getattr(case.outcome, "status", "success" if case.outcome.success else "pending"),
+    }
+
+
+@mcp.tool()
+def chaeshin_history(case_id: str) -> str:
+    """Return revision history for a case.
+
+    The returned list is newest first: HEAD, then previous snapshots following
+    `previous_case_id` until the first revision.
+
+    Args:
+        case_id: HEAD case ID, or any snapshot ID from the same revision line
+    """
+    store = _new_store()
+    history = store.get_history(case_id)
+    if not history:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "history",
+        payload={"case_id": case_id, "n_versions": len(history)},
+        case_ids=[c.metadata.case_id for c in history],
+    )
+
+    return json.dumps(
+        {
+            "case_id": history[0].metadata.case_id,
+            "root_case_id": getattr(history[0].metadata, "root_case_id", "") or history[0].metadata.case_id,
+            "latest_revision_index": getattr(history[0].metadata, "revision_index", 0),
+            "history": [_format_history_entry(c) for c in history],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
+@mcp.tool()
+def chaeshin_diff(a_case_id: str, b_case_id: str) -> str:
+    """Diff two Chaeshin case versions by Tool Graph structure.
+
+    Args:
+        a_case_id: Base version case ID
+        b_case_id: Target version case ID
+    """
+    store = _new_store()
+    diff = store.diff_versions(a_case_id, b_case_id)
+    if diff is None:
+        return json.dumps(
+            {"error": f"Case not found: {a_case_id} or {b_case_id}"},
+            ensure_ascii=False,
+        )
+
+    _event_log.record(
+        "diff",
+        payload={
+            "from_case_id": a_case_id,
+            "to_case_id": b_case_id,
+            "added_nodes": diff["nodes"]["added"],
+            "removed_nodes": diff["nodes"]["removed"],
+            "changed_nodes": diff["nodes"]["changed"],
+        },
+        case_ids=[a_case_id, b_case_id],
+    )
+    return json.dumps(diff, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def chaeshin_revert(
+    case_id: str,
+    to_index: int,
+    reason: str = "",
+    cascade: bool = True,
+) -> str:
+    """Revert HEAD's Tool Graph to a previous revision as a new commit.
+
+    The current HEAD is first preserved as a snapshot, then HEAD keeps the same
+    case_id and receives the selected revision's graph.
+
+    Args:
+        case_id: HEAD case ID, or any snapshot ID from the same revision line
+        to_index: Target revision_index to restore
+        reason: Optional commit message
+        cascade: If true, orphan children hanging off removed nodes (default true)
+    """
+    store = _new_store()
+    result = store.revert(
+        case_id=case_id,
+        to_index=to_index,
+        cascade=cascade,
+        reason=reason,
+    )
+    if result is None:
+        return json.dumps(
+            {"error": f"Case/revision not found: {case_id}@{to_index}"},
+            ensure_ascii=False,
+        )
+
+    _event_log.record(
+        "revert",
+        payload={
+            "reason": result["reason"],
+            "to_index": result["reverted_to_index"],
+            "reverted_to_case_id": result["reverted_to_case_id"],
+            "snapshot_case_id": result["snapshot_case_id"],
+            "revision_index": result["revision_index"],
+            "added_nodes": result["added_nodes"],
+            "removed_nodes": result["removed_nodes"],
+            "orphaned_children": result["orphaned_children"],
+        },
+        case_ids=[
+            result["case_id"],
+            result["snapshot_case_id"],
+            result["reverted_to_case_id"],
+        ] + result["orphaned_children"],
+    )
+
+    return json.dumps(
+        {
+            "status": "reverted",
+            "case_id": result["case_id"],
+            "snapshot_case_id": result["snapshot_case_id"],
+            "revision_index": result["revision_index"],
+            "reverted_to_case_id": result["reverted_to_case_id"],
+            "reverted_to_index": result["reverted_to_index"],
+            "added_nodes": result["added_nodes"],
+            "removed_nodes": result["removed_nodes"],
+            "retained_nodes": result["retained_nodes"],
+            "changed_nodes": result["changed_nodes"],
+            "orphaned_children": result["orphaned_children"],
+        },
+        ensure_ascii=False,
+        indent=2,
     )
 
 
@@ -612,11 +787,19 @@ def chaeshin_stats() -> str:
     Returns total cases, store path, embedding status, categories, and layer distribution.
     """
     store = _new_store()
+    head_cases = [
+        c for c in store.cases
+        if getattr(c.metadata, "is_head", True)
+    ]
+    snapshot_cases = [
+        c for c in store.cases
+        if not getattr(c.metadata, "is_head", True)
+    ]
     layers: Dict[str, int] = {}
     statuses: Dict[str, int] = {"success": 0, "failure": 0, "pending": 0}
     now = datetime.now()
     overdue_pending = 0
-    for c in store.cases:
+    for c in head_cases:
         layer = store.derive_layer(c.metadata.case_id)
         layers[layer] = layers.get(layer, 0) + 1
         status = getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")
@@ -630,11 +813,13 @@ def chaeshin_stats() -> str:
                 pass
 
     payload = {
-        "total_cases": len(store.cases),
+        "total_cases": len(head_cases),
+        "total_versions": len(store.cases),
+        "total_snapshots": len(snapshot_cases),
         "db_path": str(DB_PATH),
         "has_embeddings": store.embed_fn is not None,
         "categories": sorted({
-            c.problem_features.category for c in store.cases if c.problem_features.category
+            c.problem_features.category for c in head_cases if c.problem_features.category
         }),
         "layers": layers,
         "outcome_status": statuses,

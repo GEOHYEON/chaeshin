@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from pathlib import Path
 
 from chaeshin.case_store import CaseStore
@@ -60,6 +62,52 @@ class TestUpsertAndLoad:
         loaded = backend.load_all_cases()
         assert len(loaded) == 1
         assert loaded[0].problem_features.request == "build (updated)"
+
+    def test_loads_legacy_metadata_without_revision_fields(self, tmp_path: Path):
+        backend = SQLiteBackend(tmp_path / "chaeshin.db")
+        case = _case("legacy")
+        meta = asdict(case.metadata)
+        for key in (
+            "previous_case_id",
+            "revision_index",
+            "is_head",
+            "revision_reason",
+            "root_case_id",
+        ):
+            meta.pop(key, None)
+
+        with backend._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO cases (
+                    case_id, created_at, updated_at, parent_case_id,
+                    category, success, feedback_count, difficulty, version,
+                    problem_json, solution_json, outcome_json, metadata_json
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    case.metadata.case_id,
+                    case.metadata.created_at,
+                    case.metadata.updated_at,
+                    "",
+                    case.problem_features.category,
+                    1,
+                    0,
+                    0,
+                    3,
+                    json.dumps(asdict(case.problem_features), ensure_ascii=False),
+                    json.dumps(asdict(case.solution), ensure_ascii=False),
+                    json.dumps(asdict(case.outcome), ensure_ascii=False),
+                    json.dumps(meta, ensure_ascii=False),
+                ),
+            )
+
+        loaded = backend.load_all_cases()[0]
+        assert loaded.metadata.previous_case_id == ""
+        assert loaded.metadata.revision_index == 0
+        assert loaded.metadata.is_head is True
+        assert loaded.metadata.revision_reason == ""
+        assert loaded.metadata.root_case_id == ""
 
 
 class TestHierarchy:

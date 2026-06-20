@@ -322,6 +322,51 @@ class TestHostDrivenDecomposition:
         kept = store.get_case_by_id(child["case_id"])
         assert kept.outcome.status == "success"
 
+    def test_history_diff_revert_tools(self, isolated_mcp):
+        srv = isolated_mcp
+        retained = json.loads(srv.chaeshin_retain(
+            request="versioned workflow",
+            graph={"nodes": [{"id": "a", "tool": "Read"}]},
+        ))
+        cid = retained["case_id"]
+
+        rev1 = json.loads(srv.chaeshin_revise(
+            case_id=cid,
+            graph={"nodes": [{"id": "a", "tool": "Read"}, {"id": "b", "tool": "Edit"}]},
+            reason="add edit",
+        ))
+        rev2 = json.loads(srv.chaeshin_revise(
+            case_id=cid,
+            graph={"nodes": [{"id": "c", "tool": "Bash"}]},
+            reason="replace flow",
+        ))
+
+        history = json.loads(srv.chaeshin_history(case_id=cid))
+        assert history["latest_revision_index"] == 2
+        assert [h["revision_index"] for h in history["history"]] == [2, 1, 0]
+        assert history["history"][1]["case_id"] == rev2["snapshot_case_id"]
+        assert history["history"][2]["case_id"] == rev1["snapshot_case_id"]
+
+        diff = json.loads(srv.chaeshin_diff(
+            a_case_id=history["history"][2]["case_id"],
+            b_case_id=cid,
+        ))
+        assert diff["nodes"]["added"] == ["c"]
+        assert diff["nodes"]["removed"] == ["a"]
+
+        reverted = json.loads(srv.chaeshin_revert(
+            case_id=cid,
+            to_index=0,
+            reason="restore first graph",
+        ))
+        assert reverted["status"] == "reverted"
+        assert reverted["revision_index"] == 3
+        assert reverted["reverted_to_index"] == 0
+
+        store = CaseStore(backend=srv._backend, auto_load=True)
+        head = store.get_case_by_id(cid)
+        assert [n.id for n in head.solution.tool_graph.nodes] == ["a"]
+
     def test_delete_removes_case(self, isolated_mcp):
         srv = isolated_mcp
         retained = json.loads(srv.chaeshin_retain(

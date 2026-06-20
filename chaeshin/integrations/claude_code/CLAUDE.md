@@ -9,22 +9,27 @@ You have access to Chaeshin MCP tools — a persistent memory layer for case-bas
 - **Graphs all the way down.** Every `Case` stores a Tool Graph. A node in that graph isn't necessarily atomic — if it's still composite, save it as another `Case` with `parent_case_id` + `parent_node_id` linking back. Keep unfolding until every leaf is one tool call. No fixed L1/L2/L3 ceiling.
 - **Tri-state outcome.** `outcome.status` is `pending` | `success` | `failure`. `chaeshin_retain` always saves as `pending`. **Never** infer success/failure yourself. Only call `chaeshin_verdict` when the user explicitly judges (their own words quoted in `note`).
 - **No verdict ≠ failure.** A case that times past its `deadline_at` without a verdict stays `pending`. That's a real state, not a missing one.
-- **Edits cascade.** `chaeshin_revise` rewrites this layer's graph and Chaeshin auto-flips downstream children whose anchor node disappeared back to `pending`.
+- **Edits are versioned.** `chaeshin_revise` preserves the previous HEAD as a snapshot, then rewrites the live case in place. Downstream children keep the same `parent_case_id`.
+- **Edits cascade.** If a revised graph removes a node, Chaeshin auto-flips downstream children anchored to that removed node back to `pending`.
 
 ---
 
-## Tool Reference (8 tools)
+## Tool Reference (12 tools)
 
 | Tool | When |
 |------|------|
 | `chaeshin_retrieve` | **Always first.** Search past cases before you start any non-trivial task. |
 | `chaeshin_retain` | After completing a step, save the graph. Always saved as `pending`. |
 | `chaeshin_update` | Patch metadata / problem_features / outcome (not the graph itself). |
-| `chaeshin_revise` | Replace this layer's Tool Graph. Cascades to orphan children. |
+| `chaeshin_revise` | Commit a new graph revision for this layer. Cascades to orphan children. |
+| `chaeshin_history` | Inspect HEAD → previous snapshot revision history. |
+| `chaeshin_diff` | Compare two version case IDs by Tool Graph structure. |
+| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit. |
 | `chaeshin_delete` | Remove a case (with reason). |
 | `chaeshin_verdict` | Record user's `success` / `failure` judgment. **User authority only.** |
 | `chaeshin_feedback` | Free-form natural-language feedback (escalate/modify/correct/…). |
 | `chaeshin_decompose` | Get decomposition context for complex tasks. |
+| `chaeshin_stats` | Inspect live case counts, snapshots, layers, and outcome distribution. |
 
 ---
 

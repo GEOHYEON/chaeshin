@@ -188,9 +188,18 @@ uv run python -m examples.cooking.app
 
 | 도구 | 설명 |
 |------|------|
-| `chaeshin_retrieve` | 과거 케이스 검색 — 성공과 실패를 분리하여 반환 |
-| `chaeshin_retain` | 실행 그래프 저장 (성공/실패 모두) |
-| `chaeshin_stats` | 케이스 저장소 통계 조회 |
+| `chaeshin_retrieve` | 과거 케이스 검색 — 성공/실패/pending 분리 반환 |
+| `chaeshin_retain` | 실행 그래프 저장 — verdict 전까지 항상 pending |
+| `chaeshin_update` | 메타데이터/problem/outcome 부분 수정 |
+| `chaeshin_revise` | 새 그래프 버전 커밋 — 직전 HEAD는 snapshot으로 보존 |
+| `chaeshin_history` | HEAD부터 과거 snapshot까지 버전 이력 조회 |
+| `chaeshin_diff` | 두 버전 case_id의 Tool Graph 차이 조회 |
+| `chaeshin_revert` | 과거 버전 그래프를 HEAD에 새 커밋으로 복원 |
+| `chaeshin_delete` | 케이스 삭제 |
+| `chaeshin_verdict` | 사용자 성공/실패 verdict 기록 |
+| `chaeshin_feedback` | 자연어 피드백 기록 |
+| `chaeshin_decompose` | 호스트 AI용 재귀 분해 컨텍스트 반환 |
+| `chaeshin_stats` | live case/snapshot 수와 outcome 통계 조회 |
 
 ---
 

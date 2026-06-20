@@ -252,6 +252,13 @@ class CaseMetadata:
     feedback_count: int = 0          # 유저 피드백 누적 횟수
     feedback_log: List[str] = field(default_factory=list)  # 피드백 이력 요약
 
+    # 버전 체인 — 가로축. live HEAD는 case_id를 유지하고, 과거 상태는 snapshot case로 보존.
+    previous_case_id: str = ""       # 직전 버전 snapshot case_id. "" = 최초 버전
+    revision_index: int = 0          # 0 = 최초, revise/revert 커밋마다 +1
+    is_head: bool = True             # True = 현재 살아있는 버전, False = 과거 snapshot
+    revision_reason: str = ""        # 이 버전을 만든 사유 (= commit message)
+    root_case_id: str = ""           # 버전 라인의 최초 case_id (= 안정 식별자/branch id)
+
 
 @dataclass
 class Case:

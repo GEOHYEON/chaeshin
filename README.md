@@ -265,11 +265,15 @@ Available MCP tools after setup:
 | `chaeshin_retrieve` | Search past cases — returns `successes` / `failures` / `pending` separately |
 | `chaeshin_retain` | Save a tool graph. Always starts as `pending` until a verdict arrives |
 | `chaeshin_update` | Diff-based partial update (shallow merge, changes logged) |
+| `chaeshin_revise` | Commit a new graph revision; previous HEAD is preserved as a snapshot |
+| `chaeshin_history` | List HEAD → previous snapshots for a versioned case |
+| `chaeshin_diff` | Compare two version case IDs by Tool Graph structure |
+| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit |
 | `chaeshin_delete` | Remove a case (reason logged) |
 | `chaeshin_verdict` | User's `success`/`failure` verdict → flips a pending case |
 | `chaeshin_feedback` | Record free-form user feedback (escalate / modify / correct / …) |
 | `chaeshin_decompose` | Return recursive-decomposition context for the host AI to execute |
-| `chaeshin_stats` | Case store + outcome-status distribution + overdue-pending count |
+| `chaeshin_stats` | Live case + snapshot counts, outcome-status distribution, overdue-pending count |
 
 ---
 
