@@ -194,7 +194,9 @@ uv run python -m examples.cooking.app
 | `chaeshin_revise` | 새 그래프 버전 커밋 — 직전 HEAD는 snapshot으로 보존 |
 | `chaeshin_history` | HEAD부터 과거 snapshot까지 버전 이력 조회 |
 | `chaeshin_diff` | 두 버전 case_id의 Tool Graph 차이 조회 |
-| `chaeshin_revert` | 과거 버전 그래프를 HEAD에 새 커밋으로 복원 |
+| `chaeshin_revert` | 과거 버전 그래프를 HEAD에 새 커밋으로 복원 (index 또는 tag로) |
+| `chaeshin_blame` | HEAD 각 노드가 어느 리비전에서 들어왔는지 (git blame) |
+| `chaeshin_tag` | 현재 리비전에 이름표 부여 (git tag) / 목록 조회 — 이름으로 revert |
 | `chaeshin_delete` | 케이스 삭제 |
 | `chaeshin_verdict` | 사용자 성공/실패 verdict 기록 |
 | `chaeshin_feedback` | 자연어 피드백 기록 |

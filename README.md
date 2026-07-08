@@ -268,7 +268,9 @@ Available MCP tools after setup:
 | `chaeshin_revise` | Commit a new graph revision; previous HEAD is preserved as a snapshot |
 | `chaeshin_history` | List HEAD → previous snapshots for a versioned case |
 | `chaeshin_diff` | Compare two version case IDs by Tool Graph structure |
-| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit |
+| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit (by index or tag) |
+| `chaeshin_blame` | Per HEAD node, which revision introduced it (git blame) |
+| `chaeshin_tag` | Name the current revision (git tag), or list tags — revert by name later |
 | `chaeshin_delete` | Remove a case (reason logged) |
 | `chaeshin_verdict` | User's `success`/`failure` verdict → flips a pending case |
 | `chaeshin_feedback` | Record free-form user feedback (escalate / modify / correct / …) |

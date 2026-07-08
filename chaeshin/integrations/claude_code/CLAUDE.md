@@ -14,7 +14,7 @@ You have access to Chaeshin MCP tools — a persistent memory layer for case-bas
 
 ---
 
-## Tool Reference (12 tools)
+## Tool Reference (14 tools)
 
 | Tool | When |
 |------|------|
@@ -24,7 +24,9 @@ You have access to Chaeshin MCP tools — a persistent memory layer for case-bas
 | `chaeshin_revise` | Commit a new graph revision for this layer. Cascades to orphan children. |
 | `chaeshin_history` | Inspect HEAD → previous snapshot revision history. |
 | `chaeshin_diff` | Compare two version case IDs by Tool Graph structure. |
-| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit. |
+| `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit (`to_index` or `tag`). |
+| `chaeshin_blame` | Per current node, which revision introduced it + that commit's reason. |
+| `chaeshin_tag` | Name the current revision (or list tags). Revert by name with `chaeshin_revert(tag=...)`. |
 | `chaeshin_delete` | Remove a case (with reason). |
 | `chaeshin_verdict` | Record user's `success` / `failure` judgment. **User authority only.** |
 | `chaeshin_feedback` | Free-form natural-language feedback (escalate/modify/correct/…). |

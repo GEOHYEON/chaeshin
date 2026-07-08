@@ -84,6 +84,8 @@ class CaseStore:
             meta.previous_case_id = ""
         if not hasattr(meta, "revision_reason"):
             meta.revision_reason = ""
+        if getattr(meta, "tags", None) is None:
+            meta.tags = {}
 
     def _load_from_backend(self):
         """SQLite에서 케이스와 임베딩 로드."""
@@ -832,6 +834,100 @@ class CaseStore:
         )
         result["reverted_to_case_id"] = target.metadata.case_id
         result["reverted_to_index"] = to_index
+        return result
+
+    # ── Blame / Tag (git식 부가 연산) ─────────────────────────────────
+
+    def blame(self, case_id: str) -> Optional[Dict[str, Any]]:
+        """HEAD 그래프의 각 노드가 '어느 리비전에서 들어왔는지' 추적 (git blame).
+
+        history를 오래된→최신 순으로 훑어, 각 노드 id가 직전 리비전에는 없다가
+        새로 (재)등장한 시점을 기록한다. 한 번 지웠다가 같은 id로 다시 넣으면
+        가장 최근에 다시 넣은 리비전을 가리킨다 — "지금 이 노드가 왜 여기 있나"에 답.
+        """
+        head = self._resolve_head(case_id)
+        if not head:
+            return None
+        self._ensure_revision_metadata(head)
+
+        history = list(reversed(self.get_history(head.metadata.case_id)))  # 오래된→최신
+        introduced: Dict[str, Case] = {}
+        prev_ids: Set[str] = set()
+        for version in history:
+            cur_ids = {n.id for n in version.solution.tool_graph.nodes}
+            for nid in cur_ids - prev_ids:
+                introduced[nid] = version
+            prev_ids = cur_ids
+
+        rows: List[Dict[str, Any]] = []
+        for node in head.solution.tool_graph.nodes:
+            v = introduced.get(node.id)
+            rows.append({
+                "node_id": node.id,
+                "tool": node.tool,
+                "introduced_at_index": getattr(v.metadata, "revision_index", 0) if v else 0,
+                "introduced_case_id": v.metadata.case_id if v else head.metadata.case_id,
+                "reason": getattr(v.metadata, "revision_reason", "") if v else "",
+            })
+
+        return {
+            "case_id": head.metadata.case_id,
+            "root_case_id": getattr(head.metadata, "root_case_id", "") or head.metadata.case_id,
+            "head_index": getattr(head.metadata, "revision_index", 0),
+            "nodes": rows,
+        }
+
+    def tag(self, case_id: str, name: str) -> Optional[Dict[str, Any]]:
+        """현재 HEAD의 revision_index에 이름표를 붙인다 (git tag). 이름표는 HEAD에 보관."""
+        if not name or not name.strip():
+            raise ValueError("tag name must be non-empty")
+        head = self._resolve_head(case_id)
+        if not head:
+            return None
+        self._ensure_revision_metadata(head)
+        idx = getattr(head.metadata, "revision_index", 0)
+        head.metadata.tags[name] = idx
+        head.metadata.updated_at = datetime.now().isoformat()
+        self._persist(head)
+        logger.info("case_tagged", case_id=head.metadata.case_id, tag=name, revision_index=idx)
+        return {
+            "case_id": head.metadata.case_id,
+            "tag": name,
+            "revision_index": idx,
+            "tags": dict(head.metadata.tags),
+        }
+
+    def list_tags(self, case_id: str) -> Optional[Dict[str, Any]]:
+        """이 버전 라인의 모든 이름표 (name → revision_index)."""
+        head = self._resolve_head(case_id)
+        if not head:
+            return None
+        self._ensure_revision_metadata(head)
+        return {
+            "case_id": head.metadata.case_id,
+            "tags": dict(head.metadata.tags),
+        }
+
+    def revert_to_tag(
+        self,
+        case_id: str,
+        tag: str,
+        cascade: bool = True,
+        reason: str = "",
+    ) -> Optional[Dict[str, Any]]:
+        """이름표가 가리키는 리비전으로 revert (git revert <tag>)."""
+        head = self._resolve_head(case_id)
+        if not head:
+            return None
+        self._ensure_revision_metadata(head)
+        tags = head.metadata.tags
+        if tag not in tags:
+            return None
+        idx = tags[tag]
+        commit_reason = reason or f"revert to tag '{tag}' (revision {idx})"
+        result = self.revert(case_id=case_id, to_index=idx, cascade=cascade, reason=commit_reason)
+        if result is not None:
+            result["reverted_to_tag"] = tag
         return result
 
     def set_verdict(

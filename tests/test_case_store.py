@@ -323,6 +323,86 @@ class TestRevisionChain:
         assert reloaded_child.metadata.parent_node_id == "keep"
 
 
+class TestBlame:
+    def test_blame_tracks_node_introduction(self):
+        """blame은 각 노드가 처음 들어온 revision_index와 사유를 알려준다."""
+        store = CaseStore()
+        case_id = store.retain(_make_case("blame", "feature", ["blame"]))
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n1", "tool": "test"}, {"id": "n2", "tool": "Edit"}],
+            reason="add n2",
+        )
+        store.revise_graph(
+            case_id,
+            nodes=[
+                {"id": "n1", "tool": "test"},
+                {"id": "n2", "tool": "Edit"},
+                {"id": "n3", "tool": "Bash"},
+            ],
+            reason="add n3",
+        )
+
+        blame = store.blame(case_id)
+        by_id = {row["node_id"]: row for row in blame["nodes"]}
+        assert blame["head_index"] == 2
+        assert by_id["n1"]["introduced_at_index"] == 0
+        assert by_id["n2"]["introduced_at_index"] == 1
+        assert by_id["n2"]["reason"] == "add n2"
+        assert by_id["n3"]["introduced_at_index"] == 2
+        assert by_id["n3"]["reason"] == "add n3"
+
+    def test_blame_points_to_latest_reintroduction(self):
+        """지웠다 같은 id로 다시 넣으면 가장 최근에 다시 넣은 리비전을 가리킨다."""
+        store = CaseStore()
+        case_id = store.retain(_make_case("readd", "feature", ["readd"]))
+        store.revise_graph(case_id, nodes=[{"id": "n2", "tool": "Edit"}], reason="drop n1")
+        store.revise_graph(case_id, nodes=[{"id": "n1", "tool": "test"}], reason="re-add n1")
+
+        blame = store.blame(case_id)
+        by_id = {row["node_id"]: row for row in blame["nodes"]}
+        assert by_id["n1"]["introduced_at_index"] == 2
+        assert by_id["n1"]["reason"] == "re-add n1"
+
+
+class TestTag:
+    def test_tag_and_revert_to_tag(self):
+        """이름표를 단 리비전으로 tag 이름만으로 revert."""
+        store = CaseStore()
+        case_id = store.retain(_make_case("tag", "feature", ["tag"]))
+        store.revise_graph(
+            case_id,
+            nodes=[{"id": "n1", "tool": "test"}, {"id": "n2", "tool": "Edit"}],
+            reason="good state",
+        )
+        tagged = store.tag(case_id, "approved")
+        assert tagged["revision_index"] == 1
+
+        store.revise_graph(case_id, nodes=[{"id": "n3", "tool": "Bash"}], reason="experiment")
+
+        result = store.revert_to_tag(case_id, "approved")
+        head = store.get_case_by_id(case_id)
+        assert result["reverted_to_tag"] == "approved"
+        assert result["reverted_to_index"] == 1
+        assert result["revision_index"] == 3
+        assert [n.id for n in head.solution.tool_graph.nodes] == ["n1", "n2"]
+        assert store.list_tags(case_id)["tags"] == {"approved": 1}
+
+    def test_revert_to_unknown_tag_returns_none(self):
+        store = CaseStore()
+        case_id = store.retain(_make_case("tag", "feature", ["tag"]))
+        assert store.revert_to_tag(case_id, "nope") is None
+
+    def test_empty_tag_name_raises(self):
+        store = CaseStore()
+        case_id = store.retain(_make_case("tag", "feature", ["tag"]))
+        try:
+            store.tag(case_id, "  ")
+            assert False, "expected ValueError"
+        except ValueError:
+            pass
+
+
 class TestSerialization:
     def test_json_roundtrip(self):
         """JSON 직렬화 ↔ 역직렬화."""

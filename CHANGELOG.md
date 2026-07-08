@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — 케이스 메모리를 git처럼
+
+케이스 메모리를 git의 commit/HEAD/revert 모델로 다룬다. live HEAD(`is_head=True`)는
+`case_id`를 유지하고, 과거 상태는 snapshot 케이스로 보존하며 `previous_case_id`로 체인을 잇는다.
+
+### Added
+- **`chaeshin_blame(case_id)`** — HEAD 그래프의 각 노드가 어느 `revision_index`에서
+  (재)등장했는지 + 그 리비전의 사유를 반환. history를 오래된→최신으로 훑어 계산하며,
+  지웠다 같은 id로 다시 넣으면 가장 최근 재등장 리비전을 가리킨다. "이 단계가 왜 여기 있나" 감사용.
+- **`chaeshin_tag(case_id, name)`** — 현재 HEAD 리비전에 이름표(name → `revision_index`)를
+  붙인다 (git tag). `name`이 비면 이름표 목록 조회. 이름표는 HEAD 메타데이터에 보관.
+- **`chaeshin_revert`에 `tag` 인자 추가** — `to_index` 대신 이름표로 복원 가능
+  (`chaeshin_revert(case_id, tag="approved")`).
+- `CaseMetadata.tags: Dict[str, int]` 필드. 기존 케이스는 `_ensure_revision_metadata`가 `{}`로 정규화.
+
+### Notes
+- 아직 **선형 버전 라인**(root당 HEAD 1개)이다. 분기(branch)·병합(merge)·bisect는
+  [`docs/backlog/git-memory.md`](docs/backlog/git-memory.md)에 trigger·방법과 함께 backlog로 정리.
+
 ## [0.2.0] - 2026-04-26 — 아키텍처 업그레이드 + Zenodo archive
 
 이 release부터 Zenodo가 자동으로 archive하고 DOI를 발급한다 — 인용 가능한 software artifact 단위.

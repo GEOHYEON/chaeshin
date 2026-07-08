@@ -641,33 +641,49 @@ def chaeshin_diff(a_case_id: str, b_case_id: str) -> str:
 @mcp.tool()
 def chaeshin_revert(
     case_id: str,
-    to_index: int,
+    to_index: int = -1,
+    tag: str = "",
     reason: str = "",
     cascade: bool = True,
 ) -> str:
     """Revert HEAD's Tool Graph to a previous revision as a new commit.
 
     The current HEAD is first preserved as a snapshot, then HEAD keeps the same
-    case_id and receives the selected revision's graph.
+    case_id and receives the selected revision's graph. Pass either `to_index`
+    (a revision_index) or `tag` (a name set via chaeshin_tag) — not both.
 
     Args:
         case_id: HEAD case ID, or any snapshot ID from the same revision line
-        to_index: Target revision_index to restore
+        to_index: Target revision_index to restore (ignored if `tag` is given)
+        tag: Tag name to restore (takes precedence over `to_index`)
         reason: Optional commit message
         cascade: If true, orphan children hanging off removed nodes (default true)
     """
     store = _new_store()
-    result = store.revert(
-        case_id=case_id,
-        to_index=to_index,
-        cascade=cascade,
-        reason=reason,
-    )
-    if result is None:
-        return json.dumps(
-            {"error": f"Case/revision not found: {case_id}@{to_index}"},
-            ensure_ascii=False,
+    if tag:
+        result = store.revert_to_tag(case_id=case_id, tag=tag, cascade=cascade, reason=reason)
+        if result is None:
+            return json.dumps(
+                {"error": f"Case or tag not found: {case_id}@{tag!r}"},
+                ensure_ascii=False,
+            )
+    else:
+        if to_index < 0:
+            return json.dumps(
+                {"error": "Provide either to_index (>=0) or tag"},
+                ensure_ascii=False,
+            )
+        result = store.revert(
+            case_id=case_id,
+            to_index=to_index,
+            cascade=cascade,
+            reason=reason,
         )
+        if result is None:
+            return json.dumps(
+                {"error": f"Case/revision not found: {case_id}@{to_index}"},
+                ensure_ascii=False,
+            )
 
     _event_log.record(
         "revert",
@@ -688,23 +704,80 @@ def chaeshin_revert(
         ] + result["orphaned_children"],
     )
 
-    return json.dumps(
-        {
-            "status": "reverted",
-            "case_id": result["case_id"],
-            "snapshot_case_id": result["snapshot_case_id"],
-            "revision_index": result["revision_index"],
-            "reverted_to_case_id": result["reverted_to_case_id"],
-            "reverted_to_index": result["reverted_to_index"],
-            "added_nodes": result["added_nodes"],
-            "removed_nodes": result["removed_nodes"],
-            "retained_nodes": result["retained_nodes"],
-            "changed_nodes": result["changed_nodes"],
-            "orphaned_children": result["orphaned_children"],
-        },
-        ensure_ascii=False,
-        indent=2,
+    response = {
+        "status": "reverted",
+        "case_id": result["case_id"],
+        "snapshot_case_id": result["snapshot_case_id"],
+        "revision_index": result["revision_index"],
+        "reverted_to_case_id": result["reverted_to_case_id"],
+        "reverted_to_index": result["reverted_to_index"],
+        "added_nodes": result["added_nodes"],
+        "removed_nodes": result["removed_nodes"],
+        "retained_nodes": result["retained_nodes"],
+        "changed_nodes": result["changed_nodes"],
+        "orphaned_children": result["orphaned_children"],
+    }
+    if "reverted_to_tag" in result:
+        response["reverted_to_tag"] = result["reverted_to_tag"]
+    return json.dumps(response, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def chaeshin_blame(case_id: str) -> str:
+    """Blame each node in HEAD's Tool Graph — which revision introduced it.
+
+    Walks history oldest→newest and reports, per current node, the revision_index
+    where it last (re)entered the graph plus that revision's reason. Answers
+    "why is this step here and when did it come in".
+
+    Args:
+        case_id: HEAD case ID, or any snapshot ID from the same revision line
+    """
+    store = _new_store()
+    result = store.blame(case_id)
+    if result is None:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "blame",
+        payload={"case_id": result["case_id"], "n_nodes": len(result["nodes"])},
+        case_ids=[result["case_id"]],
     )
+    return json.dumps(result, ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def chaeshin_tag(case_id: str, name: str = "") -> str:
+    """Tag the current HEAD revision with a name, or list tags when name is empty.
+
+    A tag is a stable name → revision_index pointer (git tag). Use it to mark a
+    known-good revision, then `chaeshin_revert(case_id, tag="<name>")` to restore it.
+
+    Args:
+        case_id: HEAD case ID, or any snapshot ID from the same revision line
+        name: Tag name to create at current HEAD. Empty → list existing tags.
+    """
+    store = _new_store()
+    if not name:
+        result = store.list_tags(case_id)
+        if result is None:
+            return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
+    result = store.tag(case_id, name)
+    if result is None:
+        return json.dumps({"error": f"Case not found: {case_id}"}, ensure_ascii=False)
+
+    _event_log.record(
+        "tag",
+        payload={
+            "case_id": result["case_id"],
+            "tag": result["tag"],
+            "revision_index": result["revision_index"],
+        },
+        case_ids=[result["case_id"]],
+    )
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()

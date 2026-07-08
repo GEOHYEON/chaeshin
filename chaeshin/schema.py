@@ -258,6 +258,7 @@ class CaseMetadata:
     is_head: bool = True             # True = 현재 살아있는 버전, False = 과거 snapshot
     revision_reason: str = ""        # 이 버전을 만든 사유 (= commit message)
     root_case_id: str = ""           # 버전 라인의 최초 case_id (= 안정 식별자/branch id)
+    tags: Dict[str, int] = field(default_factory=dict)  # 이름표 → revision_index (= git tag). HEAD에 보관
 
 
 @dataclass
