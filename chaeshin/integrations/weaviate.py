@@ -51,6 +51,10 @@ logger = structlog.get_logger(__name__)
 COLLECTION_NAME = "Experience"
 EXPERIENCE_TYPE = "chaeshin-cbr"
 
+# 소속을 알 수 없는 레거시 케이스의 chatbotId. 모든 에이전트가 함께 본다.
+# 빈 문자열을 쓰지 않는 이유는 _scope_filter 주석 참조.
+LEGACY_SCOPE = "legacy"
+
 
 class WeaviateCaseStore:
     """Weaviate 기반 CBR 케이스 저장소.
@@ -150,7 +154,16 @@ class WeaviateCaseStore:
         if self._is_shared_collection:
             clauses.append(Filter.by_property("experienceType").equal(EXPERIENCE_TYPE))
         if self.chatbot_id:
-            clauses.append(Filter.by_property("chatbotId").equal(self.chatbot_id))
+            # 내 케이스 + 소속 미상 레거시(LEGACY_SCOPE).
+            # 엄격히 내 것만 보면 chatbotId 를 기록하기 이전에 쌓인 케이스가 전부
+            # 사라져 CBR 이 콜드 스타트한다. 레거시는 어차피 귀속이 불가능하므로
+            # 당분간 공용으로 두고, 새 케이스가 충분히 쌓이면 잘라낸다.
+            # 빈 문자열로 표시하지 않는 이유: Weaviate 는 equal("") 을 필터로 못 쓴다
+            # ("invalid search term, only stopwords provided" 로 쿼리 자체가 실패).
+            clauses.append(Filter.any_of([
+                Filter.by_property("chatbotId").equal(self.chatbot_id),
+                Filter.by_property("chatbotId").equal(LEGACY_SCOPE),
+            ]))
         if not clauses:
             return None
         return clauses[0] if len(clauses) == 1 else Filter.all_of(clauses)
