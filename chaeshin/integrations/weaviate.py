@@ -16,6 +16,7 @@ experienceType: "chaeshin-cbr"로 필터링하여 Chaeshin 전용 케이스를 �
 from __future__ import annotations
 
 import json
+import os
 import structlog
 from dataclasses import asdict
 from datetime import datetime
@@ -42,6 +43,11 @@ from chaeshin.schema import (
 
 logger = structlog.get_logger(__name__)
 
+# 기본 컬렉션. bt-monitoring 은 ExperienceType.weaviateClassName 으로 종류별
+# 컬렉션(ProcChaeshinCbr 등)을 관리하므로, 그쪽과 같은 곳을 보게 하려면
+# collection_name 인자나 CHAESHIN_WEAVIATE_COLLECTION env 로 지정한다.
+# 기본값을 바꾸지 않는 이유: 기존 배포가 조용히 다른 컬렉션을 보게 되면
+# 케이스가 통째로 사라진 것처럼 보인다.
 COLLECTION_NAME = "Experience"
 EXPERIENCE_TYPE = "chaeshin-cbr"
 
@@ -68,10 +74,21 @@ class WeaviateCaseStore:
         grpc_port: int = 50051,
         embed_fn: Optional[Callable[[str], List[float]]] = None,
         similarity_threshold: float = 0.7,
+        collection_name: Optional[str] = None,
+        chatbot_id: str = "",
     ):
         self.embed_fn = embed_fn
         self.similarity_threshold = similarity_threshold
         self.cases: List[Case] = []
+        # 어느 컬렉션을 볼지. 인자 > env > 기본값.
+        self.collection_name = (
+            collection_name
+            or os.environ.get("CHAESHIN_WEAVIATE_COLLECTION", "").strip()
+            or COLLECTION_NAME
+        )
+        # 이 저장소를 쓰는 챗봇. 값이 있으면 retain 시 기록하고 retrieve 시 필터한다
+        # — 없으면 모든 에이전트가 한 케이스 풀을 공유해 서로의 절차가 힌트로 섞인다.
+        self.chatbot_id = chatbot_id or os.environ.get("GSX2_CHATBOT_ID", "").strip()
 
         # Weaviate 연결
         from urllib.parse import urlparse
@@ -96,10 +113,10 @@ class WeaviateCaseStore:
 
     def _ensure_collection(self):
         """Experience 컬렉션이 없으면 생성."""
-        if self._client.collections.exists(COLLECTION_NAME):
+        if self._client.collections.exists(self.collection_name):
             return
         self._client.collections.create(
-            name=COLLECTION_NAME,
+            name=self.collection_name,
             vectorizer_config=weaviate.classes.config.Configure.Vectorizer.none(),
             properties=[
                 weaviate.classes.config.Property(name="experienceType", data_type=weaviate.classes.config.DataType.TEXT),
@@ -116,14 +133,34 @@ class WeaviateCaseStore:
                 weaviate.classes.config.Property(name="createdAt", data_type=weaviate.classes.config.DataType.DATE),
             ],
         )
-        logger.info("weaviate_collection_created", name=COLLECTION_NAME)
+        logger.info("weaviate_collection_created", name=self.collection_name)
+
+    @property
+    def _is_shared_collection(self) -> bool:
+        """레거시 공용 컬렉션인지. 종류별 컬렉션(ProcChaeshinCbr 등)은 아니다."""
+        return self.collection_name == COLLECTION_NAME
+
+    def _scope_filter(self):
+        """검색 스코프 필터. 없으면 None.
+
+        experienceType 은 **공용 컬렉션에서만** 건다. 종류별 컬렉션은 컬렉션
+        자체가 종류라 이 속성이 아예 없어서, 걸면 조건에 맞는 객체가 0건이 된다.
+        """
+        clauses = []
+        if self._is_shared_collection:
+            clauses.append(Filter.by_property("experienceType").equal(EXPERIENCE_TYPE))
+        if self.chatbot_id:
+            clauses.append(Filter.by_property("chatbotId").equal(self.chatbot_id))
+        if not clauses:
+            return None
+        return clauses[0] if len(clauses) == 1 else Filter.all_of(clauses)
 
     def _load_existing(self):
         """Weaviate에서 기존 chaeshin-cbr 케이스를 메모리 캐시로 로드."""
-        coll = self._client.collections.get(COLLECTION_NAME)
+        coll = self._client.collections.get(self.collection_name)
         try:
             result = coll.query.fetch_objects(
-                filters=Filter.by_property("experienceType").equal(EXPERIENCE_TYPE),
+                filters=self._scope_filter(),
                 limit=1000,
             )
             for obj in result.objects:
@@ -146,7 +183,7 @@ class WeaviateCaseStore:
 
         query_text = self._problem_to_text(problem)
 
-        coll = self._client.collections.get(COLLECTION_NAME)
+        coll = self._client.collections.get(self.collection_name)
 
         query_vec = self.embed_fn(query_text) if self.embed_fn else None
         result = coll.query.hybrid(
@@ -154,7 +191,7 @@ class WeaviateCaseStore:
             vector=query_vec,
             alpha=0.65 if query_vec else 0.0,
             query_properties=["userQuery", "keywords", "feedback", "inputJson"],
-            filters=Filter.by_property("experienceType").equal(EXPERIENCE_TYPE),
+            filters=self._scope_filter(),
             limit=min(top_k, len(self.cases)),
             return_metadata=weaviate.classes.query.MetadataQuery(distance=True, score=True),
         )
@@ -209,7 +246,7 @@ class WeaviateCaseStore:
         case.metadata.updated_at = datetime.now().isoformat()
 
         props = self._case_to_weaviate(case)
-        coll = self._client.collections.get(COLLECTION_NAME)
+        coll = self._client.collections.get(self.collection_name)
 
         upsert_kwargs: Dict[str, Any] = {"properties": props}
         if self.embed_fn:
@@ -273,7 +310,7 @@ class WeaviateCaseStore:
 
         # 실패 케이스 제거
         self.cases.pop(failure_idx)
-        coll = self._client.collections.get(COLLECTION_NAME)
+        coll = self._client.collections.get(self.collection_name)
         try:
             from uuid import UUID
             coll.data.delete_by_id(UUID(failure_case_id))
@@ -361,12 +398,15 @@ class WeaviateCaseStore:
             parts.append(" ".join(problem.keywords))
         return " | ".join(parts)
 
-    @staticmethod
-    def _case_to_weaviate(case: Case) -> Dict[str, Any]:
-        """Case → Weaviate Experience 프로퍼티."""
-        return {
-            "experienceType": EXPERIENCE_TYPE,
-            "chatbotId": "",
+    def _case_to_weaviate(self, case: Case) -> Dict[str, Any]:
+        """Case → Weaviate Experience 프로퍼티.
+
+        chatbotId 를 비워두면 retrieve 가 어느 에이전트의 케이스인지 구분할 수
+        없어 모든 에이전트가 한 풀을 공유하게 된다(치과 봇 절차가 위키 봇 힌트로
+        섞이는 식). 값이 있을 때만 스코프가 성립한다.
+        """
+        props: Dict[str, Any] = {
+            "chatbotId": self.chatbot_id,
             "userQuery": case.problem_features.request,
             "isSuccessful": case.outcome.success,
             "feedback": case.outcome.error_reason or "",
@@ -381,6 +421,11 @@ class WeaviateCaseStore:
             "sourceLogId": case.metadata.case_id,
             "createdAt": case.metadata.created_at,
         }
+        # 공용 컬렉션에서만 종류를 구분해야 한다. 종류별 컬렉션에는 이 속성이
+        # 없어서, 넣으면 auto-schema 가 UI 쪽 컬렉션에 없던 필드를 만들어버린다.
+        if self._is_shared_collection:
+            props["experienceType"] = EXPERIENCE_TYPE
+        return props
 
     @staticmethod
     def _weaviate_to_case(props: Dict[str, Any], uuid: str) -> Optional[Case]:
