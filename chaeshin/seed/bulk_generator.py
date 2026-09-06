@@ -61,6 +61,15 @@ class BulkGenerator:
         similarity_threshold: float = 0.85,
         jaccard_threshold: float = 0.7,
     ):
+        """생성 함수, 저장소, 중복 판정 전략을 구성한다.
+
+        Args:
+            llm_fn: 메시지 목록을 받아 모델 응답을 반환하는 비동기 함수.
+            store: 승인된 시드 케이스를 저장할 staging 저장소.
+            embed_fn: 검색 텍스트를 임베딩으로 변환하는 선택 함수.
+            similarity_threshold: 임베딩 중복으로 거절할 최소 코사인 유사도.
+            jaccard_threshold: 임베딩이 없을 때 키워드 중복으로 거절할 임계값.
+        """
         self.llm_fn = llm_fn
         self.store = store
         self.embed_fn = embed_fn
@@ -217,6 +226,11 @@ class BulkGenerator:
         source_marker: str,
         attempt: int,
     ) -> GenerationEvent:
+        """시드 한 건을 생성·검증·중복 판정한 뒤 저장한다.
+
+        모델 호출이나 JSON 검증 실패는 예외를 외부로 전파하지 않고 거절 이벤트로
+        변환한다. 승인된 경우에만 저장소를 변경하고 ``accept`` 이벤트를 반환한다.
+        """
         prompt = build_scenario_prompt(
             topic=topic,
             tool_allowlist=tool_allowlist,
@@ -250,7 +264,8 @@ class BulkGenerator:
         keywords_list = [str(k).strip() for k in payload.get("keywords", []) if str(k).strip()]
         constraints = [str(c).strip() for c in payload.get("constraints", []) if str(c).strip()]
 
-        # Dedup
+        # 현재 배치와 이미 영속화된 케이스를 모두 비교해야 같은 generate 호출 안에서
+        # 연달아 나온 중복과 이전 실행에서 쌓인 중복을 함께 막을 수 있다.
         text = f"{request} {' '.join(keywords_list)}"
         if self.embed_fn is not None:
             try:
@@ -319,6 +334,7 @@ class BulkGenerator:
 
     @staticmethod
     def _max_cosine(vec: List[float], others: List[List[float]]) -> float:
+        """후보 벡터와 비교군 사이의 최대 코사인 유사도를 반환한다."""
         if not others:
             return 0.0
         return max(_cosine(vec, o) for o in others)
@@ -329,6 +345,10 @@ class BulkGenerator:
         kw: set,
         in_flight: List[tuple[str, set]],
     ) -> bool:
+        """같은 카테고리 안에서 키워드 Jaccard 중복 여부를 판정한다.
+
+        현재 생성 배치와 저장소의 기존 케이스를 모두 검사한다.
+        """
         for c, existing in in_flight:
             if c != category:
                 continue
@@ -355,6 +375,7 @@ class BulkGenerator:
 
 
 def _cosine(a: List[float], b: List[float]) -> float:
+    """두 벡터의 코사인 유사도를 계산하며 영벡터는 0으로 처리한다."""
     if not a or not b:
         return 0.0
     dot = sum(x * y for x, y in zip(a, b))

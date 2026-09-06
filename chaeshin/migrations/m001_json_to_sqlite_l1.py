@@ -82,6 +82,7 @@ def migrate(
 
 
 def main(argv: List[str] | None = None) -> int:
+    """마이그레이션 CLI 인자를 파싱하고 이관 결과를 출력한다."""
     parser = argparse.ArgumentParser(description="Chaeshin JSON→SQLite migration")
     parser.add_argument("--json", default=str(DEFAULT_JSON_PATH))
     parser.add_argument("--db", default=str(DEFAULT_DB_PATH))

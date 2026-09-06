@@ -1,15 +1,18 @@
 """
-Chaeshin (採薪) — Teach an agent to retrieve plans.
+Chaeshin (採薪) — Procedural memory context for ReAct agents.
 
-"Give an agent a plan, it solves one task.
- Teach it to retrieve plans, it solves them all."
+"Store procedural evidence once; let ReAct reuse it in the right state."
 
-A framework that retrieves, executes, and adapts
-Tool Calling graphs from past successful cases
-using Case-Based Reasoning.
+A framework that retrieves success, failure, and pending ToolGraph evidence
+for a host LLM using Case-Based Reasoning.
+
+The primary agent path is planner-free ReAct.  ``GraphPlanner`` and
+``TaskTree`` remain lazy legacy exports for backwards compatibility.
 """
 
 __version__ = "0.1.0"
+
+from typing import TYPE_CHECKING
 
 from chaeshin.schema import (
     ToolDef,
@@ -27,7 +30,9 @@ from chaeshin.schema import (
 )
 from chaeshin.graph_executor import GraphExecutor
 from chaeshin.case_store import CaseStore
-from chaeshin.planner import GraphPlanner, TaskTree
+
+if TYPE_CHECKING:
+    from chaeshin.planner import GraphPlanner, TaskTree
 
 __all__ = [
     # Schema
@@ -49,6 +54,17 @@ __all__ = [
     "GraphPlanner",
     "TaskTree",
 ]
+
+
+def __getattr__(name: str):
+    """기존 Planner API는 요청된 경우에만 로드해 ReAct 경로와 분리한다."""
+    if name in {"GraphPlanner", "TaskTree"}:
+        from chaeshin import planner as planner_module
+
+        value = getattr(planner_module, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Optional integrations — import 실패해도 코어에 영향 없음
 try:

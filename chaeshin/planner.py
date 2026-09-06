@@ -171,6 +171,7 @@ class TaskTree:
 
     @property
     def layer(self) -> str:
+        """리프를 L1으로 하는 파생 레이어 라벨을 반환한다."""
         return f"L{self.depth + 1}"
 
     @property
@@ -185,6 +186,7 @@ class TaskTree:
         return result
 
     def _collect_layers(self, acc: Dict[str, List["TaskTree"]]):
+        """현재 서브트리를 순회하며 파생 레이어별 누적 목록에 추가한다."""
         if self.layer not in acc:
             acc[self.layer] = []
         acc[self.layer].append(self)
@@ -201,6 +203,7 @@ class TaskTree:
         return leaves
 
     def to_dict(self) -> Dict[str, Any]:
+        """그래프 본문을 제외한 트리 구조 요약을 재귀적으로 직렬화한다."""
         return {
             "request": self.request,
             "layer": self.layer,
@@ -326,6 +329,7 @@ class GraphPlanner:
     def _apply_diff(self, graph: ToolGraph, diff: Dict[str, Any]) -> ToolGraph:
         """diff를 그래프에 적용."""
         import copy
+        # 검색된 케이스의 원본 그래프는 재사용될 수 있으므로 복사본만 수정한다.
         new_graph = copy.deepcopy(graph)
 
         # 노드 삭제
@@ -400,6 +404,7 @@ class GraphPlanner:
                 is_leaf=True,
             )
 
+        # 첫 화면은 간결하게, 하위 분해는 더 세밀하게 만들도록 자식 수 상한을 달리한다.
         prompt = DECOMPOSE_TREE_PROMPT.format(
             tools_description=self._format_tools(),
             max_children=5 if current_depth == 0 else 7,
@@ -452,6 +457,7 @@ class GraphPlanner:
         # 현재 레이어의 그래프 (자식들을 노드로 매핑)
         layer_nodes = []
         layer_edges = []
+        # children은 subtasks 순서대로 한 개씩 만들어졌으므로 같은 인덱스가 대응한다.
         for i, (sub, child) in enumerate(zip(subtasks, children)):
             node_id = sub.get("id", f"t{i}")
             layer_nodes.append(GraphNode(
@@ -460,6 +466,7 @@ class GraphPlanner:
                 note=sub.get("task", ""),
             ))
             if i > 0:
+                # 별도 의존성 정보가 없으므로 LLM이 반환한 순서를 기본 실행 순서로 쓴다.
                 prev_id = subtasks[i - 1].get("id", f"t{i-1}")
                 layer_edges.append(GraphEdge(from_node=prev_id, to_node=node_id))
 
@@ -524,6 +531,7 @@ class GraphPlanner:
     # ── Helpers ────────────────────────────────────────────────────────
 
     def _format_tools(self) -> str:
+        """도구와 필수 파라미터를 LLM 프롬프트용 한 줄 목록으로 만든다."""
         lines = []
         for name, tool in self.tools.items():
             params = ", ".join(
@@ -534,6 +542,7 @@ class GraphPlanner:
         return "\n".join(lines)
 
     def _format_reference_graphs(self) -> str:
+        """참조 그래프의 도구 순서를 프롬프트용 패턴 설명으로 만든다."""
         if not self.reference_graphs:
             return ""
 
@@ -545,10 +554,12 @@ class GraphPlanner:
 
     @staticmethod
     def _graph_to_dict(graph: ToolGraph) -> Dict[str, Any]:
+        """ToolGraph 데이터클래스를 중첩 딕셔너리로 변환한다."""
         from dataclasses import asdict
         return asdict(graph)
 
     def _format_execution_state(self, ctx: ExecutionContext) -> str:
+        """노드별 상태·출력·오류를 리플래닝 프롬프트용 텍스트로 만든다."""
         lines = []
         for nid, ns in ctx.node_states.items():
             line = f"  {nid}: status={ns.status.value}"
@@ -599,6 +610,7 @@ class GraphPlanner:
             for n in data.get("nodes", [])
         ]
 
+        # 외부 그래프 생산자의 ``from/to``와 내부 ``from_node/to_node``를 모두 받는다.
         edges = [
             GraphEdge(
                 from_node=e["from"] if "from" in e else e.get("from_node", ""),

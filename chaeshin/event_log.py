@@ -25,6 +25,10 @@ class EventLog:
     """MCP 호출 이벤트 로거."""
 
     def __init__(self, backend: Optional[SQLiteBackend] = None, session_id: str = ""):
+        """백엔드와 세션 식별자를 설정한다.
+
+        세션 ID를 생략하면 연속된 이벤트를 묶을 새 UUID를 생성한다.
+        """
         self.backend = backend
         self.session_id = session_id or str(uuid.uuid4())
 

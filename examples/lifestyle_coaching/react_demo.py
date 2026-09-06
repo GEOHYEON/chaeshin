@@ -212,7 +212,10 @@ USER_REQUEST = (
 
 async def main():
     adapter = build_adapter()
-    store, events, tmp = build_store(session_id="lifestyle-react")
+    store, events, tmp = build_store(
+        session_id="lifestyle-react",
+        embed_fn=adapter.embed_fn,
+    )
 
     tools = {**chaeshin_tools(store, events, category="lifestyle-coaching/reset", source="lifestyle-react"),
              **domain_tools()}
@@ -222,6 +225,8 @@ async def main():
         tools=tools,
         system_hint=SYSTEM_HINT,
         max_steps=35,
+        # 이 예제는 실제 실행 trace가 아니라 계층형 memory-authoring을 시연한다.
+        enforce_actual_trace=False,
     )
     try:
         await agent.run(USER_REQUEST)

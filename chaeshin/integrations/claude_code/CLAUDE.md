@@ -1,12 +1,22 @@
 # Chaeshin — Auto-Learning Rules (Claude Code)
 
-You have access to Chaeshin MCP tools — a persistent memory layer for case-based reasoning. The model: every layer is a graph, you keep unfolding nodes until each leaf is a single tool call, and outcomes start as `pending` until a human gives a verdict.
+You have access to Chaeshin MCP tools — a persistent procedural-memory layer for
+case-based reasoning. L1 is always a ToolGraph with one or more executable Tool
+nodes. L2 and higher are Procedures that normally group five to seven Cases from
+the immediately lower layer. Outcomes start as `pending` until a human gives a
+verdict.
 
 ---
 
 ## Mental Model — read this once
 
-- **Graphs all the way down.** Every `Case` stores a Tool Graph. A node in that graph isn't necessarily atomic — if it's still composite, save it as another `Case` with `parent_case_id` + `parent_node_id` linking back. Keep unfolding until every leaf is one tool call. No fixed L1/L2/L3 ceiling.
+- **ToolGraph base, Procedures above it.** An L1 `Case` stores a ToolGraph. An
+  L2+ `Case` stores a Procedure whose normally five to seven ProcedureSteps anchor
+  Cases from the immediately lower layer. Recursively following those anchors must
+  terminate at L1 ToolGraphs. There is no fixed maximum layer.
+- **Search every layer together.** Retrieval does not predict one layer and search
+  only there. L1 ToolGraphs and all L2+ Procedures compete in one candidate space;
+  relation expansion then adds relevant parent, child, and prerequisite context.
 - **Tri-state outcome.** `outcome.status` is `pending` | `success` | `failure`. `chaeshin_retain` always saves as `pending`. **Never** infer success/failure yourself. Only call `chaeshin_verdict` when the user explicitly judges (their own words quoted in `note`).
 - **No verdict ≠ failure.** A case that times past its `deadline_at` without a verdict stays `pending`. That's a real state, not a missing one.
 - **Edits are versioned.** `chaeshin_revise` preserves the previous HEAD as a snapshot, then rewrites the live case in place. Downstream children keep the same `parent_case_id`.
@@ -19,11 +29,11 @@ You have access to Chaeshin MCP tools — a persistent memory layer for case-bas
 | Tool | When |
 |------|------|
 | `chaeshin_retrieve` | **Always first.** Search past cases before you start any non-trivial task. |
-| `chaeshin_retain` | After completing a step, save the graph. Always saved as `pending`. |
+| `chaeshin_retain` | Save an L1 ToolGraph or an L2+ Procedure Case. Always saved as `pending`. |
 | `chaeshin_update` | Patch metadata / problem_features / outcome (not the graph itself). |
-| `chaeshin_revise` | Commit a new graph revision for this layer. Cascades to orphan children. |
+| `chaeshin_revise` | Commit a new ToolGraph/Procedure structure revision. Cascades to orphan children. |
 | `chaeshin_history` | Inspect HEAD → previous snapshot revision history. |
-| `chaeshin_diff` | Compare two version case IDs by Tool Graph structure. |
+| `chaeshin_diff` | Compare two version Case IDs by ToolGraph/Procedure structure. |
 | `chaeshin_revert` | Restore an older revision's graph into HEAD as a new commit (`to_index` or `tag`). |
 | `chaeshin_blame` | Per current node, which revision introduced it + that commit's reason. |
 | `chaeshin_tag` | Name the current revision (or list tags). Revert by name with `chaeshin_revert(tag=...)`. |
@@ -43,11 +53,13 @@ Call **before** any task involving 3+ tool calls or that spans sessions:
 - Pass the user's request as `query`, extract `keywords` from context.
 
 The response splits into three lists:
-- `successes` — past cases with verdict=success. Follow if similarity > 0.7.
+- `successes` — past cases with verdict=success. Treat them as evidence, even at
+  high similarity; never execute the top-ranked structure automatically.
 - `warnings` — past cases with verdict=failure. **Avoid** these patterns.
 - `pending` — past cases still awaiting verdict. Treat as "unknown signal" — informational only.
 
-If `include_children=true` you get the unfolded sub-graphs too. Use this on retrieved roots for full plan context.
+If `include_children=true` you get anchored lower Procedures and L1 ToolGraphs too.
+Use this for bounded procedural context, not as an executable plan.
 
 ---
 
@@ -69,23 +81,28 @@ The case enters as `outcome.status="pending"`. You do **not** decide success/fai
 
 ### Decomposing Complex Tasks — Multiple Retains
 
-For tasks that span multiple decomposition layers, call `chaeshin_retain` once per layer, top-down, chaining `parent_case_id` / `parent_node_id`:
+For tasks that span multiple decomposition layers, call `chaeshin_retain` once
+per Case, top-down, chaining `parent_case_id` / `parent_node_id`. The current MCP
+payload uses the legacy `graph` container for both kinds, but its meaning is
+different by layer: L2+ nodes are ProcedureSteps; only L1 nodes are executable
+Tools.
 
 ```
-1) chaeshin_retain(layer="L{n}", depth=n-1, graph={...}, ...)         → root_id
-2) For each composite node in the root graph, recurse:
+1) chaeshin_retain(layer="L{n}", depth=n-1, graph={5–7 procedure steps}, ...) → root_id
+2) For each ProcedureStep, retain the Case from the immediately lower layer:
    chaeshin_retain(
      layer="L{n-1}", depth=n-2,
      parent_case_id=root_id,
-     parent_node_id=<that node's id>,
-     graph={... unfolded ...}
+     parent_node_id=<that procedure step's id>,
+     graph={... lower Procedure or L1 ToolGraph ...}
    )
-3) Stop when graph.nodes are all atomic tool calls (depth=0, layer="L1").
+3) Stop at layer="L1". An L1 ToolGraph may contain several actual Tool nodes and
+   control-flow edges; L1 does not mean one Tool call.
 ```
 
 Chaeshin links parent ↔ child automatically when you pass `parent_case_id` + `parent_node_id`.
 
-### Graph Format
+### L1 ToolGraph Format
 
 ```json
 {
@@ -101,7 +118,9 @@ Chaeshin links parent ↔ child automatically when you pass `parent_case_id` + `
 }
 ```
 
-`params_hint` (node) and `condition` (edge) are optional but useful for branchy flows.
+`params_hint` (node) and `condition` (edge) are optional but useful for branchy
+flows. For L2+, the corresponding container represents ordered or guarded
+ProcedureSteps and child anchors, not registered Tools.
 
 ---
 
@@ -128,9 +147,9 @@ You only call `chaeshin_verdict` when the user **explicitly** signals a judgment
 
 ---
 
-## When the Plan Itself Changes — `chaeshin_revise`
+## When the Stored Procedure or ToolGraph Changes — `chaeshin_revise`
 
-When user feedback is about the **graph structure** ("이 단계 빼", "순서 바꿔", "이걸 두 개로 쪼개"), don't just log feedback — rewrite the graph:
+When user feedback is about the **Procedure or ToolGraph structure** ("이 단계 빼", "순서 바꿔", "이걸 두 개로 쪼개"), don't just log feedback — create a structural revision:
 
 ```
 chaeshin_revise(
@@ -146,13 +165,17 @@ The response includes:
 - `removed_nodes` — nodes that disappeared.
 - `orphaned_children` — child cases whose `parent_node_id` was in `removed_nodes`. They're auto-flipped back to `pending`. Surface this list to the user — they decide whether to revise / re-link / delete each.
 
-Use `chaeshin_update` (not `revise`) for non-graph edits like changing `outcome` fields or `metadata` directly. Use `revise` whenever the graph changes.
+Use `chaeshin_update` (not `revise`) for non-structural edits like changing
+`outcome` fields or `metadata` directly. Use `revise` whenever a ToolGraph or
+Procedure changes.
 
 ---
 
 ## Retrieve Cascade — Reading Trees Back
 
-`chaeshin_retrieve(query=..., include_children=true)` walks the tree downward from each match, returning the unfolded graphs. Use this when bringing context back for a complex task.
+`chaeshin_retrieve(query=..., include_children=true)` walks the Procedure anchors
+downward from each match, returning lower Procedures and L1 ToolGraphs. Use this
+when bringing context back for a complex task.
 
 `include_parent=true` walks upward — useful when you hit a leaf and want to know which strategy it belonged to.
 

@@ -52,6 +52,7 @@ LOCAL_STORE_FILE = os.path.join(LOCAL_STORE_DIR, "cases.json") if LOCAL_STORE_DI
 
 
 def _get_embed_fn():
+    """사용 가능한 OpenAI 임베딩 함수를 선택적으로 반환한다."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return None
@@ -210,6 +211,7 @@ def cmd_stats(args):
 
 
 def main():
+    """OpenClaw 브리지 하위 명령을 파싱하고 해당 핸들러를 실행한다."""
     parser = argparse.ArgumentParser(
         description="Chaeshin ↔ OpenClaw Bridge"
     )

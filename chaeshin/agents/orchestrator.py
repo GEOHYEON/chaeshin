@@ -65,6 +65,10 @@ class OrchestratorAgent(BaseAgent):
         feedback_count_threshold: int = 3,
         auto_retain: bool = True,
     ):
+        """난이도 분기 기준과 서브에이전트 실행 환경을 초기화한다.
+
+        ``auto_retain``이 켜져도 결과는 사용자 판정 전까지 항상 pending으로 저장한다.
+        """
         super().__init__(
             agent_type="orchestrator",
             llm_fn=llm_fn,

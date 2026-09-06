@@ -41,6 +41,7 @@ class ExecutorAgent(BaseAgent):
         on_replan: Optional[Callable] = None,
         context: Optional[AgentContext] = None,
     ):
+        """도구 레지스트리와 선택적 리플래닝 콜백으로 실행기를 구성한다."""
         super().__init__(
             agent_type="executor",
             llm_fn=llm_fn,
@@ -114,6 +115,7 @@ class ExecutorAgent(BaseAgent):
                             "node_id": nid,
                             "tool": node.tool if node else "unknown",
                             "status": ns.status.value,
+                            # 스트리밍 이벤트가 큰 도구 결과 전체를 복제하지 않도록 제한한다.
                             "output_preview": str(ns.output_data)[:200] if ns.output_data else None,
                             "error": ns.error,
                         }

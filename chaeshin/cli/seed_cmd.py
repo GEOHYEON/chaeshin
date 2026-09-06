@@ -31,16 +31,19 @@ from chaeshin.storage.sqlite_backend import SQLiteBackend
 
 
 def _main_db_path() -> str:
+    """환경 설정을 반영한 메인 Chaeshin DB 경로를 반환한다."""
     base = os.path.expanduser(os.getenv("CHAESHIN_STORE_DIR", "~/.chaeshin"))
     return os.path.join(base, "chaeshin.db")
 
 
 def _open_main_store() -> CaseStore:
+    """영속 백엔드의 기존 케이스를 포함해 메인 저장소를 연다."""
     backend = SQLiteBackend(_main_db_path())
     return CaseStore(backend=backend, auto_load=True)
 
 
 def _get_openai_adapter():
+    """API 키와 선택 의존성이 있으면 OpenAI 어댑터를 생성한다."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return None
@@ -53,6 +56,7 @@ def _get_openai_adapter():
 
 
 def _print(msg: str) -> None:
+    """버퍼링 없이 CLI 메시지를 즉시 출력한다."""
     print(msg, flush=True)
 
 
@@ -65,6 +69,11 @@ def _ndjson(obj: dict) -> None:
 
 
 def cmd_generate(args: argparse.Namespace) -> int:
+    """LLM으로 시드 케이스를 생성하고 staging DB에 저장한다.
+
+    필수 설정이나 도구 목록이 없으면 ``2``, 생성 루프를 실행했으면 ``0``을
+    반환한다. 생성 진행 결과는 UI도 소비할 수 있도록 NDJSON으로 출력한다.
+    """
     adapter = _get_openai_adapter()
     if adapter is None:
         _print("ERROR: OPENAI_API_KEY 가 필요합니다 (chaeshin seed generate).")
@@ -108,6 +117,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
+    """시드 저장소의 케이스를 선택적 토픽 필터와 함께 출력한다."""
     store = open_seed_store(db_path=args.db or None)
     rows = []
     for c in store.cases:
@@ -129,6 +139,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_export(args: argparse.Namespace) -> int:
+    """시드 저장소 전체를 지정한 JSON 파일로 내보낸다."""
     store = open_seed_store(db_path=args.db or None)
     payload = store.to_json()
     with open(args.path, "w", encoding="utf-8") as f:
@@ -138,6 +149,7 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 def cmd_import(args: argparse.Namespace) -> int:
+    """JSON 파일의 케이스를 읽어 시드 저장소에 영속화한다."""
     store = open_seed_store(db_path=args.db or None)
     with open(args.path, "r", encoding="utf-8") as f:
         raw = f.read()
@@ -159,6 +171,10 @@ def cmd_import(args: argparse.Namespace) -> int:
 
 
 def cmd_promote(args: argparse.Namespace) -> int:
+    """선택한 시드 케이스를 메인 저장소로 승격한다.
+
+    ``--ids``와 ``--all`` 중 어느 것도 주어지지 않으면 ``2``를 반환한다.
+    """
     seed_store = open_seed_store(db_path=args.seed_db or None)
     main_store = _open_main_store()
 
@@ -238,6 +254,7 @@ def add_subparser(subparsers) -> None:
 
 
 def _print_help_if_no_subcommand(args: argparse.Namespace, parser: argparse.ArgumentParser) -> bool:
+    """시드 하위 명령이 없으면 도움말을 출력하고 처리 여부를 반환한다."""
     if getattr(args, "seed_command", None) is None:
         parser.print_help()
         return True

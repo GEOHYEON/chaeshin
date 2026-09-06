@@ -112,6 +112,11 @@ def _format_case(
     include_parent: bool = False,
     recursion_depth: int = 0,
 ) -> Dict[str, Any]:
+    """케이스를 MCP 응답 형식으로 변환하고 선택한 계층 관계를 펼친다.
+
+    자식은 최대 6단계까지만 재귀적으로 포함하며, 부모는 최초 호출에서만 한 번
+    포함해 잘못된 순환 링크가 응답 생성을 무한 반복시키지 않도록 한다.
+    """
     g = case.solution.tool_graph
     meta = case.metadata
     derived_depth = store.derive_depth(meta.case_id)
@@ -234,6 +239,7 @@ def chaeshin_retrieve(
     result = store.retrieve_with_warnings(problem, top_k=top_k, top_k_failures=top_k_failures)
 
     def _passes_filter(case: Case) -> bool:
+        """최소 피드백 횟수 조건을 만족하는지 판별한다."""
         if min_feedback_count <= 0:
             return True
         return getattr(case.metadata, "feedback_count", 0) >= min_feedback_count
@@ -558,6 +564,7 @@ def chaeshin_revise(
 
 
 def _format_history_entry(case: Case) -> Dict[str, Any]:
+    """버전 이력에 필요한 케이스 메타데이터와 그래프 요약을 만든다."""
     meta = case.metadata
     graph = case.solution.tool_graph
     return {
@@ -1120,6 +1127,7 @@ def chaeshin_decompose(
 
 
 def main():
+    """표준 입출력 전송 방식으로 Chaeshin MCP 서버를 실행한다."""
     mcp.run(transport="stdio")
 
 

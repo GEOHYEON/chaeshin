@@ -51,6 +51,10 @@ class GraphExecutor:
         on_special_action: Optional[Callable] = None,
         on_patient_todo_update: Optional[Callable] = None,
     ):
+        """도구 레지스트리와 실행 생명주기 콜백을 구성한다.
+
+        콜백은 모두 선택 사항이며, 없으면 코어 그래프 실행만 수행한다.
+        """
         self.tools = tools  # name → ToolDef
         self.on_node_start = on_node_start  # async (node, ctx) → None
         self.on_node_end = on_node_end  # async (node, ctx, result) → None
@@ -76,7 +80,7 @@ class GraphExecutor:
         """
         ctx = context or ExecutionContext()
 
-        # 초기화: 모든 노드를 PENDING으로
+        # 상태가 이미 있는 context는 이어서 실행해야 하므로 최초 실행일 때만 초기화한다.
         if not ctx.node_states:
             for node in graph.nodes:
                 ctx.node_states[node.id] = NodeState(node_id=node.id)
@@ -167,7 +171,7 @@ class GraphExecutor:
             return {}
 
         try:
-            # params_hint + input_data를 합쳐서 인자 구성
+            # 이전 노드의 실제 출력(input_data)이 설계 시 힌트(params_hint)보다 우선한다.
             args = {**node.params_hint, **ns.input_data}
             result_str = await asyncio.wait_for(tool_def.executor(args), timeout=300)
 
@@ -404,12 +408,17 @@ class GraphExecutor:
         return [n.id for n in graph.nodes if n.id not in targets]
 
     def _get_ready_nodes(self, ctx: ExecutionContext) -> List[str]:
+        """현재 실행 가능한 READY 노드 ID를 컨텍스트 등록 순서대로 반환한다."""
         return [
             nid for nid, ns in ctx.node_states.items()
             if ns.status == NodeStatus.READY
         ]
 
     def _all_done_or_skipped(self, ctx: ExecutionContext) -> bool:
+        """모든 노드가 재실행 불가능한 종결 상태인지 확인한다.
+
+        실패 노드도 리플래닝 이후 READY로 돌아오지 않았다면 종결 상태로 취급한다.
+        """
         return all(
             ns.status in (NodeStatus.DONE, NodeStatus.SKIPPED, NodeStatus.FAILED)
             for ns in ctx.node_states.values()

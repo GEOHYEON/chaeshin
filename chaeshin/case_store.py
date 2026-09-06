@@ -66,6 +66,7 @@ class CaseStore:
         self.similarity_threshold = similarity_threshold
         self._embeddings: Dict[str, List[float]] = {}  # case_id → embedding
         self.backend = backend
+        self.last_retrieval_mode = "uninitialized"
 
         if backend is not None and auto_load:
             self._load_from_backend()
@@ -129,7 +130,9 @@ class CaseStore:
 
         search_problem = build_search_problem(problem)
         if self.embed_fn:
+            self.last_retrieval_mode = "hybrid"
             return self._retrieve_hybrid(search_problem, top_k)
+        self.last_retrieval_mode = "lexical"
         return self._retrieve_by_keywords(search_problem, top_k)
 
     def retrieve_best(self, problem: ProblemFeatures) -> Optional[Case]:
@@ -169,6 +172,7 @@ class CaseStore:
             query_vec = self.embed_fn(query_text) if self.embed_fn else []
         except Exception as e:
             logger.warning("query_embedding_failed", error=str(e))
+            self.last_retrieval_mode = "lexical_fallback"
             return self._retrieve_by_keywords(problem, top_k)
 
         scored: List[Tuple[Case, float]] = []
@@ -195,6 +199,10 @@ class CaseStore:
 
     @staticmethod
     def _cosine_similarity(a: List[float], b: List[float]) -> float:
+        """두 벡터의 코사인 유사도를 계산한다.
+
+        한쪽 벡터의 크기가 0이면 방향을 비교할 수 없으므로 0을 반환한다.
+        """
         dot = sum(x * y for x, y in zip(a, b))
         norm_a = sum(x ** 2 for x in a) ** 0.5
         norm_b = sum(x ** 2 for x in b) ** 0.5
@@ -307,6 +315,7 @@ class CaseStore:
         all_results = self.retrieve(problem, top_k=len(self.cases))
 
         def _status(c: Case) -> str:
+            """3-state 필드가 없는 레거시 케이스의 상태를 안전하게 유도한다."""
             return getattr(c.outcome, "status", None) or ("success" if c.outcome.success else "pending")
 
         successes = [(c, s) for c, s in all_results if _status(c) == "success"]
@@ -1055,11 +1064,17 @@ class CaseStore:
             case = self._dict_to_case(raw)
             self.cases.append(case)
             if self.embed_fn:
-                text = (
-                    f"{case.problem_features.request} "
-                    f"{' '.join(case.problem_features.keywords)}"
-                )
-                self._embeddings[case.metadata.case_id] = self.embed_fn(text)
+                try:
+                    text = problem_to_search_text(
+                        build_search_problem(case.problem_features)
+                    )
+                    self._embeddings[case.metadata.case_id] = self.embed_fn(text)
+                except Exception as e:
+                    logger.warning(
+                        "embedding_failed_during_json_load",
+                        case_id=case.metadata.case_id,
+                        error=str(e),
+                    )
 
     @staticmethod
     def _dict_to_case(d: Dict[str, Any]) -> Case:

@@ -69,6 +69,10 @@ class BaseAgent(ABC):
         llm_fn: Optional[Callable[[List[Dict[str, str]]], Coroutine[Any, Any, str]]] = None,
         context: Optional[AgentContext] = None,
     ):
+        """에이전트 식별자, 실행 함수, 공유 컨텍스트를 초기화한다.
+
+        ``agent_id``와 ``context``를 생략하면 서로 독립적인 새 값을 생성한다.
+        """
         self.agent_id = agent_id or str(uuid.uuid4())
         self.agent_type = agent_type
         self.llm_fn = llm_fn
@@ -156,6 +160,7 @@ class SubagentManager:
     """
 
     def __init__(self):
+        """에이전트, 완료 결과, 백그라운드 태스크 레지스트리를 초기화한다."""
         self._agents: Dict[str, BaseAgent] = {}
         self._results: Dict[str, AgentResult] = {}
         self._running_tasks: Dict[str, asyncio.Task] = {}

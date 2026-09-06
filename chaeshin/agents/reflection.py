@@ -68,6 +68,10 @@ class ReflectionAgent(BaseAgent):
         case_store: Optional[CaseStore] = None,
         context: Optional[AgentContext] = None,
     ):
+        """피드백 분석 플래너와 선택적 영속 저장소를 구성한다.
+
+        저장소가 없으면 변환 결과만 반환하고 케이스에는 반영하지 않는다.
+        """
         super().__init__(
             agent_type="reflection",
             llm_fn=llm_fn,
@@ -254,6 +258,7 @@ class ReflectionAgent(BaseAgent):
         if not diff:
             return {"action": "modify", "changes": 0, "note": "변경 사항 없음"}
 
+        # 플래너는 원본을 deep copy하므로 저장 전까지 입력 그래프는 보존된다.
         modified_graph = self.planner._apply_diff(graph, diff)
 
         # 케이스 업데이트
@@ -339,6 +344,7 @@ class ReflectionAgent(BaseAgent):
             if not node_id or not new_tool:
                 continue
 
+            # CORRECT는 구조를 복제하지 않고 대상 케이스의 노드를 제자리 수정한다.
             node = graph.get_node(node_id)
             if node:
                 old_tool = node.tool

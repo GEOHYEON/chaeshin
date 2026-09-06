@@ -27,11 +27,20 @@ from pathlib import Path
 
 
 def _columns(db: sqlite3.Connection, table: str) -> set[str]:
+    """SQLite 테이블의 현재 열 이름 집합을 조회한다."""
     rows = db.execute(f"PRAGMA table_info({table})").fetchall()
     return {r[1] for r in rows}
 
 
 def migrate(db_path: Path) -> dict:
+    """저장형 layer/depth를 제거하고 케이스 메타 버전을 3으로 올린다.
+
+    메타데이터 정리, 인덱스 삭제, 열 삭제를 한 연결에서 수행한다. 구버전
+    SQLite가 ``DROP COLUMN``을 지원하지 않으면 테이블 재생성 경로를 사용한다.
+
+    Returns:
+        정리·건너뜀 건수, 열 삭제 여부, DB 경로를 담은 딕셔너리.
+    """
     db = sqlite3.connect(str(db_path))
     db.row_factory = sqlite3.Row
     try:
@@ -122,6 +131,7 @@ def _recreate_without_layer(db: sqlite3.Connection) -> None:
 
 
 def main():
+    """기본 또는 지정 DB에 m003 마이그레이션을 실행한다."""
     ap = argparse.ArgumentParser(description="Drop stored layer column; layer becomes derived from tree.")
     ap.add_argument(
         "--db",

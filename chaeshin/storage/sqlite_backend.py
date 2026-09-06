@@ -97,25 +97,31 @@ class SQLiteBackend:
     """
 
     def __init__(self, db_path: str | Path):
+        """DB 경로를 준비하고 필요한 스키마를 멱등하게 생성한다."""
         self.db_path = str(db_path)
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._init_schema()
 
     def _connect(self) -> sqlite3.Connection:
+        """외래 키와 이름 기반 행 접근을 활성화한 새 연결을 연다."""
         conn = sqlite3.connect(self.db_path)
         conn.execute("PRAGMA foreign_keys = ON")
         conn.row_factory = sqlite3.Row
         return conn
 
     def _init_schema(self):
+        """쓰기 잠금 안에서 전체 기본 스키마를 초기화한다."""
         with self._lock, self._connect() as conn:
             conn.executescript(SCHEMA_SQL)
 
     # ── Cases ────────────────────────────────────────────────────────
 
     def upsert_case(self, case: Case, embedding: Optional[List[float]] = None):
+        """케이스와 선택적 임베딩을 한 트랜잭션에서 삽입하거나 갱신한다."""
         meta = case.metadata
+        # SQLite 연결은 호출마다 분리하되 쓰기는 프로세스 내부 잠금으로 직렬화해
+        # 케이스 본문과 임베딩이 같은 트랜잭션 경계에서 커밋되도록 한다.
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
@@ -164,10 +170,15 @@ class SQLiteBackend:
                 )
 
     def delete_case(self, case_id: str):
+        """식별자에 해당하는 케이스를 삭제한다.
+
+        외래 키의 ``ON DELETE CASCADE``에 따라 연결된 임베딩도 함께 제거된다.
+        """
         with self._lock, self._connect() as conn:
             conn.execute("DELETE FROM cases WHERE case_id = ?", (case_id,))
 
     def load_all_cases(self) -> List[Case]:
+        """저장된 케이스를 생성 시각 순으로 모두 복원한다."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT problem_json, solution_json, outcome_json, metadata_json "
@@ -176,6 +187,7 @@ class SQLiteBackend:
         return [_row_to_case(r) for r in rows]
 
     def load_embeddings(self) -> Dict[str, List[float]]:
+        """케이스 식별자별 임베딩 벡터를 모두 불러온다."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT case_id, embedding_json FROM case_embeddings"
@@ -185,6 +197,7 @@ class SQLiteBackend:
     # ── Hierarchy ───────────────────────────────────────────────────
 
     def link(self, parent_id: str, child_id: str, parent_node_id: str = ""):
+        """부모와 자식 케이스의 계층 엣지를 멱등하게 저장한다."""
         with self._lock, self._connect() as conn:
             conn.execute(
                 """
@@ -196,6 +209,7 @@ class SQLiteBackend:
             )
 
     def hierarchy_edges(self) -> List[Dict[str, str]]:
+        """저장된 모든 부모-자식 계층 엣지를 딕셔너리로 반환한다."""
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT parent_case_id, child_case_id, parent_node_id, created_at "
@@ -212,6 +226,7 @@ class SQLiteBackend:
         session_id: str = "",
         case_ids: Optional[List[str]] = None,
     ) -> int:
+        """이벤트 한 건을 추가하고 SQLite 행 식별자를 반환한다."""
         with self._lock, self._connect() as conn:
             cur = conn.execute(
                 """
@@ -234,6 +249,7 @@ class SQLiteBackend:
         event_type: Optional[str] = None,
         limit: int = 200,
     ) -> List[Dict[str, Any]]:
+        """시각과 유형 필터를 적용해 최신 이벤트부터 조회한다."""
         sql = "SELECT id, ts, event_type, session_id, case_ids_json, payload_json FROM events"
         clauses: List[str] = []
         params: List[Any] = []
@@ -263,6 +279,7 @@ class SQLiteBackend:
         ]
 
     def event_count(self) -> int:
+        """저장된 이벤트의 전체 개수를 반환한다."""
         with self._connect() as conn:
             row = conn.execute("SELECT COUNT(*) AS n FROM events").fetchone()
         return int(row["n"])
@@ -272,6 +289,11 @@ class SQLiteBackend:
 
 
 def _row_to_case(row: sqlite3.Row) -> Case:
+    """SQLite JSON 열 한 행을 현재 스키마의 Case 객체로 복원한다.
+
+    과거 버전이 남긴 알 수 없는 필드는 각 데이터클래스의 현재 필드 목록으로
+    걸러내므로 스키마가 확장·축소된 DB도 읽을 수 있다.
+    """
     pf_raw = json.loads(row["problem_json"])
     sol_raw = json.loads(row["solution_json"])
     out_raw = json.loads(row["outcome_json"])

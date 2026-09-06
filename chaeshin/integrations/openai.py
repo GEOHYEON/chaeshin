@@ -1,11 +1,11 @@
 """
-OpenAI Adapter — LLM 호출 + 임베딩 생성.
+OpenAI Adapter — ReAct LLM 호출 + 임베딩 생성.
 
-GraphPlanner의 llm_fn과 CaseStore의 embed_fn을 제공합니다.
+ReActAgent의 llm_fn과 CaseStore의 embed_fn을 제공합니다.
 
 사용법:
     adapter = OpenAIAdapter(model="gpt-4o-mini")
-    planner = GraphPlanner(llm_fn=adapter.llm_fn, tools=TOOLS)
+    agent = ReActAgent(adapter=adapter, tools=TOOLS, system_hint="...")
     store = CaseStore(embed_fn=adapter.embed_fn)
 """
 
@@ -61,7 +61,7 @@ class OpenAIAdapter:
         )
 
     async def llm_fn(self, messages: List[Dict[str, str]]) -> str:
-        """GraphPlanner용 LLM 호출 함수.
+        """ReAct 루프에서 사용할 LLM 호출 함수.
 
         Args:
             messages: OpenAI 메시지 형식 [{"role": "system", "content": "..."}, ...]

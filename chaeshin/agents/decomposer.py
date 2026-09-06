@@ -45,6 +45,10 @@ class DecomposerAgent(BaseAgent):
         max_depth: int = 4,
         context: Optional[AgentContext] = None,
     ):
+        """분해 플래너와 검색에 사용할 도구·케이스 저장소를 구성한다.
+
+        ``max_depth``는 도구 호출 가능한 리프를 찾지 못했을 때의 재귀 상한이다.
+        """
         super().__init__(
             agent_type="decomposer",
             llm_fn=llm_fn,

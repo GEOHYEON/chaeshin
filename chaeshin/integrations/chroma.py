@@ -306,6 +306,7 @@ class ChromaCaseStore:
     # ── Helpers ────────────────────────────────────────────────────────
 
     def _find_case_by_id(self, case_id: str) -> Optional[Case]:
+        """메모리 캐시에서 식별자가 일치하는 케이스를 찾는다."""
         for c in self.cases:
             if c.metadata.case_id == case_id:
                 return c

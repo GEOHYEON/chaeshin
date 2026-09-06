@@ -144,6 +144,7 @@ def _topological_sort(seed_store: CaseStore, case_ids: List[str]) -> List[str]:
 
 
 def _existing_markers(main_store: CaseStore) -> Set[str]:
+    """메인 저장소에서 이미 승격된 seed 원본 마커를 수집한다."""
     markers = set()
     for c in main_store.cases:
         src = getattr(c.metadata, "source", "") or ""

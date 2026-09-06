@@ -37,6 +37,7 @@ class ChaebiClient:
     """
 
     def __init__(self, base_url: str, api_key: str):
+        """API 기본 주소와 인증 키로 비동기 HTTP 클라이언트를 구성한다."""
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self._client = httpx.AsyncClient(
@@ -169,12 +170,15 @@ class ChaebiClient:
     # ── Lifecycle ────────────────────────────────────────────────
 
     async def close(self):
+        """내부 비동기 HTTP 연결을 종료한다."""
         await self._client.aclose()
 
     async def __aenter__(self):
+        """비동기 컨텍스트에 현재 클라이언트를 제공한다."""
         return self
 
     async def __aexit__(self, *args):
+        """비동기 컨텍스트를 나가며 HTTP 연결을 정리한다."""
         await self.close()
 
 

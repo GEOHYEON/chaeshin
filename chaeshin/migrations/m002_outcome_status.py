@@ -23,6 +23,13 @@ from pathlib import Path
 
 
 def migrate(db_path: Path) -> dict:
+    """기존 케이스에 3상태 outcome 및 verdict 메타데이터를 채운다.
+
+    이미 ``outcome.status``가 있는 행은 건드리지 않아 반복 실행해도 안전하다.
+
+    Returns:
+        갱신·건너뜀 건수와 DB 경로를 담은 딕셔너리.
+    """
     db = sqlite3.connect(str(db_path))
     db.row_factory = sqlite3.Row
     try:
@@ -71,6 +78,7 @@ def migrate(db_path: Path) -> dict:
 
 
 def main():
+    """기본 또는 지정 DB에 m002 마이그레이션을 실행한다."""
     ap = argparse.ArgumentParser(description="Backfill outcome.status on existing cases.")
     ap.add_argument(
         "--db",

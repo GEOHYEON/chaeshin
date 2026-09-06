@@ -1,7 +1,8 @@
 """cooking + ReAct + Chaeshin — OpenAI 키만 있으면 바로 돌아간다.
 
-요리사 에이전트가 ReAct 루프로 김치찌개를 만든다. Chaeshin 메모리에서 비슷한
-레시피를 먼저 찾고, 없으면 직접 설계해서 실행한 뒤 저장한다.
+요리사 에이전트가 별도 Planner 없이 ReAct 루프로 동작한다. Chaeshin은 비슷한
+레시피의 전체 ToolGraph를 Context 근거로 주고, ReAct 모델이 현재 질문과 상태에
+맞는지 판단해 다음 행동 하나 또는 설명 답변을 선택한다.
 
 실행:
     export OPENAI_API_KEY=sk-...
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any, Dict
 
 from chaeshin.agents.react_agent import ReActAgent, ToolSpec
@@ -143,21 +145,41 @@ def domain_tools() -> Dict[str, ToolSpec]:
 SYSTEM_HINT = """당신은 한식 요리사 에이전트입니다.
 
 도메인 규칙:
-- 요리 시작 전에 알레르기와 재료를 먼저 확인하세요.
+- "끓이는 법 알려줘" 같은 정보 요청은 조리법 설명 모드입니다. 검색된 선례를
+  사람이 읽는 순서로 설명하되 실제 check/chop/simmer 도구를 호출하거나 retain하지 마세요.
+- "만들어줘"처럼 실제 실행을 요청한 경우에만 알레르기와 재료를 먼저 확인하세요.
 - 간은 끓이고 난 뒤에 봅니다. "싱거움"이면 양념 추가 후 다시 간보기.
 - 완료 후에는 담아 내보냅니다.
+- 메모리의 한국어 tool 이름은 과거 의미 근거입니다. 현재 사용 가능한 영문 tool에
+  의미상 대응시키되, 존재하지 않는 tool 이름을 직접 호출하지 마세요.
 - chaeshin_retain 호출 시, 당신이 실제로 실행한 도구 순서를 graph.nodes/edges에
   정확히 담으세요. 저장된 케이스는 pending 상태로 들어갑니다."""
 
 
-USER_REQUEST = "김치찌개 2인분 만들어줘. 식구는 엄마/아빠/나."
+USER_REQUEST = "김치찌개 끓이는 법 알려줘"
 
 
 async def main():
     adapter = build_adapter()
-    store, events, tmp = build_store(session_id="cooking-react")
+    store, events, tmp = build_store(
+        session_id="cooking-react",
+        embed_fn=adapter.embed_fn,
+    )
 
-    tools = {**chaeshin_tools(store, events, category="cooking", source="cooking-react"),
+    # 실제 김치찌개/예외 Case 중 현재 view에 없는 seed만 메모리에 합친다.
+    # embed_fn이 연결되어 각 Case와 사용자 query 모두 hybrid 검색에 사용된다.
+    seed_path = Path(__file__).with_name("cases.json")
+    seed_rows = json.loads(seed_path.read_text(encoding="utf-8"))
+    existing_ids = {case.metadata.case_id for case in store.cases}
+    missing_rows = [
+        row for row in seed_rows
+        if row.get("metadata", {}).get("case_id") not in existing_ids
+    ]
+    if missing_rows:
+        # persist 모드에서도 사용자 DB를 seed로 덮지 않고 이번 검색 view에만 합친다.
+        store.load_json(json.dumps(missing_rows, ensure_ascii=False))
+
+    tools = {**chaeshin_tools(store, events, category="찌개류", source="cooking-react"),
              **domain_tools()}
 
     agent = ReActAgent(

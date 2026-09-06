@@ -1,11 +1,17 @@
 ---
 name: chaeshin
-description: "CBR memory layer — remembers how you do things, not just what you like. Retrieves successful tool execution graphs and warns about past failures."
+description: "CBR procedural-memory context — retrieves Procedure and ToolGraph evidence for ReAct next-tool selection."
 ---
 
-# Chaeshin — Tool Graph Memory
+# Chaeshin — Procedural Memory Context
 
 You have access to Chaeshin, a Case-Based Reasoning memory layer that remembers **how** tasks were executed before — both successes and failures.
+
+`SKILL.md` is the OpenClaw integration filename; **Skill is not a Chaeshin memory
+type**. In Chaeshin, L1 is a ToolGraph and L2+ is a Procedure that normally groups
+five to seven Cases from the immediately lower layer. Search results are context
+for ReAct, not an executable plan. The current OpenClaw CLI bridge is a legacy
+L1-only adapter until it exposes the full Procedure schema.
 
 ## How It Works
 
@@ -15,7 +21,8 @@ Before executing a multi-step task, check if a similar case exists:
 python -m chaeshin.integrations.openclaw.bridge retrieve "사용자 요청 텍스트"
 ```
 
-The output includes successful cases (to follow) and **warnings** about similar past failures (to avoid).
+The output includes successful, failed, and pending evidence. Read it together with
+the current Situation; do not automatically follow the highest-similarity graph.
 
 After completing a task, save the execution pattern:
 
@@ -37,8 +44,9 @@ python -m chaeshin.integrations.openclaw.bridge retain --no-success --error-reas
 ## Behavior Rules
 
 1. Always check Chaeshin before improvising a multi-tool sequence
-2. If a case is found with similarity > 0.7, follow that graph (adapt if needed)
+2. Treat every similarity score and returned structure as reference evidence only
 3. If **warnings** are returned, avoid the patterns that failed before
-4. If no case found, proceed normally — then save the result
-5. Save both successes AND failures — failures must include `--error-reason`
-6. The tool graph is the source of truth, not a text summary
+4. After each Tool result, refresh the Situation and choose the next Tool directly
+5. If no case is found, proceed normally — then save only the actual trace
+6. Save both successes AND failures — failures must include `--error-reason`
+7. Retrieved memory is evidence, not the source of truth for the current run

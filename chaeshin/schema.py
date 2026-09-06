@@ -135,6 +135,7 @@ class ToolGraph:
     max_loops: int = 3  # 무한 루프 방지
 
     def get_node(self, node_id: str) -> Optional[GraphNode]:
+        """ID가 일치하는 노드를 반환하고, 없으면 ``None``을 반환한다."""
         for n in self.nodes:
             if n.id == node_id:
                 return n
@@ -208,6 +209,7 @@ class Outcome:
     details: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
+        """레거시 ``success`` 값을 3-state ``status``와 동기화한다."""
         # status가 비어있으면 legacy success bool에서 유도 — error_reason이 있으면 failure로.
         if not self.status:
             if self.success:
@@ -326,6 +328,7 @@ class ExecutionContext:
     history: List[Dict[str, Any]] = field(default_factory=list)  # 실행 이력
 
     def get_node_state(self, node_id: str) -> NodeState:
+        """노드 상태를 조회하고, 최초 접근이면 PENDING 상태로 생성한다."""
         if node_id not in self.node_states:
             self.node_states[node_id] = NodeState(node_id=node_id)
         return self.node_states[node_id]

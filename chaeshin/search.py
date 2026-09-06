@@ -170,9 +170,15 @@ def lexical_similarity(query: ProblemFeatures, candidate: ProblemFeatures) -> fl
 
 
 def _flatten_context(context: dict[str, Any], max_items: int = 40) -> List[str]:
+    """중첩 컨텍스트를 검색용 문자열 목록으로 제한적으로 펼친다.
+
+    입력이 큰 경우 검색 텍스트가 과도하게 늘지 않도록 깊이 2와
+    ``max_items`` 개수 제한을 함께 적용한다.
+    """
     out: List[str] = []
 
     def visit(value: Any, depth: int = 0) -> None:
+        """스칼라 값과 컨테이너를 깊이 우선으로 순회해 문자열을 수집한다."""
         if len(out) >= max_items or depth > 2 or value is None:
             return
         if isinstance(value, (str, int, float, bool)):

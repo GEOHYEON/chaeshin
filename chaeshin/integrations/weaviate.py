@@ -81,6 +81,11 @@ class WeaviateCaseStore:
         collection_name: Optional[str] = None,
         chatbot_id: str = "",
     ):
+        """Weaviate 연결과 케이스 범위를 구성하고 기존 데이터를 로드한다.
+
+        컬렉션은 명시적 인자, 환경변수, 기본값 순으로 선택한다. ``chatbot_id``가
+        있으면 조회와 저장을 해당 챗봇 및 귀속 불명 레거시 케이스로 한정한다.
+        """
         self.embed_fn = embed_fn
         self.similarity_threshold = similarity_threshold
         self.cases: List[Case] = []
@@ -211,6 +216,8 @@ class WeaviateCaseStore:
 
         scored: List[Tuple[Case, float]] = []
         for obj in result.objects:
+            # Weaviate 버전에 따라 hybrid 결과가 distance 또는 score만 제공하므로
+            # 가능한 값을 0~1 유사도로 정규화하고 둘 다 없으면 0으로 둔다.
             distance = getattr(obj.metadata, "distance", None) if obj.metadata else None
             raw_score = getattr(obj.metadata, "score", None) if obj.metadata else None
             if isinstance(distance, (int, float)):
@@ -228,6 +235,7 @@ class WeaviateCaseStore:
         return scored
 
     def retrieve_best(self, problem: ProblemFeatures) -> Optional[Case]:
+        """유사도 임계값을 넘는 최상위 케이스 한 건을 반환한다."""
         results = self.retrieve(problem, top_k=1)
         if results and results[0][1] >= self.similarity_threshold:
             return results[0][0]
@@ -278,6 +286,7 @@ class WeaviateCaseStore:
         try:
             coll.data.delete_by_id(uuid_obj)
         except Exception:
+            # 대상이 없거나 삭제가 실패해도 뒤의 insert로 최신 상태를 기록한다.
             pass
 
         coll.data.insert(
@@ -302,16 +311,22 @@ class WeaviateCaseStore:
         return case_id
 
     def retain_if_successful(self, case: Case, min_satisfaction: float = 0.7) -> Optional[str]:
+        """성공했고 만족도 기준을 넘은 케이스만 저장한다."""
         if case.outcome.success and case.outcome.user_satisfaction >= min_satisfaction:
             return self.retain(case)
         return None
 
     def retain_failure(self, case: Case, error_reason: str = "") -> str:
+        """케이스를 실패 상태로 표시하고 안티패턴으로 저장한다."""
         case.outcome.success = False
         case.outcome.error_reason = error_reason
         return self.retain(case)
 
     def promote_failure(self, failure_case_id: str, successful_case: Case) -> Optional[str]:
+        """기존 실패 케이스를 제거하고 교정된 성공 케이스로 대체한다.
+
+        실패 케이스를 찾지 못하면 ``None``을 반환한다.
+        """
         failure_idx = None
         for i, c in enumerate(self.cases):
             if c.metadata.case_id == failure_case_id and not c.outcome.success:
@@ -335,6 +350,7 @@ class WeaviateCaseStore:
     # ── Record Usage ──────────────────────────────────────────────────
 
     def record_usage(self, case_id: str, satisfaction: float):
+        """사용 횟수와 만족도 이동 평균을 갱신해 다시 저장한다."""
         for case in self.cases:
             if case.metadata.case_id == case_id:
                 meta = case.metadata
@@ -355,6 +371,7 @@ class WeaviateCaseStore:
             self.retain(case)
 
     def to_json(self) -> str:
+        """메모리 캐시의 전체 케이스를 JSON 문자열로 직렬화한다."""
         return json.dumps(
             [asdict(c) for c in self.cases],
             ensure_ascii=False,
@@ -364,9 +381,11 @@ class WeaviateCaseStore:
     # ── Info ──────────────────────────────────────────────────────────
 
     def count(self) -> int:
+        """현재 메모리 캐시에 로드된 케이스 수를 반환한다."""
         return len(self.cases)
 
     def stats(self) -> Dict[str, Any]:
+        """케이스 수, 카테고리, 평균 만족도 통계를 반환한다."""
         return {
             "total_cases": len(self.cases),
             "categories": list({c.problem_features.category for c in self.cases}),
@@ -383,6 +402,7 @@ class WeaviateCaseStore:
     # ── Helpers ────────────────────────────────────────────────────────
 
     def _find_case_by_id(self, case_id: str) -> Optional[Case]:
+        """메모리 캐시에서 식별자가 일치하는 케이스를 찾는다."""
         for c in self.cases:
             if c.metadata.case_id == case_id:
                 return c
@@ -390,6 +410,11 @@ class WeaviateCaseStore:
 
     @staticmethod
     def _case_id_from_weaviate(props: Dict[str, Any], uuid: str) -> str:
+        """프로퍼티의 원본 식별자를 우선 복원하고 없으면 UUID를 사용한다.
+
+        ``sourceLogId``와 ``postgresId``, ``metadataJson`` 내부 식별자 순으로
+        확인해 서로 다른 Experience 스키마 버전을 함께 지원한다.
+        """
         source_id = props.get("sourceLogId") or props.get("postgresId")
         if source_id:
             return str(source_id)
@@ -404,6 +429,7 @@ class WeaviateCaseStore:
 
     @staticmethod
     def _problem_to_text(problem: ProblemFeatures) -> str:
+        """문제 정의를 하이브리드 검색용 단일 텍스트로 합친다."""
         parts = [problem.request]
         if problem.category:
             parts.append(f"카테고리: {problem.category}")
@@ -471,6 +497,7 @@ class WeaviateCaseStore:
 
     @staticmethod
     def _dict_to_case(d: Dict[str, Any]) -> Case:
+        """직렬화된 딕셔너리를 중첩된 Case 데이터클래스로 복원한다."""
         pf = ProblemFeatures(**d["problem_features"])
         tg_data = d["solution"]["tool_graph"]
         tg = ToolGraph(

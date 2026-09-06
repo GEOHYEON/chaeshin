@@ -23,18 +23,22 @@ STORE_FILE = os.path.join(STORE_DIR, "cases.json")
 
 
 def _print(msg: str):
+    """일반 CLI 메시지를 두 칸 들여써 출력한다."""
     print(f"  {msg}")
 
 
 def _ok(msg: str):
+    """성공 표시와 함께 CLI 메시지를 출력한다."""
     print(f"  ✅ {msg}")
 
 
 def _err(msg: str):
+    """오류 표시와 함께 CLI 메시지를 출력한다."""
     print(f"  ❌ {msg}")
 
 
 def _info(msg: str):
+    """정보 표시와 함께 CLI 메시지를 출력한다."""
     print(f"  ℹ️  {msg}")
 
 
@@ -369,6 +373,8 @@ def cmd_stats(args):
     from chaeshin.integrations.openclaw.bridge import cmd_stats as _stats
 
     class FakeArgs:
+        """인자를 요구하는 OpenClaw 통계 명령과 호출 규약을 맞춘다."""
+
         pass
 
     _stats(FakeArgs())
@@ -379,6 +385,8 @@ def cmd_retrieve(args):
     from chaeshin.integrations.openclaw.bridge import cmd_retrieve as _retrieve
 
     class FakeArgs:
+        """OpenClaw 검색 명령에 전달할 현재 CLI 인자 뷰."""
+
         query = args.query
         category = args.category or ""
         keywords = args.keywords or ""
@@ -392,6 +400,7 @@ def cmd_retrieve(args):
 # ═══════════════════════════════════════════════════════════════════════
 
 def main():
+    """CLI 파서를 구성하고 선택된 하위 명령을 실행한다."""
     parser = argparse.ArgumentParser(
         prog="chaeshin",
         description="Chaeshin — CBR Memory for AI Agents",
