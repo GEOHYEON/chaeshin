@@ -1,3 +1,4 @@
+/** 도구 레지스트리 목록 조회·생성 API. */
 import { NextRequest, NextResponse } from "next/server";
 import { readTools, writeTools } from "@/lib/tool-store";
 

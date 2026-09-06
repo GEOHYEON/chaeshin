@@ -1,3 +1,4 @@
+/** 모든 모니터 화면에 공통 폰트와 알림 컨테이너를 제공하는 루트 레이아웃. */
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";

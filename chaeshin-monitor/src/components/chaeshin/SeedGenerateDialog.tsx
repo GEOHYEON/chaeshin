@@ -1,5 +1,6 @@
 "use client";
 
+/** 선택한 도구와 토픽으로 seed 생성 프로세스를 실행하고 NDJSON 진행 상황을 표시한다. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
@@ -30,6 +31,7 @@ interface ProgressLine {
   kind: "log" | "result" | "error";
 }
 
+/** 긴 LLM 생성 요청의 시작·스트리밍·사용자 중단 생명주기를 관리한다. */
 export function SeedGenerateDialog({
   open,
   onOpenChange,
@@ -46,6 +48,7 @@ export function SeedGenerateDialog({
 
   useEffect(() => {
     if (!open) return;
+    // 대화상자를 새로 열 때 최신 도구 allowlist와 빈 진행 로그로 시작한다.
     toolApi.getTools().then((res) => {
       setTools(res?.data || []);
     });
@@ -59,6 +62,7 @@ export function SeedGenerateDialog({
     };
   }, []);
 
+  /** 실행 중 닫기 요청은 확인 후 fetch를 abort해 서버의 child 종료까지 전파한다. */
   const handleOpenChange = (next: boolean) => {
     if (!next && running) {
       const ok = confirm("생성이 진행 중입니다. 중단하고 닫을까요?");
@@ -68,6 +72,7 @@ export function SeedGenerateDialog({
     onOpenChange(next);
   };
 
+  // 도구 선택 UI가 레지스트리 category 구조를 그대로 반영하도록 그룹화한다.
   const toolsByCategory = useMemo(() => {
     const out = new Map<string, ChaeshinTool[]>();
     for (const t of tools) {
@@ -78,6 +83,7 @@ export function SeedGenerateDialog({
     return out;
   }, [tools]);
 
+  /** 선택 Set을 복사해 도구 이름을 추가하거나 제거한다. */
   const toggleTool = (name: string) => {
     setSelectedToolNames((prev) => {
       const next = new Set(prev);
@@ -87,10 +93,12 @@ export function SeedGenerateDialog({
     });
   };
 
+  /** 장시간 실행에서도 DOM과 메모리가 계속 늘지 않도록 최근 200줄만 보존한다. */
   const append = (line: ProgressLine) => {
     setProgress((prev) => [...prev, line].slice(-200));
   };
 
+  /** 생성 API의 NDJSON 스트림을 줄 단위 이벤트로 해석해 진행 로그를 누적한다. */
   const handleRun = async () => {
     if (!topic.trim()) {
       toast.error("토픽을 입력해주세요");
@@ -125,6 +133,7 @@ export function SeedGenerateDialog({
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
+      // 네트워크 chunk가 JSON 줄 중간에서 끊길 수 있어 개행 전까지 누적한다.
       let buf = "";
       let acceptedCount = 0;
       while (true) {
@@ -138,6 +147,7 @@ export function SeedGenerateDialog({
           if (!line) continue;
           try {
             const obj = JSON.parse(line) as Record<string, unknown>;
+            // Python 이벤트와 중계 계층의 보조 kind 필드를 같은 분기에서 처리한다.
             const ev = String(obj.event || obj.kind || "");
             if (ev === "generate_done") {
               acceptedCount = Number(obj.accepted ?? 0);
@@ -168,6 +178,7 @@ export function SeedGenerateDialog({
       onCompleted();
     } catch (e: unknown) {
       const err = e as { name?: string };
+      // 사용자가 의도적으로 중단한 요청은 오류 알림과 구분한다.
       if (err?.name === "AbortError") {
         toast.message("생성 중단됨");
       } else {

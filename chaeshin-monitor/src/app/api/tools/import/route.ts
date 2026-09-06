@@ -9,12 +9,16 @@ import { spawn } from "child_process";
 /**
  * POST /api/tools/import?source=claude-code|openclaw
  *
- * Claude Code: ~/.claude.json → MCP servers → spawn each → tools/list
- * OpenClaw: ~/.openclaw/workspace/skills/ → read SKILL.md files
+ * Claude Code: ~/.claude.json → MCP 서버별 프로세스 실행 → tools/list
+ * OpenClaw: ~/.openclaw/workspace/skills/ → SKILL.md 읽기
  */
 
-// ── MCP tools/list via stdio ──────────────────────────────────
+// ── stdio 기반 MCP tools/list ─────────────────────────────────
 
+/**
+ * MCP 서버 프로세스와 짧은 세션을 열어 공개 도구 목록을 가져온다.
+ * 외부 서버 하나의 실패가 전체 import를 막지 않도록 빈 배열로 수렴한다.
+ */
 function getMcpTools(command: string, args: string[]): Promise<Array<{ name: string; description: string; inputSchema?: Record<string, unknown> }>> {
   return new Promise((resolve) => {
     const proc = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"], timeout: 10000 });
@@ -22,21 +26,21 @@ function getMcpTools(command: string, args: string[]): Promise<Array<{ name: str
 
     proc.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
 
-    // Send initialize
+    // MCP 세션 수립을 위해 initialize를 먼저 전송한다.
     const initMsg = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "chaeshin-monitor", version: "1.0" } } });
     proc.stdin.write(`Content-Length: ${Buffer.byteLength(initMsg)}\r\n\r\n${initMsg}`);
 
-    // Send tools/list after a brief delay
+    // initialize 응답을 기다릴 별도 상태기가 없어 짧은 유예 뒤 tools/list를 보낸다.
     setTimeout(() => {
       const listMsg = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
       proc.stdin.write(`Content-Length: ${Buffer.byteLength(listMsg)}\r\n\r\n${listMsg}`);
     }, 500);
 
-    // Collect response
+    // 응답 수집 시간을 제한해 응답하지 않는 MCP 서버에 매달리지 않는다.
     setTimeout(() => {
       proc.kill();
 
-      // Parse JSON-RPC responses from stdout
+      // 일부 서버가 Content-Length framing 없이 출력하는 응답도 우선 탐색한다.
       const tools: Array<{ name: string; description: string; inputSchema?: Record<string, unknown> }> = [];
       const matches = stdout.match(/\{[^{}]*"tools"\s*:\s*\[[\s\S]*?\]\s*\}/g);
       if (matches) {
@@ -50,7 +54,7 @@ function getMcpTools(command: string, args: string[]): Promise<Array<{ name: str
         }
       }
 
-      // Fallback: try to find tools array in any JSON-RPC response
+      // 표준 Content-Length framing 응답은 두 번째 경로에서 파싱한다.
       if (tools.length === 0) {
         const jsonBlocks = stdout.split(/Content-Length: \d+\r?\n\r?\n/).filter(Boolean);
         for (const block of jsonBlocks) {
@@ -70,12 +74,13 @@ function getMcpTools(command: string, args: string[]): Promise<Array<{ name: str
   });
 }
 
-// ── Claude Code import ────────────────────────────────────────
+// ── Claude Code 가져오기 ──────────────────────────────────────
 
+/** 로컬 Claude Code 설정의 MCP 서버들을 도구 레지스트리 형식으로 변환한다. */
 async function importFromClaudeCode(): Promise<ChaeshinTool[]> {
   const imported: ChaeshinTool[] = [];
 
-  // Read ~/.claude.json
+  // 전역 설정과 세부 설정 양쪽에 흩어진 MCP 서버 구성을 합친다.
   const configPaths = [
     path.join(os.homedir(), ".claude.json"),
     path.join(os.homedir(), ".claude", "settings.json"),
@@ -93,7 +98,7 @@ async function importFromClaudeCode(): Promise<ChaeshinTool[]> {
     } catch { /* file not found */ }
   }
 
-  // For each MCP server, try to get tools
+  // 서버별 오류는 격리해 응답 가능한 서버의 도구만 가져온다.
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (serverName === "chaeshin") continue; // Skip self
 
@@ -104,7 +109,7 @@ async function importFromClaudeCode(): Promise<ChaeshinTool[]> {
       );
 
       for (const tool of mcpTools) {
-        // Extract params from inputSchema
+        // JSON Schema의 properties/required를 화면용 파라미터 목록으로 평탄화한다.
         const params: ChaeshinTool["params"] = [];
         const schema = tool.inputSchema;
         if (schema && typeof schema === "object" && "properties" in schema) {
@@ -137,8 +142,9 @@ async function importFromClaudeCode(): Promise<ChaeshinTool[]> {
   return imported;
 }
 
-// ── OpenClaw import ───────────────────────────────────────────
+// ── OpenClaw 가져오기 ─────────────────────────────────────────
 
+/** OpenClaw skill 디렉터리의 frontmatter를 도구 레지스트리 형식으로 변환한다. */
 async function importFromOpenClaw(): Promise<ChaeshinTool[]> {
   const imported: ChaeshinTool[] = [];
   const skillsDir = path.join(os.homedir(), ".openclaw", "workspace", "skills");
@@ -154,7 +160,7 @@ async function importFromOpenClaw(): Promise<ChaeshinTool[]> {
       try {
         const content = await fs.readFile(skillPath, "utf-8");
 
-        // Parse frontmatter
+        // 전체 Markdown 파서는 사용하지 않고 필요한 frontmatter 필드만 읽는다.
         const fmMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
         let name = entry.name;
         let description = "";
@@ -184,7 +190,7 @@ async function importFromOpenClaw(): Promise<ChaeshinTool[]> {
   return imported;
 }
 
-// ── Handler ───────────────────────────────────────────────────
+// ── 요청 처리 ─────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const source = req.nextUrl.searchParams.get("source");
@@ -203,7 +209,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ imported: 0, message: "가져올 도구가 없습니다" });
   }
 
-  // Merge with existing tools (skip duplicates by id)
+  // 기존 id는 덮어쓰지 않아 사용자가 편집한 도구 정의를 보존한다.
   const existing = await readTools();
   const existingIds = new Set(existing.map((t) => t.id));
   const newTools = imported.filter((t) => !existingIds.has(t.id));

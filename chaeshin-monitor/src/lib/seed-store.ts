@@ -11,6 +11,7 @@ import path from "path";
 
 const _dbCache = new Map<string, Database.Database>();
 
+/** 전용 환경변수와 공용 저장소 디렉터리 순으로 seed DB 경로를 결정한다. */
 export function getSeedDbPath(): string {
   return (
     process.env.CHAESHIN_SEED_DB_PATH ||
@@ -21,6 +22,7 @@ export function getSeedDbPath(): string {
   );
 }
 
+/** DB 경로별 연결을 캐시하고 Python seed store와 공유하는 스키마를 보증한다. */
 function openSeedDb(p?: string): Database.Database {
   const dbPath = p || getSeedDbPath();
   const cached = _dbCache.get(dbPath);
@@ -65,6 +67,7 @@ export interface SeedCaseRow {
   metadata: Record<string, unknown>;
 }
 
+/** SQLite JSON 컬럼을 staging 화면이 사용하는 SeedCaseRow로 복원한다. */
 function rowToCase(row: {
   problem_json: string;
   solution_json: string;
@@ -79,6 +82,7 @@ function rowToCase(row: {
   };
 }
 
+/** seed 케이스를 최신순으로 읽고 topic이 있으면 metadata.source로 부분 검색한다. */
 export function readSeedCases(opts: { topic?: string } = {}): SeedCaseRow[] {
   const db = openSeedDb();
   const rows = db
@@ -102,6 +106,7 @@ export function readSeedCases(opts: { topic?: string } = {}): SeedCaseRow[] {
   return out;
 }
 
+/** staging DB에서 단일 caseId를 조회하고 없으면 null을 반환한다. */
 export function readSeedCaseById(caseId: string): SeedCaseRow | null {
   const db = openSeedDb();
   const row = db
@@ -119,6 +124,7 @@ export function readSeedCaseById(caseId: string): SeedCaseRow | null {
   return row ? rowToCase(row) : null;
 }
 
+/** 신규 id를 보완한 뒤 caseId 기준 upsert로 seed 케이스를 저장한다. */
 export function writeSeedCase(c: SeedCaseRow): void {
   const db = openSeedDb();
   const meta = c.metadata as Record<string, unknown>;
@@ -160,6 +166,7 @@ export function writeSeedCase(c: SeedCaseRow): void {
   );
 }
 
+/** 단일 seed 케이스를 삭제하고 실제 삭제 여부를 반환한다. */
 export function deleteSeedCase(caseId: string): boolean {
   const db = openSeedDb();
   const info = db
@@ -169,7 +176,8 @@ export function deleteSeedCase(caseId: string): boolean {
 }
 
 /**
- * Replace the seed case's tool graph. Seeds are flat (no children) so no cascade.
+ * seed 케이스의 Tool Graph를 교체한다.
+ * seed 저장소는 평면 구조로 하위 케이스가 없으므로 cascade를 수행하지 않는다.
  */
 export function reviseSeedGraph(
   caseId: string,
@@ -221,6 +229,7 @@ export function reviseSeedGraph(
   return found;
 }
 
+/** staging DB의 전체 seed 케이스 수를 반환한다. */
 export function countSeedCases(): number {
   const db = openSeedDb();
   const row = db.prepare("SELECT COUNT(*) AS n FROM cases").get() as {

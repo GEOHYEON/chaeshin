@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     let stdout = "";
     let stderr = "";
     let settled = false;
+    // close와 error 이벤트가 모두 발생해도 응답은 한 번만 완료한다.
     const finish = (res: Response) => {
       if (settled) return;
       settled = true;

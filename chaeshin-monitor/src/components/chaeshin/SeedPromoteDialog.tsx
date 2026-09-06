@@ -1,5 +1,6 @@
 "use client";
 
+/** 검토가 끝난 seed 케이스를 main DB로 승격하는 확인 대화상자. */
 import { useState } from "react";
 import {
   Dialog,
@@ -21,6 +22,7 @@ interface SeedPromoteDialogProps {
   onPromoted: () => void;
 }
 
+/** idempotent promote와 강제 재발급 옵션을 실행하고 결과 건수를 요약한다. */
 export function SeedPromoteDialog({
   open,
   onOpenChange,
@@ -30,6 +32,7 @@ export function SeedPromoteDialog({
   const [force, setForce] = useState(false);
   const [running, setRunning] = useState(false);
 
+  /** 선택 id와 force 옵션을 전달하고 Python promoter의 구조화 결과를 집계한다. */
   const handlePromote = async () => {
     setRunning(true);
     try {

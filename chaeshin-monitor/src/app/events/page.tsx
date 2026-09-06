@@ -1,5 +1,6 @@
 "use client";
 
+/** MCP·CBR 이벤트를 주기적으로 조회해 종류별 타임라인으로 보여주는 화면. */
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Activity } from "lucide-react";
@@ -28,6 +29,7 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
+  /** 현재 이벤트 종류 필터로 최신 200건을 다시 불러온다. */
   async function fetchEvents() {
     setLoading(true);
     try {
@@ -44,17 +46,20 @@ export default function EventsPage() {
 
   useEffect(() => {
     fetchEvents();
+    // 별도 push 채널이 없으므로 화면이 열린 동안 5초 간격으로 최신 상태를 동기화한다.
     const t = setInterval(fetchEvents, 5000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventType]);
 
+  // 서버에서 현재 필터로 받은 결과 안에서 종류별 건수를 계산한다.
   const typeCounts = useMemo(() => {
     const m: Record<string, number> = {};
     for (const e of events) m[e.event_type] = (m[e.event_type] || 0) + 1;
     return m;
   }, [events]);
 
+  /** React 상태를 직접 변경하지 않고 펼침 대상 id를 토글한다. */
   function toggle(id: number) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -164,6 +169,7 @@ export default function EventsPage() {
   );
 }
 
+/** ISO 시각을 한국 로케일로 표시하되 잘못된 값은 원문을 유지한다. */
 function formatTs(ts: string): string {
   try {
     const d = new Date(ts);
@@ -173,6 +179,7 @@ function formatTs(ts: string): string {
   }
 }
 
+/** 이벤트 종류를 타임라인 뱃지 색상에 대응시킨다. */
 function typeColor(t: string): string {
   switch (t) {
     case "retrieve":
@@ -190,6 +197,7 @@ function typeColor(t: string): string {
   }
 }
 
+/** 이벤트별 핵심 payload만 한 줄 요약으로 변환한다. */
 function summarize(e: EventRow): string {
   const p = e.payload;
   if (e.event_type === "retrieve") {

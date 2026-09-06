@@ -1,5 +1,6 @@
 "use client";
 
+/** 열 정의 기반의 공통 데이터 테이블과 상태 뱃지를 제공한다. */
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -84,6 +85,7 @@ export function DataTable<T extends object>({
                   <TableCell key={String(column.key)} className={column.className}>
                     {column.render
                       ? column.render(item, index)
+                      // render가 없을 때는 key에 해당하는 값을 안전한 문자열로 표시한다.
                       : String(item[column.key as keyof T] ?? "")}
                   </TableCell>
                 ))}

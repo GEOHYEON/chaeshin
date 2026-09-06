@@ -1,5 +1,6 @@
 "use client";
 
+/** seed staging DB의 생성·검토·편집·promote 작업을 한곳에서 관리하는 화면. */
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sprout, Sparkles, Upload, Download, Trash2, Filter, FileJson, GitBranch } from "lucide-react";
@@ -55,6 +56,7 @@ export default function SeedPage() {
   const [pathDialog, setPathDialog] = useState<null | "export" | "import">(null);
   const [pathInput, setPathInput] = useState("");
 
+  /** source 기반 topic 필터를 서버에 전달해 seed 목록을 동기화한다. */
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -72,6 +74,7 @@ export default function SeedPage() {
     refresh();
   }, [refresh]);
 
+  // 서버 topic 필터 결과에 요청·카테고리 텍스트 검색을 추가 적용한다.
   const filtered = useMemo(() => {
     if (!search) return cases;
     const q = search.toLowerCase();
@@ -82,6 +85,7 @@ export default function SeedPage() {
     });
   }, [cases, search]);
 
+  /** 기존 Set을 복사해 선택 상태 변경을 React가 안정적으로 감지하게 한다. */
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -91,12 +95,14 @@ export default function SeedPage() {
     });
   };
 
+  /** 현재 검색 결과에 보이는 케이스만 일괄 선택한다. */
   const selectAllVisible = () => {
     setSelected(new Set(filtered.map((c) => c.metadata.case_id)));
   };
 
   const clearSelection = () => setSelected(new Set());
 
+  /** 사용자 확인 후 staging DB의 단일 케이스를 삭제한다. */
   const handleDelete = async (caseId: string) => {
     if (!confirm("이 시드 케이스를 삭제할까요?")) return;
     const res = await fetch(`/api/seed/${caseId}`, { method: "DELETE" });
@@ -108,6 +114,7 @@ export default function SeedPage() {
     refresh();
   };
 
+  /** 날짜가 포함된 서버 임시 경로를 export 기본값으로 제안한다. */
   const openExportDialog = () => {
     setPathInput(`/tmp/chaeshin-seed-${new Date().toISOString().slice(0, 10)}.json`);
     setPathDialog("export");
@@ -118,6 +125,7 @@ export default function SeedPage() {
     setPathDialog("import");
   };
 
+  /** seed.db 전체를 서버의 지정 JSON 경로로 내보낸다. */
   const runExport = async () => {
     const res = await fetch("/api/seed/export", {
       method: "POST",
@@ -133,6 +141,7 @@ export default function SeedPage() {
     setPathDialog(null);
   };
 
+  /** 서버의 JSON 파일을 읽어 seed.db에 병합한 뒤 목록을 갱신한다. */
   const runImport = async () => {
     const res = await fetch("/api/seed/import", {
       method: "POST",
@@ -172,7 +181,7 @@ export default function SeedPage() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto space-y-4">
-        {/* Action bar */}
+        {/* 생성·입출력·promote 작업 모음 */}
         <div className="flex flex-wrap items-center gap-2 bg-white border rounded p-3">
           <Button onClick={() => setGenerateOpen(true)}>
             <Sparkles className="h-4 w-4 mr-2" />
@@ -208,7 +217,7 @@ export default function SeedPage() {
           </div>
         </div>
 
-        {/* Filter bar */}
+        {/* 서버 topic 필터와 로컬 텍스트 검색 */}
         <div className="flex items-center gap-2 bg-white border rounded p-3">
           <Filter className="h-4 w-4 text-gray-400" />
           <Input
@@ -228,7 +237,7 @@ export default function SeedPage() {
           </Button>
         </div>
 
-        {/* Case list */}
+        {/* seed 케이스 선택·편집 목록 */}
         {loading ? (
           <div className="bg-white border rounded p-8 text-center text-gray-400 text-sm">
             불러오는 중…
@@ -317,7 +326,7 @@ export default function SeedPage() {
         )}
       </main>
 
-      {/* Dialogs */}
+      {/* 생성·promote·파일 경로 대화상자 */}
       <SeedGenerateDialog
         open={generateOpen}
         onOpenChange={setGenerateOpen}

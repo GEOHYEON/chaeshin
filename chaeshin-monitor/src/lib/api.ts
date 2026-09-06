@@ -1,12 +1,13 @@
 /**
- * Chaeshin Monitor API client.
- * 독립 프로젝트용 — cases.json API 라우트 호출.
+ * Chaeshin Monitor 클라이언트 API 모음.
+ * 브라우저 컴포넌트에서 SQLite-backed Next.js API 라우트를 일관되게 호출한다.
  */
 
 import type { ChaeshinCase, ChaeshinStats, ChaeshinTool } from "./chaeshin-types";
 
 const BASE = "/api/chaeshin";
 
+/** main CBR 케이스 조회·수정·삭제 클라이언트. */
 export const api = {
   async getCases(opts?: {
     category?: string;
@@ -51,10 +52,11 @@ export const api = {
   },
 };
 
-// ── Tool Registry API ──────────────────────────────────────
+// ── 도구 레지스트리 API ────────────────────────────────────
 
 const TOOLS_BASE = "/api/tools";
 
+/** tools.json 기반 도구 레지스트리 클라이언트. */
 export const toolApi = {
   async getTools(category?: string): Promise<{ data: ChaeshinTool[]; total: number }> {
     const params = category ? `?category=${encodeURIComponent(category)}` : "";

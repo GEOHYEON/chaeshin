@@ -1,3 +1,7 @@
+/**
+ * 단일 케이스의 Tool Graph를 교체하고 필요하면 하위 케이스 상태를 연쇄 갱신한다.
+ * cascade는 명시적으로 false를 전달하지 않는 한 활성화된다.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { reviseCaseGraph } from "@/lib/case-store";
 
@@ -31,6 +35,7 @@ export async function POST(
     condition?: string;
   }>;
 
+  // 그래프 정규화와 고아 하위 케이스 판정은 저장소 계층에서 한 번에 처리한다.
   const result = reviseCaseGraph(caseId, {
     nodes,
     edges,

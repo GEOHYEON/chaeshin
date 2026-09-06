@@ -1,3 +1,7 @@
+/**
+ * 사용자의 최종 판정을 기록하는 API.
+ * pending은 시스템의 대기 상태이므로 이 경로에서는 success/failure만 허용한다.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { setVerdict } from "@/lib/case-store";
 

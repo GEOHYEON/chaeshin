@@ -1,3 +1,4 @@
+/** 현재 head 케이스를 기준으로 모니터 대시보드 집계값을 계산한다. */
 import { NextResponse } from "next/server";
 import { readCases } from "@/lib/case-store";
 
@@ -20,6 +21,7 @@ export async function GET() {
     if (pf?.category) categories.add(String(pf.category));
   }
 
+  // 빈 저장소에서는 0으로 나눌 수 없으므로 비율과 평균을 명시적으로 0으로 둔다.
   return NextResponse.json({
     totalCases: cases.length,
     successCount,

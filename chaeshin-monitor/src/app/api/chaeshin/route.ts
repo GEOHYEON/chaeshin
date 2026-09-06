@@ -1,3 +1,7 @@
+/**
+ * CBR 케이스 컬렉션 조회·생성 API.
+ * 조회 조건은 category, 성공 여부, 요청/카테고리 검색 순으로 누적 적용된다.
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { readCases, writeCase } from "@/lib/case-store";
 

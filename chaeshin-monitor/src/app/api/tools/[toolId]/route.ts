@@ -1,3 +1,4 @@
+/** tools.json에 저장된 단일 도구의 조회·수정·삭제 API. */
 import { NextRequest, NextResponse } from "next/server";
 import { readTools, writeTools } from "@/lib/tool-store";
 
@@ -16,6 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tool
   const idx = tools.findIndex((t) => t.id === toolId);
   if (idx === -1) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // 등록 시각 등 생략된 필드는 보존하고 수정 시각만 서버에서 갱신한다.
   tools[idx] = { ...tools[idx], ...body, updated_at: new Date().toISOString() };
   await writeTools(tools);
   return NextResponse.json(tools[idx]);

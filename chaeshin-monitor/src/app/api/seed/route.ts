@@ -1,3 +1,4 @@
+/** seed staging DB의 케이스 목록 조회·생성 API. */
 import { NextRequest, NextResponse } from "next/server";
 import { readSeedCases, writeSeedCase } from "@/lib/seed-store";
 

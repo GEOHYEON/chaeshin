@@ -1,5 +1,6 @@
 "use client";
 
+/** CBR 케이스의 재귀 계층과 각 레이어의 Tool Graph 요약을 탐색·판정하는 화면. */
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Layers } from "lucide-react";
@@ -36,6 +37,7 @@ export default function HierarchyPage() {
     "all",
   );
 
+  /** 서버가 계산한 계층 노드와 파생 상태를 다시 불러온다. */
   async function fetchData() {
     setLoading(true);
     try {
@@ -51,11 +53,12 @@ export default function HierarchyPage() {
     fetchData();
   }, []);
 
+  // 상위 레이어부터 필터를 노출하도록 L 접두사의 숫자를 내림차순 정렬한다.
   const layers = useMemo(() => {
     const set = new Set<string>();
     for (const n of nodes) set.add(n.layer || "L1");
     return [...set].sort((a, b) => {
-      // L3, L2, L1 순 (큰 depth 먼저)
+      // L3, L2, L1 순으로 큰 depth를 먼저 배치한다.
       const na = parseLayer(a);
       const nb = parseLayer(b);
       return nb - na;
@@ -74,6 +77,7 @@ export default function HierarchyPage() {
     return m;
   }, [nodes]);
 
+  // 평면 응답을 id map으로 복제한 뒤 parent_case_id에 따라 자식 배열을 연결한다.
   const roots = useMemo<Tree[]>(() => {
     const byId = new Map<string, Tree>();
     for (const n of nodes) byId.set(n.case_id, { ...n, children: [] });
@@ -89,6 +93,7 @@ export default function HierarchyPage() {
     return rootsList;
   }, [nodes]);
 
+  // 하위에 일치 항목이 있는 루트도 유지해 결과의 계층 문맥이 사라지지 않게 한다.
   const visibleRoots = useMemo(() => {
     let list = roots;
     if (layerFilter !== "all") {
@@ -100,6 +105,7 @@ export default function HierarchyPage() {
     return list;
   }, [roots, layerFilter, statusFilter]);
 
+  /** 사용자 원문의 판정 메모와 함께 pending 케이스를 최종 상태로 전환한다. */
   async function handleVerdict(caseId: string, status: "success" | "failure") {
     const note = window.prompt(
       `${status === "success" ? "성공" : "실패"} verdict 메모 (사용자 원문 인용 권장)`,
@@ -119,6 +125,7 @@ export default function HierarchyPage() {
     }
   }
 
+  /** 현재 그래프 JSON을 수정하고 제거된 anchor의 하위 케이스를 pending으로 되돌린다. */
   async function handleRevise(caseId: string) {
     // 현재 그래프를 가져와서 prompt에 채워주고, 사용자가 새 JSON으로 덮어쓰면 revise.
     const cur = await fetch(`/api/chaeshin/${caseId}`).then((r) => r.json()) as {
@@ -174,7 +181,7 @@ export default function HierarchyPage() {
           <div>
             <h1 className="text-base font-semibold tracking-tight">Hierarchy</h1>
             <p className="text-[11px] text-gray-400 leading-none">
-              Graphs all the way down — 모든 노드는 자기 자신도 그래프로 펼쳐질 수 있다
+              L1 ToolGraph · L2+ Procedure — 상위 절차는 하위 Case 5~7개로 펼쳐진다
             </p>
           </div>
           <nav className="ml-auto flex items-center gap-4 text-sm">
@@ -263,6 +270,7 @@ export default function HierarchyPage() {
   );
 }
 
+/** 레이어·상태 필터에 공통으로 사용하는 작은 토글 버튼. */
 function FilterBtn({
   active,
   onClick,
@@ -294,21 +302,25 @@ function FilterBtn({
   );
 }
 
+/** `L<number>` 형식을 정렬 가능한 숫자로 바꾸고 잘못된 값은 L1로 취급한다. */
 function parseLayer(l: string): number {
   if (l && l.startsWith("L") && /^\d+$/.test(l.slice(1))) return Number(l.slice(1));
   return 1;
 }
 
+/** 현재 노드 또는 하위 트리에 지정 레이어가 있는지 재귀 검사한다. */
 function containsLayer(node: Tree, layer: string): boolean {
   if ((node.layer || "L1") === layer) return true;
   return node.children.some((c) => containsLayer(c, layer));
 }
 
+/** 현재 노드 또는 하위 트리에 지정 상태가 있는지 재귀 검사한다. */
 function containsStatus(node: Tree, status: "success" | "failure" | "pending"): boolean {
   if (node.status === status) return true;
   return node.children.some((c) => containsStatus(c, status));
 }
 
+/** 한 계층 노드와 자식을 접기 가능한 재귀 목록으로 렌더링한다. */
 function TreeNode({
   node,
   depth,
@@ -323,6 +335,7 @@ function TreeNode({
   const [open, setOpen] = useState(depth < 1);
   const hasChildren = node.children.length > 0;
   const layer = node.layer || "L1";
+  // deadline은 pending 표시를 강조할 뿐 자동으로 실패 상태를 만들지는 않는다.
   const overdue =
     node.status === "pending" &&
     node.deadline_at &&
@@ -416,6 +429,7 @@ function TreeNode({
   );
 }
 
+/** 그래프 크기를 압축 표시하고 상세 node/tool 목록은 tooltip으로 제공한다. */
 function GraphSummary({
   summary,
 }: {
@@ -437,6 +451,7 @@ function GraphSummary({
   );
 }
 
+/** 3-state outcome과 deadline 경과 여부를 간결한 상태 표식으로 나타낸다. */
 function StatusBadge({
   status,
   overdue,
@@ -462,6 +477,7 @@ function StatusBadge({
   );
 }
 
+/** 깊은 레이어일수록 구분되는 색상으로 매핑한다. */
 function layerColor(l: string): string {
   const n = parseLayer(l);
   if (n >= 3) return "bg-purple-100 text-purple-700";

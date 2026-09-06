@@ -24,6 +24,7 @@ export async function GET(
   return NextResponse.json(c);
 }
 
+/** 기존 seed 케이스의 섹션별 필드만 병합해 저장한다. */
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ caseId: string }> },
@@ -44,6 +45,7 @@ export async function PUT(
   return NextResponse.json(merged);
 }
 
+/** 지정한 seed 케이스를 staging DB에서 제거한다. */
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ caseId: string }> },

@@ -1,5 +1,6 @@
 "use client";
 
+/** 로컬 도구 레지스트리를 조회·생성·수정·삭제·외부 import하는 관리 대화상자. */
 import { useState } from "react";
 import {
   Dialog,
@@ -18,6 +19,7 @@ import { toolApi } from "@/lib/api";
 import { Plus, Trash2, Pencil, X, Download } from "lucide-react";
 import { toast } from "sonner";
 
+/** 지정한 로컬 통합에서 도구를 가져오고 import 집계 결과를 반환한다. */
 async function importTools(source: "claude-code" | "openclaw") {
   const res = await fetch(`/api/tools/import?source=${source}`, { method: "POST" });
   if (!res.ok) throw new Error();
@@ -31,22 +33,25 @@ interface ToolManageDialogProps {
   onRefresh: () => void;
 }
 
+/** 새 파라미터 입력 행에 사용할 기본값을 매번 새 객체로 만든다. */
 function emptyParam(): ChaeshinToolParam {
   return { name: "", type: "string", description: "", required: true };
 }
 
+/** 목록과 입력 폼 모드를 전환하며 저장 후 상위 레지스트리 목록을 갱신한다. */
 export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolManageDialogProps) {
   const [mode, setMode] = useState<"list" | "form">("list");
   const [editId, setEditId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
 
-  // Form state
+  // 생성과 수정이 같은 폼 상태를 공유한다.
   const [name, setName] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [params, setParams] = useState<ChaeshinToolParam[]>([]);
 
+  /** 입력 상태와 editId를 비우고 목록 모드로 돌아간다. */
   const resetForm = () => {
     setName("");
     setDisplayName("");
@@ -62,6 +67,7 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
     setMode("form");
   };
 
+  /** 선택한 도구의 현재 값을 복사해 수정 폼을 연다. */
   const openEditForm = (tool: ChaeshinTool) => {
     setEditId(tool.id);
     setName(tool.name);
@@ -72,6 +78,7 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
     setMode("form");
   };
 
+  /** editId 유무에 따라 생성·수정 API를 선택하고 빈 파라미터 행은 제외한다. */
   const handleSave = async () => {
     if (!name.trim()) return;
 
@@ -101,6 +108,7 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
     }
   };
 
+  /** 레지스트리에서 도구를 삭제하고 최신 목록을 다시 요청한다. */
   const handleDelete = async (toolId: string) => {
     try {
       await toolApi.deleteTool(toolId);
@@ -113,6 +121,7 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
 
   const addParam = () => setParams([...params, emptyParam()]);
   const removeParam = (idx: number) => setParams(params.filter((_, i) => i !== idx));
+  /** 파라미터 배열을 복사한 뒤 지정 행·필드만 변경한다. */
   const updateParam = (idx: number, field: keyof ChaeshinToolParam, value: unknown) => {
     const updated = [...params];
     (updated[idx] as unknown as Record<string, unknown>)[field] = value;
@@ -238,7 +247,7 @@ export function ToolManageDialog({ open, onOpenChange, tools, onRefresh }: ToolM
         <DialogFooter className="px-6 py-4 border-t shrink-0">
           {mode === "list" ? (
             <div className="flex items-center gap-2 w-full">
-              {/* Import buttons on the left */}
+              {/* 로컬 통합별 도구 가져오기 */}
               <Button
                 variant="outline"
                 size="sm"

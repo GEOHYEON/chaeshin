@@ -1,5 +1,6 @@
 "use client";
 
+/** 대시보드 수치와 선택적 추세를 일관된 카드 형태로 표시한다. */
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -15,6 +16,7 @@ interface StatCardProps {
   className?: string;
 }
 
+// 의미별 테두리와 아이콘 배경을 한 쌍으로 유지한다.
 const variants = {
   default: {
     card: "border-[hsl(var(--border))]",
@@ -34,6 +36,7 @@ const variants = {
   },
 };
 
+/** 제목·값·설명·아이콘·추세를 조합하는 재사용 가능한 통계 카드. */
 export function StatCard({
   title,
   value,

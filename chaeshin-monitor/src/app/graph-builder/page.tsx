@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * main/seed 케이스의 기본 정보와 Tool Graph를 React Flow로 생성·수정하는 화면.
+ * URL의 store와 caseId를 기준으로 같은 편집기를 두 저장소에 재사용한다.
+ */
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -43,13 +47,15 @@ const EMPTY_GRAPH: ChaeshinToolGraph = {
 // graph-builder 는 query param ?store=seed 면 seed.db 의 케이스를 편집한다.
 type StoreName = "main" | "seed";
 
+/** 선택한 저장소와 caseId를 대응하는 API 경로로 변환한다. */
 function caseEndpoint(store: StoreName, caseId?: string): string {
   const base = store === "seed" ? "/api/seed" : "/api/chaeshin";
   return caseId ? `${base}/${caseId}` : base;
 }
 
-// ── Inner component (needs ReactFlowProvider) ─────────────────
+// ── ReactFlowProvider 내부 편집기 ─────────────────────────────
 
+/** React Flow 인스턴스를 사용해 캔버스 상태와 케이스 폼을 함께 관리한다. */
 function GraphBuilderInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -59,14 +65,14 @@ function GraphBuilderInner() {
   const caseId = searchParams.get("caseId");
   const store: StoreName = searchParams.get("store") === "seed" ? "seed" : "main";
 
-  // Tab
+  // 기본 정보와 그래프 캔버스를 한 화면 상태로 전환한다.
   const [tab, setTab] = useState<"info" | "graph">("info");
 
-  // Tools
+  // 도구 레지스트리는 팔레트와 관리 대화상자가 공유한다.
   const [tools, setTools] = useState<ChaeshinTool[]>([]);
   const [showToolManage, setShowToolManage] = useState(false);
 
-  // Graph
+  // baseGraph는 화면에서 표현하지 않는 schema/병렬 설정을 저장 시 보존하는 기준이다.
   const [baseGraph, setBaseGraph] = useState<ChaeshinToolGraph>(EMPTY_GRAPH);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -82,7 +88,7 @@ function GraphBuilderInner() {
   const [errorReason, setErrorReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Load tools
+  // tools.json이 아직 없어도 빈 팔레트로 편집기를 계속 사용할 수 있다.
   const fetchTools = useCallback(async () => {
     try {
       const res = await toolApi.getTools();
@@ -90,7 +96,7 @@ function GraphBuilderInner() {
     } catch { /* tools.json may not exist yet */ }
   }, []);
 
-  // Load initial graph (edit mode)
+  // 수정 모드에서는 도메인 그래프와 폼 값을 각각 React 상태로 복원한다.
   useEffect(() => {
     fetchTools();
 
@@ -106,7 +112,7 @@ function GraphBuilderInner() {
           setNodes(flow.nodes);
           setEdges(flow.edges);
           nodeCounter.current = c.solution.tool_graph.nodes.length;
-          // Fill info
+          // 그래프와 함께 편집할 케이스 기본 정보도 폼에 채운다.
           setRequest(c.problem_features.request);
           setCategory(c.problem_features.category);
           setKeywords(c.problem_features.keywords.join(", "));
@@ -119,7 +125,7 @@ function GraphBuilderInner() {
     }
   }, [caseId, store, fetchTools, setNodes, setEdges]);
 
-  // Delete edge via X button
+  // 커스텀 엣지의 삭제 버튼에서 해당 React Flow 엣지만 제거한다.
   const onDeleteEdge = useCallback(
     (edgeId: string) => {
       setEdges((eds) => eds.filter((e) => e.id !== edgeId));
@@ -127,7 +133,7 @@ function GraphBuilderInner() {
     [setEdges]
   );
 
-  // Connect edges
+  // 새 연결에도 삭제 callback을 주입해 기존 엣지와 같은 동작을 보장한다.
   const onConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) => addEdge({
@@ -141,7 +147,7 @@ function GraphBuilderInner() {
     [setEdges, onDeleteEdge]
   );
 
-  // Add node from palette
+  // 팔레트의 + 버튼으로 추가할 때는 격자형 기본 좌표를 부여한다.
   const handleAddNodeFromTool = useCallback(
     (tool: ChaeshinTool) => {
       nodeCounter.current += 1;
@@ -158,7 +164,7 @@ function GraphBuilderInner() {
     [setNodes, tab]
   );
 
-  // Drop handler
+  // 브라우저 기본 drop을 허용하고 팔레트가 지정한 이동 효과를 표시한다.
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -171,6 +177,7 @@ function GraphBuilderInner() {
       if (!toolData) return;
 
       const tool: ChaeshinTool = JSON.parse(toolData);
+      // 화면 좌표를 현재 확대·이동 상태가 반영된 Flow 좌표로 변환한다.
       const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
 
       nodeCounter.current += 1;
@@ -186,7 +193,7 @@ function GraphBuilderInner() {
     [reactFlowInstance, setNodes]
   );
 
-  // Save
+  // 화면의 Flow 상태를 도메인 그래프로 되돌린 뒤 create/edit 경로로 저장한다.
   const handleSave = useCallback(async () => {
     if (mode === "create" && !request.trim()) {
       toast.error("요청(Request)을 입력하세요");
@@ -199,7 +206,7 @@ function GraphBuilderInner() {
 
     try {
       if (caseId) {
-        // Edit mode — store-aware PUT
+        // 수정 모드에서는 선택한 저장소의 동일 caseId를 갱신한다.
         const payload = {
           problem_features: {
             request,
@@ -233,7 +240,7 @@ function GraphBuilderInner() {
           store === "seed" ? "Seed 케이스 저장됨" : "케이스가 저장되었습니다",
         );
       } else {
-        // Create mode — store-aware POST
+        // 생성 모드에서는 클라이언트에서 신규 caseId와 기본 metadata를 구성한다.
         const newCase: ChaeshinCase = {
           problem_features: {
             request,
@@ -277,7 +284,7 @@ function GraphBuilderInner() {
         );
       }
 
-      // Close or navigate back to the originating list
+      // 팝업으로 열렸으면 닫고, 직접 진입했으면 원래 저장소 목록으로 이동한다.
       if (window.opener) {
         window.close();
       } else {
@@ -300,14 +307,14 @@ function GraphBuilderInner() {
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: "#ffffff" }}>
-      {/* Header */}
+      {/* 편집기 헤더 */}
       <div className="flex items-center gap-3 px-4 py-2.5 border-b shrink-0" style={{ backgroundColor: "#ffffff" }}>
         <Button variant="ghost" size="sm" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           돌아가기
         </Button>
 
-        {/* Tab buttons */}
+        {/* 기본 정보·그래프 전환 버튼 */}
         <div className="flex items-center gap-1 ml-2 bg-gray-100 rounded-lg p-0.5">
           <button
             onClick={() => setTab("info")}
@@ -344,11 +351,11 @@ function GraphBuilderInner() {
         </Button>
       </div>
 
-      {/* Main area */}
+      {/* 선택한 탭의 편집 영역 */}
       <div className="flex-1 flex min-h-0">
         {tab === "graph" ? (
           <>
-            {/* Canvas */}
+            {/* React Flow 캔버스 */}
             <div className="flex-1" style={{ backgroundColor: "#ffffff" }} onDragOver={onDragOver} onDrop={onDrop}>
               <ReactFlow
                 nodes={nodes}
@@ -380,7 +387,7 @@ function GraphBuilderInner() {
               </ReactFlow>
             </div>
 
-            {/* Right panel: Tool palette */}
+            {/* 오른쪽 도구 팔레트 */}
             <div className="w-[280px] shrink-0">
               <ToolPalette
                 tools={tools}
@@ -390,7 +397,7 @@ function GraphBuilderInner() {
             </div>
           </>
         ) : (
-          /* Info tab */
+          /* 케이스 기본 정보 탭 */
           <div className="flex-1 overflow-y-auto" style={{ backgroundColor: "#ffffff" }}>
             <div className="max-w-xl mx-auto p-8 space-y-5">
               <div className="space-y-1.5">
@@ -437,7 +444,7 @@ function GraphBuilderInner() {
         )}
       </div>
 
-      {/* Tool management dialog */}
+      {/* 도구 레지스트리 관리 대화상자 */}
       <ToolManageDialog
         open={showToolManage}
         onOpenChange={setShowToolManage}
@@ -448,8 +455,9 @@ function GraphBuilderInner() {
   );
 }
 
-// ── Page wrapper with ReactFlowProvider ───────────────────────
+// ── ReactFlowProvider를 포함한 페이지 래퍼 ───────────────────
 
+/** navigation query와 React Flow context가 준비된 뒤 내부 편집기를 렌더링한다. */
 export default function GraphBuilderPage() {
   return (
     <Suspense fallback={<div className="h-screen flex items-center justify-center text-gray-400">로딩 중...</div>}>

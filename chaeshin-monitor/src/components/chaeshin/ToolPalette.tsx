@@ -1,5 +1,6 @@
 "use client";
 
+/** 등록된 도구를 검색·그룹화해 React Flow 캔버스에 추가할 수 있는 팔레트. */
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,12 @@ interface ToolPaletteProps {
   onManageTools: () => void;
 }
 
+/** 버튼 추가와 HTML drag-and-drop 두 입력 방식을 동일한 도구 목록에 제공한다. */
 export function ToolPalette({ tools, onAddNode, onManageTools }: ToolPaletteProps) {
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
+  // 식별자·표시명·설명을 함께 검색해 사용자가 기억하는 이름으로 찾을 수 있게 한다.
   const filtered = useMemo(() => {
     if (!search) return tools;
     const q = search.toLowerCase();
@@ -28,6 +31,7 @@ export function ToolPalette({ tools, onAddNode, onManageTools }: ToolPaletteProp
     );
   }, [tools, search]);
 
+  // 검색 결과를 category로 묶고 카테고리 이름순으로 안정적으로 노출한다.
   const grouped = useMemo(() => {
     const map: Record<string, ChaeshinTool[]> = {};
     for (const t of filtered) {
@@ -38,18 +42,20 @@ export function ToolPalette({ tools, onAddNode, onManageTools }: ToolPaletteProp
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
 
+  /** 그래프 빌더만 해석하는 MIME 타입에 도구 전체 정보를 직렬화한다. */
   const handleDragStart = (e: React.DragEvent, tool: ChaeshinTool) => {
     e.dataTransfer.setData("application/chaeshin-tool", JSON.stringify(tool));
     e.dataTransfer.effectAllowed = "move";
   };
 
+  /** 다른 카테고리의 접힘 상태를 보존하며 선택 항목만 토글한다. */
   const toggleCategory = (cat: string) => {
     setCollapsed((prev) => ({ ...prev, [cat]: !prev[cat] }));
   };
 
   return (
     <div className="h-full flex flex-col border-l bg-gray-50">
-      {/* Header */}
+      {/* 검색과 관리 진입점 */}
       <div className="p-3 border-b space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">도구 팔레트</h3>
@@ -68,7 +74,7 @@ export function ToolPalette({ tools, onAddNode, onManageTools }: ToolPaletteProp
         </div>
       </div>
 
-      {/* Tool list */}
+      {/* 카테고리별 도구 목록 */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {tools.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">

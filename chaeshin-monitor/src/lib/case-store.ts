@@ -4,7 +4,7 @@
  * Python 측 chaeshin/storage/sqlite_backend.py 와 동일 스키마를 가진
  * ~/.chaeshin/chaeshin.db 를 읽음.
  *
- * 읽기 전용 인터페이스 + 레거시 호환을 위한 POST (신규 케이스 삽입).
+ * 모니터 UI의 조회·수정·판정·그래프 revise 작업을 Python 저장소와 같은 DB에 반영한다.
  */
 import Database from "better-sqlite3";
 import fs from "fs";
@@ -13,6 +13,7 @@ import path from "path";
 
 let _db: Database.Database | null = null;
 
+/** 환경변수 우선순위에 따라 main CBR DB의 실제 경로를 결정한다. */
 export function getDbPath(): string {
   return (
     process.env.CHAESHIN_DB_PATH ||
@@ -20,6 +21,7 @@ export function getDbPath(): string {
   );
 }
 
+/** 프로세스 안에서 하나의 연결을 재사용하고 필요한 공용 스키마를 보증한다. */
 function openDb(): Database.Database {
   if (_db) return _db;
   const p = getDbPath();
@@ -73,6 +75,7 @@ export interface CaseRow {
   metadata: Record<string, unknown>;
 }
 
+/** SQLite의 JSON 컬럼 네 개를 화면이 사용하는 CaseRow 구조로 복원한다. */
 function rowToCase(row: {
   problem_json: string;
   solution_json: string;
@@ -87,6 +90,10 @@ function rowToCase(row: {
   };
 }
 
+/**
+ * 최신 생성 순으로 케이스를 읽는다.
+ * 기본값에서는 버전 snapshot을 숨기고 metadata.is_head가 아닌 행만 제외한다.
+ */
 export function readCases(includeSnapshots = false): CaseRow[] {
   const db = openDb();
   const rows = db
@@ -107,6 +114,7 @@ export function readCases(includeSnapshots = false): CaseRow[] {
   });
 }
 
+/** caseId가 정확히 일치하는 케이스를 읽고 없으면 null을 반환한다. */
 export function readCaseById(caseId: string): CaseRow | null {
   const db = openDb();
   const row = db
@@ -124,12 +132,14 @@ export function readCaseById(caseId: string): CaseRow | null {
   return row ? rowToCase(row) : null;
 }
 
+/** 단일 케이스를 삭제하고 실제 삭제 여부를 반환한다. */
 export function deleteCase(caseId: string): boolean {
   const db = openDb();
   const info = db.prepare("DELETE FROM cases WHERE case_id = ?").run(caseId);
   return info.changes > 0;
 }
 
+/** 상태 변경을 동일 DB의 이벤트 타임라인에 구조화해 기록한다. */
 export function appendEvent(
   eventType: string,
   payload: Record<string, unknown>,
@@ -159,12 +169,11 @@ export interface ReviseResult {
 }
 
 /**
- * Replace a case's Tool Graph and cascade orphaned children to pending.
+ * 케이스의 Tool Graph를 교체하고 고아가 된 하위 케이스를 pending으로 되돌린다.
  *
- * Mirrors `case_store.revise_graph` in the Python core. Children whose
- * `parent_node_id` no longer exists in the new graph have their
- * `outcome.status` flipped back to "pending" and a `[cascade]` line
- * appended to `feedback_log`.
+ * Python core의 `case_store.revise_graph`와 같은 규칙을 사용한다. 새 그래프에서
+ * 사라진 `parent_node_id`에 연결된 자식은 `outcome.status`를 pending으로 바꾸고
+ * `feedback_log`에 `[cascade]` 기록을 남긴다.
  */
 export function reviseCaseGraph(
   caseId: string,
@@ -216,7 +225,7 @@ export function reviseCaseGraph(
   const removed = [...beforeIds].filter((id) => !afterIds.has(id));
   const added = [...afterIds].filter((id) => !beforeIds.has(id));
 
-  // Cascade — find children whose parent_node_id was in `removed`.
+  // 제거된 노드를 anchor로 삼던 직접 하위 케이스만 cascade 대상으로 찾는다.
   const orphaned: string[] = [];
   if (cascade && removed.length > 0) {
     const db = openDb();
@@ -280,6 +289,10 @@ export function reviseCaseGraph(
   };
 }
 
+/**
+ * 사용자 verdict를 success/failure로 확정하고 판정 시각·메모를 함께 저장한다.
+ * 실패 메모는 기존 error_reason이 없을 때만 보조 실패 사유로 사용한다.
+ */
 export function setVerdict(
   caseId: string,
   status: "success" | "failure",
@@ -300,6 +313,7 @@ export function setVerdict(
   return found;
 }
 
+/** metadata.case_id를 키로 케이스를 삽입하거나 원자적인 upsert로 갱신한다. */
 export function writeCase(c: CaseRow): void {
   const db = openDb();
   const meta = c.metadata as Record<string, unknown>;
@@ -342,7 +356,7 @@ export function writeCase(c: CaseRow): void {
   );
 }
 
-// ── Events ─────────────────────────────────────────────────
+// ── 이벤트 ─────────────────────────────────────────────────
 
 export interface EventRow {
   id: number;
@@ -353,6 +367,7 @@ export interface EventRow {
   payload: Record<string, unknown>;
 }
 
+/** 선택적 시간·종류 조건을 parameterized SQL로 조합해 최신 이벤트를 읽는다. */
 export function readEvents(opts: {
   since?: string;
   eventType?: string;
@@ -369,6 +384,7 @@ export function readEvents(opts: {
     clauses.push("event_type = ?");
     params.push(opts.eventType);
   }
+  // SQL 조각은 고정된 컬럼 조건만 조합하고 값은 params로 분리한다.
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   params.push(opts.limit ?? 200);
   const sql = `SELECT id, ts, event_type, session_id, case_ids_json, payload_json
@@ -391,7 +407,7 @@ export function readEvents(opts: {
   }));
 }
 
-// ── Hierarchy ──────────────────────────────────────────────
+// ── 케이스 계층 ─────────────────────────────────────────────
 
 export interface HierarchyEdge {
   parent_case_id: string;
@@ -400,6 +416,7 @@ export interface HierarchyEdge {
   created_at: string;
 }
 
+/** 저장소에 명시적으로 기록된 부모·자식 anchor 관계를 읽는다. */
 export function readHierarchyEdges(): HierarchyEdge[] {
   const db = openDb();
   return db
@@ -431,6 +448,10 @@ export interface HierarchyNode {
   orphaned: boolean;    // [cascade] 로그가 있으면 true
 }
 
+/**
+ * head 케이스의 부모 관계에서 depth/layer를 파생하고 화면용 그래프 요약을 만든다.
+ * 저장된 layer 값이 아니라 현재 트리 토폴로지가 항상 정본이다.
+ */
 export function readHierarchyNodes(): HierarchyNode[] {
   const db = openDb();
   const rows = db
@@ -465,6 +486,7 @@ export function readHierarchyNodes(): HierarchyNode[] {
     childrenOf.get(pid)!.push(r.case_id);
   }
   const depthCache = new Map<string, number>();
+  // leaf에서 위로 계산한 최대 깊이를 캐시하고 잘못된 순환 참조는 L1로 끊는다.
   const computeDepth = (caseId: string, visited = new Set<string>()): number => {
     const cached = depthCache.get(caseId);
     if (cached !== undefined) return cached;
@@ -497,6 +519,7 @@ export function readHierarchyNodes(): HierarchyNode[] {
       wait_mode?: string;
       feedback_log?: string[];
     };
+    // 구버전 outcome에는 status가 없으므로 success boolean으로 호환 상태를 복원한다.
     const status: "success" | "failure" | "pending" =
       (out.status as "success" | "failure" | "pending") ||
       (out.success ? "success" : "pending");
@@ -523,6 +546,7 @@ export function readHierarchyNodes(): HierarchyNode[] {
       deadline_at: meta.deadline_at || "",
       wait_mode: meta.wait_mode || "deadline",
       feedback_count: r.feedback_count || 0,
+      // 긴 그래프도 목록 응답이 과도해지지 않도록 미리보기 개수를 제한한다.
       graph_summary: {
         node_count: graphNodes.length,
         edge_count: (sol.tool_graph?.edges || []).length,

@@ -11,6 +11,7 @@ import { readSeedCases } from "@/lib/seed-store";
 
 export const runtime = "nodejs";
 
+/** seed.db 전체를 브라우저가 아닌 서버의 지정 경로에 직렬화한다. */
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const outPath = (body?.path as string) || "";

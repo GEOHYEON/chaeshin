@@ -1,5 +1,6 @@
 "use client";
 
+/** 기존 CBR 케이스의 사용자 편집 가능 필드를 수정하는 대화상자. */
 import { useState, useEffect } from "react";
 import {
   Dialog,
@@ -22,6 +23,7 @@ interface CaseEditDialogProps {
   onSave: (updated: ChaeshinCase) => Promise<void>;
 }
 
+/** 선택된 케이스를 폼에 복사하고 수정되지 않은 중첩 필드는 저장 시 보존한다. */
 export function CaseEditDialog({
   caseData,
   open,
@@ -38,6 +40,7 @@ export function CaseEditDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // 다른 케이스가 선택될 때 이전 폼 값이 남지 않도록 전체 입력을 다시 채운다.
     if (caseData) {
       setRequest(caseData.problem_features.request);
       setCategory(caseData.problem_features.category);
@@ -51,6 +54,7 @@ export function CaseEditDialog({
 
   if (!caseData) return null;
 
+  /** 폼 필드만 기존 케이스에 병합하고 수정 시각을 갱신한다. */
   const handleSave = async () => {
     setSaving(true);
     try {

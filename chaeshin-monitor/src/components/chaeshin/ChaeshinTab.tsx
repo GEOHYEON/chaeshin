@@ -1,5 +1,6 @@
 "use client";
 
+/** main CBR 저장소의 통계·검색·목록·상세 편집을 제공하는 홈 탭. */
 import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+/** 서버 원본 목록을 기준으로 통계를 계산하고 화면 필터를 클라이언트에서 적용한다. */
 export function ChaeshinTab() {
   const [cases, setCases] = useState<ChaeshinCase[]>([]);
   const [stats, setStats] = useState<ChaeshinStats | null>(null);
@@ -43,6 +45,7 @@ export function ChaeshinTab() {
   const [detailCase, setDetailCase] = useState<ChaeshinCase | null>(null);
   const [editCase, setEditCase] = useState<ChaeshinCase | null>(null);
 
+  /** 케이스 목록을 다시 읽고 동일한 스냅샷으로 통계도 재계산한다. */
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -60,6 +63,7 @@ export function ChaeshinTab() {
     fetchData();
   }, [fetchData]);
 
+  // 성공 여부 필터를 먼저 적용한 뒤 요청·카테고리·키워드를 통합 검색한다.
   const filtered = cases.filter((c) => {
     if (filterSuccess === "success" && !c.outcome?.success) return false;
     if (filterSuccess === "fail" && c.outcome?.success) return false;
@@ -74,6 +78,7 @@ export function ChaeshinTab() {
     return true;
   });
 
+  /** 수정된 전체 케이스를 저장한 뒤 서버 기준 목록으로 재동기화한다. */
   const handleSave = async (updated: ChaeshinCase) => {
     try {
       await api.updateCase(updated.metadata.case_id, updated);
@@ -84,6 +89,7 @@ export function ChaeshinTab() {
     }
   };
 
+  /** 케이스 삭제 후 통계와 목록을 함께 갱신한다. */
   const handleDelete = async (caseId: string) => {
     try {
       await api.deleteCase(caseId);
@@ -96,7 +102,7 @@ export function ChaeshinTab() {
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
+      {/* 현재 목록 기준 집계 카드 */}
       {stats && (
         <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <StatCard
@@ -124,7 +130,7 @@ export function ChaeshinTab() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* 검색·상태 필터와 주요 작업 */}
       <div className="flex gap-3 items-center">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -155,7 +161,7 @@ export function ChaeshinTab() {
         </Button>
       </div>
 
-      {/* Table */}
+      {/* 케이스 목록 */}
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">로딩 중...</div>
       ) : filtered.length === 0 ? (
@@ -236,6 +242,7 @@ export function ChaeshinTab() {
         open={!!detailCase}
         onOpenChange={(o) => !o && setDetailCase(null)}
         onGraphChange={detailCase ? async (graph) => {
+          // 상세 화면의 그래프 저장도 전체 케이스 수정 API를 통해 일관되게 처리한다.
           try {
             const updated = { ...detailCase, solution: { tool_graph: graph } };
             await api.updateCase(detailCase.metadata.case_id, updated);

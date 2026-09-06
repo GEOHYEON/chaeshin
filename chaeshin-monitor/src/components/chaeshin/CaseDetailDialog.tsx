@@ -1,5 +1,6 @@
 "use client";
 
+/** 단일 CBR 케이스의 문제·그래프·결과·메타데이터를 상세 표시한다. */
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ interface CaseDetailDialogProps {
   onGraphChange?: (graph: ChaeshinToolGraph) => void;
 }
 
+/** onGraphChange 제공 여부에 따라 그래프를 편집 가능 또는 읽기 전용으로 표시한다. */
 export function CaseDetailDialog({
   caseData,
   open,
@@ -55,7 +57,7 @@ export function CaseDetailDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Problem Features */}
+          {/* 문제 특성 */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Problem Features</CardTitle>
@@ -92,7 +94,7 @@ export function CaseDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Tool Graph — React Flow Editor */}
+          {/* React Flow 기반 Tool Graph */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">
@@ -120,7 +122,7 @@ export function CaseDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Outcome */}
+          {/* 실행 결과 */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Outcome</CardTitle>
@@ -161,7 +163,7 @@ export function CaseDetailDialog({
             </CardContent>
           </Card>
 
-          {/* Metadata */}
+          {/* 케이스 메타데이터 */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Metadata</CardTitle>

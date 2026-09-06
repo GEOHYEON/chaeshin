@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   }
   const raw = await fs.readFile(inPath, "utf-8");
   const parsed = JSON.parse(raw);
+  // 직접 내보낸 배열과 API 응답 형태인 { data: [...] }를 모두 받을 수 있다.
   const list = Array.isArray(parsed) ? parsed : parsed?.data;
   if (!Array.isArray(list)) {
     return NextResponse.json(

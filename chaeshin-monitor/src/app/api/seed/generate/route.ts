@@ -4,10 +4,10 @@
  * Body: { topic: string, tools: string[], count: number, similarityThreshold?: number,
  *         maxAttempts?: number, sampleSeeds?: object[] }
  *
- * Spawns `uv run python -m chaeshin.cli.main seed generate ...` and streams
- * the child's stdout back as NDJSON. Each line from Python is forwarded as-is.
+ * `uv run python -m chaeshin.cli.main seed generate ...`를 실행하고 자식 프로세스의
+ * stdout JSON 이벤트와 stderr 로그를 하나의 NDJSON 스트림으로 중계한다.
  *
- * OPENAI_API_KEY must be set in the server environment for generation to succeed.
+ * 생성에 필요한 OPENAI_API_KEY는 서버 환경에 설정되어 있어야 한다.
  */
 import { NextRequest } from "next/server";
 import { spawn } from "child_process";
@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
   const cwd = pythonProjectCwd();
   let childRef: ReturnType<typeof spawn> | null = null;
 
+  /** 정상 종료와 중단 양쪽에서 임시 샘플 파일을 안전하게 정리한다. */
   const cleanupSample = async () => {
     if (tempSamplePath) {
       try {
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
       });
       childRef = child;
 
+      // 클라이언트가 먼저 연결을 끊어 controller가 닫힌 경우에도 child 종료를 방해하지 않는다.
       const emit = (event: Record<string, unknown>) => {
         try {
           controller.enqueue(enc.encode(JSON.stringify(event) + "\n"));
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
         }
       };
 
+      // chunk 경계가 JSON 한 줄의 경계와 일치하지 않으므로 개행까지 버퍼링한다.
       let stdoutBuf = "";
       child.stdout.on("data", (chunk: Buffer) => {
         stdoutBuf += chunk.toString("utf-8");

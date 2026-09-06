@@ -1,5 +1,6 @@
 "use client";
 
+/** CBR 케이스 기본 정보와 Tool Graph 초안을 입력받아 신규 케이스를 구성한다. */
 import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
@@ -33,6 +34,7 @@ const EMPTY_GRAPH: ChaeshinToolGraph = {
 const SESSION_KEY_RESULT = "chaeshin-graph-builder-result";
 const SESSION_KEY_DRAFT = "chaeshin-graph-builder-draft";
 
+/** 케이스 생성 폼을 관리하고 sessionStorage에 결과가 있으면 그래프 초안으로 반영한다. */
 export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDialogProps) {
   const [request, setRequest] = useState("");
   const [category, setCategory] = useState("");
@@ -44,7 +46,7 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
   const [graph, setGraph] = useState<ChaeshinToolGraph>(EMPTY_GRAPH);
   const [saving, setSaving] = useState(false);
 
-  // Poll for graph builder result when window regains focus
+  // 그래프 빌더에서 돌아와 창이 다시 활성화되면 전달된 결과를 한 번 소비한다.
   const checkGraphResult = useCallback(() => {
     const result = sessionStorage.getItem(SESSION_KEY_RESULT);
     if (result) {
@@ -67,6 +69,7 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
     };
   }, [open, checkGraphResult]);
 
+  /** 생성 완료 후 다음 입력을 위해 모든 폼 상태를 기본값으로 되돌린다. */
   const reset = () => {
     setRequest("");
     setCategory("");
@@ -78,14 +81,16 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
     setGraph(EMPTY_GRAPH);
   };
 
+  /** 현재 그래프 초안을 저장하고 별도 창에서 그래프 빌더를 연다. */
   const openGraphBuilder = () => {
-    // Save current graph as draft
+    // 기존 노드가 있을 때만 초안을 기록해 빈 초안이 이전 값을 덮지 않게 한다.
     if (graph.nodes.length > 0) {
       sessionStorage.setItem(SESSION_KEY_DRAFT, JSON.stringify(graph));
     }
     window.open("/graph-builder?mode=create", "_blank", "width=1400,height=900");
   };
 
+  /** 쉼표 입력을 배열로 정규화하고 완전한 ChaeshinCase를 만들어 상위에 전달한다. */
   const handleCreate = async () => {
     if (!request.trim()) return;
     setSaving(true);
@@ -178,7 +183,7 @@ export function CaseCreateDialog({ open, onOpenChange, onCreate }: CaseCreateDia
 
           <Separator />
 
-          {/* Tool Graph section */}
+          {/* Tool Graph 초안과 별도 편집기 진입점 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Tool Graph</label>

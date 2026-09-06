@@ -120,6 +120,10 @@ export interface ExperienceForChaeshin {
   createdAt: string;
 }
 
+/**
+ * Weaviate Experience를 화면의 정규 ChaeshinCase로 변환한다.
+ * 중첩 metadata 값을 우선 사용하고 누락된 값은 Experience의 평면 필드로 보완한다.
+ */
 export function experienceToChaeshinCase(
   exp: ExperienceForChaeshin
 ): ChaeshinCase | null {
@@ -176,10 +180,15 @@ export function experienceToChaeshinCase(
 
 // ── Mermaid 변환 ─────────────────────────────────────────────
 
+/** 사용자·도구 문자열이 Mermaid 노드 문법을 깨지 않도록 최소 문자만 이스케이프한다. */
 function escapeMermaid(text: string): string {
   return text.replace(/"/g, "&quot;").replace(/[[\](){}]/g, "");
 }
 
+/**
+ * Tool Graph를 Mermaid flowchart로 직렬화한다.
+ * 목적 노드가 없는 action edge는 별도의 합성 노드를 만들고 entry node를 강조한다.
+ */
 export function toolGraphToMermaid(graph: ChaeshinToolGraph): string {
   const lines: string[] = ["graph TD"];
 
@@ -233,6 +242,7 @@ export interface ChaeshinStats {
   categories: string[];
 }
 
+/** 동일한 케이스 스냅샷에서 대시보드 합계·비율·카테고리 집합을 계산한다. */
 export function computeChaeshinStats(cases: ChaeshinCase[]): ChaeshinStats {
   const successCount = cases.filter((c) => c.outcome.success).length;
   const failCount = cases.length - successCount;
