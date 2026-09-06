@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="expand-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="520" fill="#f8fafc"/>
+  <text x="450" y="30" text-anchor="middle" fill="#0f172a" font-size="18" font-weight="700">Procedures over an L1 ToolGraph base</text>
+  <text x="450" y="50" text-anchor="middle" fill="#64748b" font-size="11">Procedure is a reusable bundle of lower-layer Cases; only L1 contains executable Tool nodes.</text>
+
+  <!-- L3+ -->
+  <rect x="92" y="70" width="716" height="78" rx="14" fill="#fff7ed" stroke="#f97316" stroke-width="2"/>
+  <text x="112" y="94" fill="#c2410c" font-size="12" font-weight="700">L3+ · PROCEDURE</text>
+  <rect x="220" y="91" width="460" height="39" rx="8" fill="#ffedd5" stroke="#fb923c"/>
+  <text x="450" y="108" text-anchor="middle" fill="#7c2d12" font-size="13" font-weight="600">Higher-level procedure</text>
+  <text x="450" y="123" text-anchor="middle" fill="#9a3412" font-size="10">normally 5–7 Cases from the immediately lower Procedure layer</text>
+
+  <path d="M450 148 L450 171" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <text x="463" y="164" fill="#64748b" font-size="10">one child shown</text>
+
+  <!-- L2 -->
+  <rect x="45" y="178" width="810" height="133" rx="14" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/>
+  <text x="65" y="202" fill="#6d28d9" font-size="12" font-weight="700">L2 · PROCEDURE</text>
+  <text x="835" y="202" text-anchor="end" fill="#6d28d9" font-size="11">groups 5–7 L1 ToolGraph Cases</text>
+
+  <g fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.4">
+    <rect x="74" y="222" width="112" height="55" rx="8"/>
+    <rect x="202" y="222" width="112" height="55" rx="8"/>
+    <rect x="330" y="222" width="112" height="55" rx="8"/>
+    <rect x="458" y="222" width="112" height="55" rx="8"/>
+    <rect x="586" y="222" width="112" height="55" rx="8"/>
+    <rect x="714" y="222" width="112" height="55" rx="8"/>
+  </g>
+  <g text-anchor="middle" fill="#4c1d95" font-size="11" font-weight="600">
+    <text x="130" y="245">Step 1</text><text x="130" y="262" font-size="9" font-weight="400">guard + anchor</text>
+    <text x="258" y="245">Step 2</text><text x="258" y="262" font-size="9" font-weight="400">guard + anchor</text>
+    <text x="386" y="245">Step 3</text><text x="386" y="262" font-size="9" font-weight="400">guard + anchor</text>
+    <text x="514" y="245">Step 4</text><text x="514" y="262" font-size="9" font-weight="400">guard + anchor</text>
+    <text x="642" y="245">Step 5</text><text x="642" y="262" font-size="9" font-weight="400">guard + anchor</text>
+    <text x="770" y="245">Step 6</text><text x="770" y="262" font-size="9" font-weight="400">guard + anchor</text>
+  </g>
+
+  <!-- Step anchors to L1 cases -->
+  <g stroke="#64748b" stroke-width="1.4" fill="none" marker-end="url(#arrow)">
+    <path d="M130 277 L130 332"/>
+    <path d="M258 277 L258 332"/>
+    <path d="M386 277 L386 332"/>
+    <path d="M514 277 L514 332"/>
+    <path d="M642 277 L642 332"/>
+    <path d="M770 277 L770 332"/>
+  </g>
+
+  <!-- L1 ToolGraph cases -->
+  <text x="45" y="329" fill="#0369a1" font-size="12" font-weight="700">L1 · TOOLGRAPH CASES</text>
+  <g fill="#e0f2fe" stroke="#0284c7" stroke-width="1.4">
+    <rect x="74" y="340" width="112" height="47" rx="8"/>
+    <rect x="202" y="340" width="112" height="47" rx="8"/>
+    <rect x="458" y="340" width="112" height="47" rx="8"/>
+    <rect x="586" y="340" width="112" height="47" rx="8"/>
+    <rect x="714" y="340" width="112" height="47" rx="8"/>
+  </g>
+  <rect x="330" y="340" width="112" height="47" rx="8" fill="#dbeafe" stroke="#2563eb" stroke-width="2.4"/>
+  <g text-anchor="middle" fill="#075985" font-size="10" font-weight="600">
+    <text x="130" y="368">ToolGraph A</text>
+    <text x="258" y="368">ToolGraph B</text>
+    <text x="386" y="368" fill="#1d4ed8">ToolGraph C</text>
+    <text x="514" y="368">ToolGraph D</text>
+    <text x="642" y="368">ToolGraph E</text>
+    <text x="770" y="368">ToolGraph F</text>
+  </g>
+
+  <path d="M386 387 L386 411" stroke="#2563eb" stroke-width="2" fill="none" marker-end="url(#expand-arrow)"/>
+  <text x="399" y="405" fill="#2563eb" font-size="10">inspect one L1 graph</text>
+
+  <!-- Executable detail -->
+  <rect x="224" y="418" width="452" height="77" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/>
+  <text x="244" y="439" fill="#1d4ed8" font-size="11" font-weight="700">ToolGraph C · executable detail</text>
+  <g fill="#ffffff" stroke="#2563eb" stroke-width="1.3">
+    <rect x="266" y="450" width="100" height="28" rx="7"/>
+    <rect x="400" y="450" width="100" height="28" rx="7"/>
+    <rect x="534" y="450" width="100" height="28" rx="7"/>
+  </g>
+  <g text-anchor="middle" fill="#1e3a8a" font-size="10" font-weight="600">
+    <text x="316" y="468">Tool: inspect</text>
+    <text x="450" y="468">Tool: transform</text>
+    <text x="584" y="468">Tool: verify</text>
+  </g>
+  <g stroke="#2563eb" stroke-width="1.5" fill="none" marker-end="url(#expand-arrow)">
+    <path d="M366 464 L400 464"/>
+    <path d="M500 464 L534 464"/>
+  </g>
+  <text x="450" y="511" text-anchor="middle" fill="#64748b" font-size="10">ReAct receives the relevant Procedure/ToolGraph context and still chooses the next Tool itself.</text>
+</svg>

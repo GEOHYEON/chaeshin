@@ -1,6 +1,8 @@
 # 채신 (Chaeshin) 採薪
 
-**성공한 패턴을 기억하는 LLM 에이전트.** 매번 도구 호출을 즉흥적으로 하는 대신, 채신은 성공한 실행 패턴을 저장하고 재사용합니다. 작업할수록 에이전트가 똑똑해집니다.
+**ReAct 에이전트를 위한 절차적 메모리 Context.** 채신은 성공·실패·pending인
+L1 ToolGraph와 L2+ Procedure 근거를 저장하고 관련 Context를 검색합니다.
+Host ReAct LLM은 이를 참고하여 다음 Tool을 직접 선택합니다.
 
 <p align="center">
   <img src="../../assets/comparison.ko.svg" alt="일반 LLM vs 채신 — 같은 실수 반복 vs 학습된 패턴" width="820"/>
@@ -14,12 +16,16 @@
 
 대부분의 LLM 에이전트는 도구 호출을 **즉흥적으로** 하거나 **고정된** 파이프라인을 따릅니다:
 
-- **즉흥형** (ReAct 방식): 단계를 빼먹고, 순서를 틀리고, 같은 실수를 반복합니다.
+- **메모리 없는 ReAct**: 과거 절차 근거가 없어 같은 실수를 반복할 수 있습니다.
 - **고정형**: 새로운 상황마다 코드를 고쳐야 합니다. 확장이 어렵습니다.
 
 ## 해결
 
-채신은 잘 됐던 걸 기억합니다. 비슷한 요청이 들어오면 검증된 도구 실행 그래프를 꺼내서, 상황에 맞게 수정하고, 실행한 뒤, 결과를 다시 저장합니다. 이것이 [Case-Based Reasoning](https://ko.wikipedia.org/wiki/%EC%82%AC%EB%A1%80_%EA%B8%B0%EB%B0%98_%EC%B6%94%EB%A1%A0): **Retrieve → Reuse → Revise → Retain** 사이클입니다.
+채신은 절차적 근거를 기억합니다. 새 요청이 오면 관련 L1 ToolGraph와 L2+
+Procedure, ProblemFeatures, outcome, provenance를 LLM Context로 검색해 줍니다.
+Host ReAct 모델이 현재 Situation과 함께 참고하여 다음 Tool을 하나씩 직접 고릅니다. 채신이 런타임 계획을
+만들거나 실행하지는 않습니다. 이는 [Case-Based Reasoning](https://ko.wikipedia.org/wiki/%EC%82%AC%EB%A1%80_%EA%B8%B0%EB%B0%98_%EC%B6%94%EB%A1%A0)의
+메모리 측면인 **Retrieve → Reuse → Revise → Retain** 사이클입니다.
 
 실패도 함께 저장합니다 — 같은 실수가 두 번 일어나지 않도록.
 
@@ -105,12 +111,15 @@ uv run python -m examples.cooking.chef_agent   # API 키 불필요
 ```
 
 <details>
-<summary>LLM + VectorDB 데모 (OpenAI + ChromaDB)</summary>
+<summary>Planner 없는 ReAct + 하이브리드 메모리 데모 (OpenAI)</summary>
 
 ```bash
 cp .env.example .env         # OPENAI_API_KEY 입력
-uv run python -m examples.cooking.chef_agent_llm
+uv run python -m examples.cooking.react_demo
 ```
+
+기존 `examples.cooking.chef_agent_llm`과 Gradio 앱은 API 호환을 위한 legacy
+GraphPlanner 경로이고, 기본 에이전트 경로는 ReAct입니다.
 </details>
 
 <details>
@@ -136,17 +145,35 @@ uv run python -m examples.cooking.app
   <img src="../../assets/tool-graph.ko.svg" alt="Tool Graph — 노드, 엣지, 조건, 루프" width="720"/>
 </p>
 
-### 불변 그래프 + 가변 컨텍스트
+### L1 ToolGraph와 L2+ Procedure
 
-실행 중 그래프는 바뀌지 않습니다. 바뀌는 건 **실행 컨텍스트**(커서 위치, 노드 상태, 출력값)뿐입니다. 예상치 못한 상황이 발생해서 매칭되는 엣지가 없으면, LLM이 전체 재생성이 아닌 최소한의 **diff**로 그래프를 수정합니다.
+L1은 하나 이상의 실제 Tool node와 control-flow edge를 가진 ToolGraph입니다.
+L2 이상은 바로 아래 Layer의 Case 약 5~7개를 순서·조건·anchor와 함께 묶은
+Procedure입니다. 상위 Procedure를 재귀적으로 펼치면 최종적으로 L1 ToolGraph에
+도달합니다. 검색할 때에는 특정 Layer를 먼저 고르지 않고 모든 Layer를 함께
+검색합니다.
+
+<p align="center">
+  <img src="../../assets/procedure-over-toolgraphs.svg" alt="L2 이상 Procedure가 하위 Case 5~7개를 묶고 L1 ToolGraph로 펼쳐지는 구조" width="820"/>
+</p>
+
+### 불변 메모리 revision + 가변 Situation
+
+검색된 Procedure나 ToolGraph revision은 실행 중 제자리에서 바꾸지 않습니다.
+Tool Observation을 받을 때마다 Host ReAct가 현재 Situation을 다시 파악하고 다음
+Tool을 새로 고릅니다. 필요한 Context가 달라졌다면 모든 Layer를 다시 검색하고,
+학습할 구조 변경은 실행 뒤 새로운 메모리 revision으로 보존합니다.
 
 ### 예상치 못한 상황
 
-실행이 항상 계획대로 되진 않습니다. 채신은 **diff 기반 리플래닝**으로 이를 처리합니다:
+실행이 검색된 선례와 항상 같지는 않습니다. 이때 흐름은 다음과 같습니다.
 
-<p align="center">
-  <img src="../../assets/replan-scenarios.ko.svg" alt="리플래닝 — 전화, 알레르기, 재료 부족" width="780"/>
-</p>
+```text
+Tool 결과 → Situation 재파악 → 필요하면 모든 Layer 재검색 → 다음 Tool 하나 선택
+```
+
+채신은 갱신된 Context를 제공하고, 다음 행동 결정은 ReAct가 담당합니다. 별도의
+적용 가능성 분류기나 Planner gate는 두지 않습니다.
 
 ---
 
@@ -221,9 +248,11 @@ cd chaeshin-monitor && pnpm install && pnpm dev
 
 ## 아키텍처
 
-<p align="center">
-  <img src="../../assets/architecture.ko.svg" alt="채신 아키텍처" width="600"/>
-</p>
+```text
+Source evidence → Memory Compiler → L1 ToolGraph + L2...LN Procedure
+User query + Situation → all-layer retrieval → bounded Chaeshin Context
+bounded Chaeshin Context → Host ReAct → next Tool → Observation ↺
+```
 
 <details>
 <summary>프로젝트 구조</summary>
@@ -233,7 +262,7 @@ chaeshin/
 ├── schema.py               # 코어 데이터 타입 (Case, ToolGraph, GraphNode, GraphEdge)
 ├── case_store.py           # CBR 4R 사이클: retrieve, reuse, revise, retain
 ├── graph_executor.py       # Tool Graph 실행 엔진 (병렬, 루프, 조건)
-├── planner.py              # LLM 그래프 생성 / 적응 / 리플래닝 (diff 기반)
+├── planner.py              # legacy 호환 API (기본 ReAct 경로에서는 로드하지 않음)
 ├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
 ├── integrations/
 │   ├── claude_code/        # MCP 서버 (FastMCP) + CLAUDE.md 자동학습 템플릿
@@ -241,7 +270,7 @@ chaeshin/
 │   ├── openai.py           # LLM + 임베딩 어댑터
 │   ├── chroma.py           # ChromaDB 벡터 케이스 저장소
 │   └── chaebi.py           # Chaebi 마켓플레이스 연동
-└── agents/                 # Orchestrator, Decomposer, Executor, Reflection
+└── agents/                 # 기본 ReAct 루프 + lazy-load되는 legacy agent 계층
 chaeshin-monitor/           # Next.js 웹 UI
 examples/cooking/           # 데모 에이전트 (김치찌개, 된장찌개, 복구 시나리오)
 examples/dinner-table/      # 전체 워크스루 (4개 언어)

@@ -18,19 +18,34 @@
 
 Chaeshin은 세 번째 길을 제안합니다:
 
-**경험에서 배운다.** 성공한 Tool Calling 패턴을 그래프 구조로 저장하고, 비슷한 상황이 오면 검색해서 재사용합니다. Case-Based Reasoning(CBR)의 Retrieve → Reuse → Revise → Retain 사이클을 LLM Tool Calling에 적용한 것입니다.
+**ReAct를 대체하지 않고 경험에서 배운다.** 실행 세부 사항은 L1 ToolGraph로,
+더 높은 재사용 구조는 바로 아래 Layer Case 약 5~7개를 묶는 L2+ Procedure로
+저장합니다. 비슷한 상황이 오면 모든 Layer를 함께 검색하고 크기가 제한된 근거를
+LLM Context로 제공합니다. Case-Based Reasoning(CBR)의 Retrieve → Reuse → Revise
+→ Retain 사이클을 LLM Tool Calling에 적용한 것입니다.
 
-이것은 "물고기를 주는 것"(고정 파이프라인)도, "맨손으로 잡게 하는 것"(자유형 ReAct)도 아닙니다. **"낚시하는 법을 가르치는 것"**입니다. 에이전트가 스스로 과거 경험에서 실행 계획을 찾고, 상황에 맞게 적응하는 법을 배웁니다.
+이것은 "물고기를 주는 것"(고정 파이프라인)도, "맨손으로 잡게 하는 것"(메모리
+없는 ReAct)도 아닙니다. **"낚시하는 법을 가르치는 것"**입니다. 채신은 실행
+계획을 확정해 주지 않습니다. Host ReAct가 검색된 Procedure/ToolGraph Context와
+현재 Situation을 참고하고, Observation을 받을 때마다 다음 Tool 하나를 직접
+선택합니다.
 
 ## 기술적 차별점
 
-1. **Tool Graph as Case**: 실행 계획을 노드+엣지 그래프로 저장합니다. 코드나 텍스트가 아닌, 기계가 직접 실행할 수 있는 구조입니다.
+1. **ToolGraph Base + Procedure 계층**: L1은 하나 이상의 실행 가능한 Tool
+   node를 가진 ToolGraph입니다. L2 이상은 바로 아래 Layer Case 약 5~7개로
+   구성된 Procedure이며, ProcedureStep anchor를 따라가면 L1에 도달합니다.
 
-2. **일반 그래프 (not DAG)**: 루프(역방향 엣지)를 허용합니다. "간보기 → 싱거우면 → 다시 끓이기" 같은 반복 추론이 가능합니다.
+2. **모든 Layer를 함께 보는 Situation-aware 검색**: L1부터 LN까지 하나의 후보
+   공간에 들어갑니다. ProblemFeatures, 현재 상태, outcome, provenance, ontology
+   관계로 Context를 구성하며 Layer를 사전 routing gate로 쓰지 않습니다.
 
-3. **Diff 기반 리플래닝**: 예상 못한 상황에서 그래프를 통째로 다시 만들지 않고, 변경분(diff)만 적용합니다. 기존 계획을 최대한 보존합니다.
+3. **Observation 기반 ReAct 활용**: Tool 결과가 나오면 Situation을 다시
+   파악하고, 필요하면 채신을 재검색한 뒤 ReAct가 다음 Tool을 선택합니다. 채신은
+   그 앞에서 적용 가능성 분류, Planner, 그래프 실행을 담당하지 않습니다.
 
-4. **하이브리드 실행 (방식 C)**: 정상 흐름은 코드가 자동 처리하고, 예외 상황에서만 LLM에 판단을 위임합니다. 속도와 유연성의 균형.
+4. **버전 및 거버넌스**: 구조 변경은 추적 가능한 revision을 만들고, outcome,
+   provenance, validity, review state, Tool schema compatibility를 분리해 관리합니다.
 
 ## 영감을 준 연구
 
@@ -43,8 +58,9 @@ Chaeshin은 세 번째 길을 제안합니다:
 ## 우리가 믿는 것
 
 - 에이전트는 경험에서 배워야 합니다
-- 실행 계획은 구조화되어야 합니다 (자연어 X, 그래프 O)
-- 계획은 실행 중에 적응할 수 있어야 합니다
+- 절차 근거는 구조화되고 provenance와 연결되어야 합니다
+- ReAct는 메모리를 Context로 참고하되 저장된 계획에 통제권을 넘기지 않아야 합니다
+- Situation이나 최신 Observation이 달라지면 Tool 선택도 달라져야 합니다
 - 좋은 프레임워크는 도메인에 독립적이어야 합니다
 
 Chaeshin은 요리사가 될 수도, 의사가 될 수도, 코딩 에이전트가 될 수도 있습니다.

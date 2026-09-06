@@ -25,7 +25,11 @@ uv sync --all-extras        # recommended
 # or: pip install -e ".[dev]"
 ```
 
-## 2. Run the Cooking Agent Demo
+## 2. Run the Legacy Rule-Based Cooking Demo
+
+> This compatibility demo illustrates the earlier ToolGraph executor artifact. It
+> is not the target ReAct runtime, where all layers are retrieved as context and
+> ReAct directly chooses one next Tool. Use Section 5 for the primary path.
 
 ```bash
 python -m examples.cooking.chef_agent
@@ -69,9 +73,9 @@ This runs a full CBR cycle — Retrieve → Execute → Retain — using a kimch
 
 The agent loads 5 stored cases, finds the best match for "김치찌개 2인분 해줘", executes each tool node in order, and saves the result back to the case store.
 
-## 3. Understand the Flow
+## 3. Understand the Legacy Flow
 
-The demo follows 6 steps:
+This legacy demo follows 6 steps:
 
 ```
 User Request → Retrieve (find similar case)
@@ -93,48 +97,43 @@ User Request → Retrieve (find similar case)
 | `examples/cooking/cases.json` | 5 stored CBR cases (kimchi stew, doenjang stew, recovery scenarios) |
 | `examples/cooking/tools.py` | Mock cooking tools (chop, boil, taste, etc.) |
 | `examples/cooking/chef_agent.py` | Rule-based demo script |
-| `examples/cooking/chef_agent_llm.py` | LLM + VectorDB demo script |
-| `examples/cooking/app.py` | Gradio web UI demo |
+| `examples/cooking/react_demo.py` | Primary planner-free ReAct + hybrid memory demo |
+| `examples/cooking/chef_agent_llm.py` | Legacy GraphPlanner demo script |
+| `examples/cooking/app.py` | Legacy GraphPlanner Gradio web UI |
 | `chaeshin/case_store.py` | CBR case storage and retrieval |
 | `chaeshin/graph_executor.py` | Tool Graph execution engine |
-| `chaeshin/planner.py` | LLM-based graph creation/adaptation/replanning |
+| `chaeshin/planner.py` | Lazy-loaded legacy compatibility API |
 | `chaeshin/integrations/openai.py` | OpenAI LLM + embedding adapter |
 | `chaeshin/integrations/chroma.py` | ChromaDB vector case store |
 | `chaeshin/schema.py` | Data models (Case, ToolGraph, Edge, Node) |
 
-## 5. Run with LLM + VectorDB
+## 5. Run with Planner-Free ReAct + Hybrid Memory
 
-The full-featured demo uses OpenAI for LLM calls and ChromaDB for vector-based case retrieval:
+The primary demo uses one ReAct prompt for query profiling, reading retrieved
+Procedure/ToolGraph context, next-Tool selection, adaptive requery, and actual-trace retention.
+OpenAI embeddings and lexical signals are combined by `CaseStore`:
 
 ```bash
 cp .env.example .env         # add your OPENAI_API_KEY
-uv run python -m examples.cooking.chef_agent_llm
+uv run python -m examples.cooking.react_demo
 ```
 
 This demo:
 
-- Embeds cases into ChromaDB using OpenAI embeddings
-- Retrieves similar cases by vector similarity (not just keywords)
-- Uses LLM to adapt retrieved graphs to the current situation
-- Handles unexpected situations with LLM-powered diff-based replanning
-- Saves successful results back to ChromaDB for future reuse
+- Seeds the five cooking Cases and creates embeddings for them
+- Returns ProblemFeatures, L1 ToolGraph and L2+ Procedure structures, outcomes, and provenance evidence
+- Treats retrieval rank and memory structure only as references; ReAct directly chooses the next Tool
+- Uses no separate Planner and chooses one next action after each Observation
+- Retains only actual domain-tool calls as a new `pending` Case
 
-Options:
+The default request is the information-only query “김치찌개 끓이는 법 알려줘”,
+so it explains the retrieved procedural context without pretending that cooking tools ran.
+Use an execution request such as “김치찌개 2인분 만들어줘” to exercise domain
+actions and actual-trace retention.
 
-```bash
-# New dish scenario — LLM creates a graph from scratch
-uv run python -m examples.cooking.chef_agent_llm --scenario new
+## 6. Legacy Web UI Demo (Gradio)
 
-# Run both scenarios
-uv run python -m examples.cooking.chef_agent_llm --scenario both
-
-# Reset ChromaDB data
-python -m examples.cooking.chef_agent_llm --reset
-```
-
-## 6. Web UI Demo (Gradio)
-
-For an interactive web-based experience:
+This compatibility demo still uses the older GraphPlanner path:
 
 ```bash
 cp .env.example .env         # add your OPENAI_API_KEY

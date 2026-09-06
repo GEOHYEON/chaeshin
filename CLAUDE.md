@@ -11,13 +11,24 @@
 
 ## Chaeshin CBR Memory (MCP)
 
+### Architecture invariants — 반드시 먼저 확인
+
+[`ARCHITECTURE_INVARIANTS.md`](ARCHITECTURE_INVARIANTS.md)가 Layer와 검색 의미의
+정본이다. 구현, 프롬프트, 논문 또는 다른 문서가 충돌하면 이 문서를 우선한다.
+
 이 프로젝트에는 Chaeshin MCP 서버가 등록되어 있다. 코드 작업을 하면서 패턴을
 기억으로 쌓아 다음 작업에 재사용한다. 사용자에게 노출되는 통합 가이드는
 [`chaeshin/integrations/claude_code/CLAUDE.md`](chaeshin/integrations/claude_code/CLAUDE.md) — 이게 정본이고, 아래는 그 요약 + 이 repo에서 작업할 때의 추가 지침이다.
 
 ### 기본 원칙
 
-- **그래프가 모든 레이어에 있다.** L1=리프(도구 1회), L{n}=상위. 고정 3단계 아님.
+- **L1은 항상 ToolGraph다.** 단일 Tool과 동의어가 아니며 복수 Tool node와
+  control-flow edge를 가질 수 있다.
+- **L2 이상은 Procedure다.** 바로 아래 Layer Case 약 5~7개를 절차로 묶으며,
+  재귀적으로 펼치면 최종적으로 L1 ToolGraph에 도달한다. 고정된 최대 Layer 수는
+  없다.
+- **검색은 모든 Layer를 함께 검색한다.** query를 Layer로 먼저 분류해 검색 공간을
+  제한하지 않는다.
 - **outcome.status 는 3-state.** retain은 항상 `pending`. 성공/실패는 사용자 verdict로만 전환.
 - **그래프 자체를 바꾸면 `chaeshin_revise`** — 다운스트림 자식이 자동으로 `pending` 회귀.
 
@@ -26,7 +37,8 @@
 3+ tool call 또는 multi-step 작업이면 먼저 호출:
 
 - `query` = 사용자 요청, `keywords` = 핵심 단어 콤마 구분
-- 응답: `successes`(>0.7 유사도면 따라가기), `warnings`(피해야 할 패턴), `pending`(아직 판정 안 난 비슷한 케이스)
+- 응답: `successes`, `warnings`, `pending`을 모두 참고 근거로 사용한다. 유사도
+  1등 구조도 그대로 실행하지 않고, 현재 Situation과 함께 읽어 다음 Tool 하나를 선택한다.
 - 복잡한 트리는 `include_children=true` 로 한 번에 가져오기
 
 ### 작업 끝나면 — `chaeshin_retain` (pending)
@@ -36,8 +48,7 @@ chaeshin_retain(
   request="<사용자 요청>",
   category="<bug-fix|feature|deploy|...>",
   keywords="...",
-  graph={"nodes":[...], "edges":[...]},
-  layer="L1"  # 도구 호출 하나하나면 L1
+  graph={"nodes":[...], "edges":[...]}
 )
 ```
 
@@ -78,8 +89,9 @@ chaeshin_revise(
 
 ### 분해가 필요한 복잡 작업
 
-L4 → L3 → L2 → L1 순서로 retain, 매 단계 `parent_case_id` + `parent_node_id` 로 체인 연결.
-도구 한 번 호출로 끝나는 leaf까지 내려갈 때까지 재귀.
+상위 Procedure부터 하위 Procedure를 거쳐 L1 ToolGraph까지 retain하고, 매 단계
+`parent_case_id` + `parent_node_id`로 체인을 연결한다. Procedure는 바로 아래 Layer
+Case 약 5~7개로 구성하며 Layer 수는 고정하지 않는다.
 
 ### Tool graph 형식
 

@@ -3,7 +3,10 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19764253.svg)](https://doi.org/10.5281/zenodo.19764253)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**LLM agents that remember what worked.** Instead of improvising tool calls every time, Chaeshin stores successful execution patterns and reuses them — so your agent gets better with every task.
+**Procedural memory context for ReAct agents.** Chaeshin stores successful, failed,
+and pending L1 ToolGraph and L2+ Procedure evidence, then retrieves the relevant
+context. The host ReAct LLM—not Chaeshin—uses it as reference and chooses each next
+Tool directly.
 
 <p align="center">
   <img src="assets/comparison.svg" alt="Plain LLM vs Chaeshin — the same mistake vs learned pattern" width="820"/>
@@ -11,18 +14,26 @@
 
 [한국어](docs/ko/README.md) | [中文](docs/zh/README.md) | [日本語](docs/ja/README.md) | [Español](docs/es/README.md) | [Français](docs/fr/README.md) | [Deutsch](docs/de/README.md)
 
+Layer semantics and retrieval behavior are governed by the
+[Architecture Invariants](ARCHITECTURE_INVARIANTS.md).
+
 ---
 
 ## The Problem
 
 Most LLM agents either **improvise** tool calls on the fly or follow **hardcoded** pipelines:
 
-- **Improvised** (ReAct-style): Skips steps, wrong order, repeats the same mistakes.
+- **Memoryless ReAct**: Lacks prior procedural evidence and can repeat old mistakes.
 - **Hardcoded**: Every new scenario needs code changes. Doesn't scale.
 
 ## The Fix
 
-Chaeshin remembers what worked. When a similar request comes in, it retrieves a proven tool execution graph, adapts it, runs it, and saves the result. This is [Case-Based Reasoning](https://en.wikipedia.org/wiki/Case-based_reasoning): **Retrieve → Reuse → Revise → Retain.**
+Chaeshin remembers procedural evidence. For a new request it retrieves relevant L1
+ToolGraphs and L2+ Procedures, their ProblemFeatures, outcomes, and provenance into
+the LLM context. The host ReAct model uses that evidence together with current state
+as reference and chooses one next Tool at a time. Chaeshin does not create or execute the runtime plan. This follows the memory
+side of [Case-Based Reasoning](https://en.wikipedia.org/wiki/Case-based_reasoning):
+**Retrieve → Reuse → Revise → Retain.**
 
 Failures are saved too — so the same mistake never happens twice.
 
@@ -108,12 +119,15 @@ uv run python -m examples.cooking.chef_agent   # no API key needed
 ```
 
 <details>
-<summary>LLM + VectorDB demo (OpenAI + ChromaDB)</summary>
+<summary>Planner-free ReAct + hybrid memory demo (OpenAI)</summary>
 
 ```bash
 cp .env.example .env         # add your OPENAI_API_KEY
-uv run python -m examples.cooking.chef_agent_llm
+uv run python -m examples.cooking.react_demo
 ```
+
+The older `examples.cooking.chef_agent_llm` and Gradio app retain the legacy
+GraphPlanner path for API compatibility; the primary agent path is ReAct.
 </details>
 
 <details>
@@ -139,33 +153,48 @@ Tool calls are structured as a **graph** — not a simple list. Nodes are tool i
   <img src="assets/tool-graph.svg" alt="Tool Graph — nodes, edges, conditions, loops" width="720"/>
 </p>
 
-### It's Graphs All the Way Down
+### ToolGraph Base, Procedures Above It
 
-Every layer is a graph. **Zoom in on any node — and you find another graph.** L2 isn't a "separate" graph linked to L3; L2 *is what you see when you unfold one L3 node*. Graph structure is preserved at every depth of zoom.
+**L1 is always a ToolGraph** and may contain multiple executable tool nodes and
+control-flow edges. L2 through LN are Procedures that normally group five to seven
+Cases from the layer immediately below. Unfolding a higher Procedure follows its child
+anchors until it reaches one or more L1 ToolGraphs. There is no fixed maximum layer.
 
 <p align="center">
-  <img src="assets/graphs-all-the-way-down.svg" alt="Graphs all the way down — zoom into any node and find another graph" width="820"/>
+  <img src="assets/procedure-over-toolgraphs.svg" alt="L2 and higher Procedures group five to seven lower-layer Cases and unfold to L1 ToolGraphs" width="820"/>
 </p>
 
-You keep unfolding nodes until every leaf is a single tool call. How many zoom levels that takes is up to the problem — simple requests stop at `depth=0`, tangled ones go `L4`, `L5`, deeper. There's no fixed count.
+L1 is not another name for a single tool call. It is the lowest executable graph, which
+can still express sequencing, branches, parallel groups, and loops among real tools.
 
-Under the hood: each "fold" is a separate `Case` with its own `solution.tool_graph`, and `metadata.parent_node_id` records which node in the upper graph you unfolded. But the mental model is one recursive structure, not a stack of distinct graphs.
+Under the hood, `metadata.parent_node_id` anchors a lower Procedure or ToolGraph to the node
+it expands. Retrieval searches L1 through LN together in one candidate space; it does
+not predict a layer first and search only that layer.
 
-### Cascading Feedback — Edit a Layer, Downstream Reacts
+### Cascading Feedback — Revise a Procedure or ToolGraph
 
-Edit the graph at any zoom level and Chaeshin propagates the change to the deeper layers automatically:
+Revise an L1 ToolGraph or an L2+ Procedure and Chaeshin identifies the anchored
+downstream Cases that must be reviewed:
 
 <p align="center">
   <img src="assets/cascading-feedback.svg" alt="Cascading feedback — revise propagates to orphan children" width="780"/>
 </p>
 
-Orphans aren't deleted — in high-stakes domains a human decides whether to revise, re-link to a different parent node, or retire them. `added_nodes` are returned so the host AI can decide whether each new node is atomic (leaf tool call) or still composite (unfold into yet another graph).
+Orphans aren't deleted — in high-stakes domains a human decides whether to revise,
+re-link to a different ProcedureStep, or retire them. Changed steps and anchors are
+reported so their lower-layer Cases can be reviewed explicitly.
 
-This is why `chaeshin_revise` is a first-class tool — distinct from `chaeshin_update`. Graph edits at one zoom level ripple through every deeper level, and Chaeshin does the bookkeeping.
+This is why `chaeshin_revise` is a first-class tool — distinct from
+`chaeshin_update`. Structural changes to a ToolGraph or Procedure can affect its
+anchored descendants, and Chaeshin does the bookkeeping.
 
-### Immutable Graph + Mutable Context
+### Immutable Memory Revision + Mutable Situation
 
-The graph never changes during execution. Only the **execution context** (cursor, node states, outputs) updates. If something unexpected happens and no edge matches, the LLM modifies the graph via a minimal **diff** — not a full regeneration.
+A retrieved Procedure or ToolGraph revision does not mutate during a run. After every
+Tool Observation, the Host ReAct model refreshes the current Situation and directly
+chooses the next Tool again. It may requery Chaeshin when the needed context changes.
+Any learned structural change is retained later as a new memory revision; it is not an
+in-loop execution plan owned by Chaeshin.
 
 ### Diff-Based CRUD
 
@@ -186,11 +215,14 @@ No answer ≠ failure. No answer ≠ success. No answer = **pending** — and th
 
 ### When Things Go Wrong
 
-Real execution doesn't always follow the plan. Chaeshin handles this through **diff-based replanning**:
+Real execution does not always match the retrieved precedent. The loop remains simple:
 
-<p align="center">
-  <img src="assets/replan-scenarios.svg" alt="Replan — phone call, allergy alert, missing ingredient" width="780"/>
-</p>
+```text
+Tool result → refresh Situation → optionally requery all layers → choose one next Tool
+```
+
+Chaeshin supplies revised context; ReAct owns the next-action decision. There is no
+separate applicability classifier or Planner gate.
 
 ---
 
@@ -216,12 +248,13 @@ Full scenario with step-by-step explanations:
 
 ## Domain Examples
 
-Two long-form walkthroughs showing the same three features (recursive graph decomposition, tri-state outcome, cascading revise) in very different domains.
+Two long-form walkthroughs showing the same three features (Procedure-over-ToolGraph
+decomposition, tri-state outcome, cascading revision) in very different domains.
 
 Each example ships in two flavors:
 
 - `demo.py` — **scripted** walkthrough (no API key needed). Deterministic output, ideal for reading the narrative.
-- `react_demo.py` — **live ReAct agent** using `OPENAI_API_KEY`. Drop a key in `.env` and watch a real LLM retrieve past cases, plan, call domain tools, retain with layer/parent linkage, and (for lifestyle) cascade-revise when feedback arrives.
+- `react_demo.py` — **live planner-free ReAct agent** using `OPENAI_API_KEY`. The LLM builds a retrieval profile, reads returned Procedures and ToolGraphs together with current state, chooses one next action at a time, and retains only its actual execution trace.
 
 ### 🏥 Clinical Lifestyle Intake — high-stakes, long verdict cycle
 A clinician-patient flow for newly-diagnosed Type-2 diabetes. Recursive decomposition into intake / stratify / plan / follow-up, FHIR R5 resource hooks, 12-week `pending` verdicts.
@@ -234,7 +267,10 @@ A 3-month reset plan for a burned-out startup PM. Same structure, no medical ter
 [📋 scenario](examples/lifestyle_coaching/scenario_ko.md) · scripted: `uv run python -m examples.lifestyle_coaching.demo` · live ReAct: `uv run python -m examples.lifestyle_coaching.react_demo`
 
 ### 🍲 Cooking (starter) — kimchi stew, minimal setup
-The shortest possible live example. ReAct agent cooks kimchi stew end-to-end — good for verifying your setup in under a minute.
+The shortest live example. By default it answers “김치찌개 끓이는 법 알려줘” from
+hybrid-retrieved Procedure and ToolGraph context without executing cooking tools or
+retaining a fake run.
+Change the request to “만들어줘” to see domain actions and actual-trace retention.
 
 Live ReAct: `uv run python -m examples.cooking.react_demo`
 
@@ -303,9 +339,11 @@ The monitor writes verdicts directly to the same DB the MCP server reads from �
 
 ## Architecture
 
-<p align="center">
-  <img src="assets/architecture.svg" alt="Chaeshin Architecture" width="600"/>
-</p>
+```text
+Source evidence → Memory Compiler → L1 ToolGraph + L2...LN Procedure
+User query + Situation → all-layer retrieval → bounded Chaeshin Context
+bounded Chaeshin Context → Host ReAct → next Tool → Observation ↺
+```
 
 <details>
 <summary>Project structure</summary>
@@ -321,7 +359,7 @@ chaeshin/
 │   ├── m001_json_to_sqlite_l1.py   # Legacy cases.json → SQLite + flat→L1 normalization
 │   └── m002_outcome_status.py      # Backfill outcome.status on existing cases
 ├── graph_executor.py       # Tool graph runner (parallel, loops, conditions)
-├── planner.py              # LLM-based graph create / adapt / replan (diff-based)
+├── planner.py              # Legacy compatibility API; not loaded by the primary ReAct path
 ├── cli/                    # chaeshin setup claude-code / claude-desktop / openclaw
 ├── integrations/
 │   ├── claude_code/        # FastMCP server (8 tools) + CLAUDE.md auto-learning template
@@ -329,7 +367,7 @@ chaeshin/
 │   ├── openai.py           # LLM + embedding adapter
 │   ├── chroma.py           # ChromaDB vector case store (alt backend)
 │   └── chaebi.py           # Chaebi marketplace sync
-└── agents/                 # Orchestrator, Decomposer, Executor, Reflection
+└── agents/                 # Primary ReAct loop + lazy-loaded legacy agent stack
 chaeshin-monitor/           # Next.js 15 UI — /, /events, /hierarchy (better-sqlite3 over the same DB)
 examples/cooking/           # Demo agent (kimchi stew, doenjang stew, recovery scenarios)
 examples/dinner-table/      # Recursive decomposition walkthrough (4 languages)

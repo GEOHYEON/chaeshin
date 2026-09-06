@@ -20,19 +20,37 @@ Current LLM agent tool-use approaches sit at two extremes.
 
 Chaeshin proposes a third way:
 
-**Learn from experience.** Store successful tool calling patterns as graph structures, retrieve them when similar situations arise, and reuse them. This applies the Case-Based Reasoning (CBR) cycle — Retrieve → Reuse → Revise → Retain — to LLM tool calling.
+**Learn from experience without replacing ReAct.** Store executable detail as L1
+ToolGraphs and reusable higher-level structure as L2+ Procedures that normally
+group five to seven Cases from the immediately lower layer. Retrieve all layers
+together when similar situations arise and expose the bounded evidence as LLM
+context. This applies the Case-Based Reasoning (CBR) cycle — Retrieve → Reuse →
+Revise → Retain — to LLM tool calling.
 
-This is neither "giving fish" (hardcoded pipelines) nor "making them catch bare-handed" (free-form ReAct). It's **"teaching how to fish."** The agent learns to find execution plans from past experience and adapt them to the current situation.
+This is neither "giving fish" (hardcoded pipelines) nor "making them catch
+bare-handed" (memoryless ReAct). It is **"teaching how to fish."** Chaeshin does
+not hand the agent an executable plan: the Host ReAct model reads the retrieved
+Procedure/ToolGraph context and current Situation, then chooses one next Tool
+directly after every Observation.
 
 ## Technical Differentiators
 
-1. **Tool Graph as Case**: Execution plans are stored as node+edge graphs — a structure machines can directly execute, not code or plain text.
+1. **ToolGraph Base + Procedure Hierarchy**: L1 is always a ToolGraph with one or
+   more executable Tool nodes. L2+ is a Procedure of normally five to seven
+   immediate-lower-layer Cases. Following ProcedureStep anchors terminates at L1.
 
-2. **General Graphs (not DAGs)**: Loops (backward edges) are supported. Patterns like "taste → too bland → boil again" are natural.
+2. **All-layer, Situation-aware Retrieval**: L1 through LN enter one candidate
+   space. ProblemFeatures, current state, outcomes, provenance, and typed relations
+   determine the bounded context; layer is not a pre-search routing gate.
 
-3. **Diff-based Replanning**: When something unexpected happens, instead of regenerating the entire graph, only a minimal diff is applied. The existing plan is preserved as much as possible.
+3. **Observation-driven ReAct Use**: Every Tool result may change the Situation.
+   ReAct reassesses it, optionally requeries Chaeshin, and selects the next Tool.
+   Chaeshin does not run an applicability classifier, Planner, or graph executor in
+   front of that decision.
 
-4. **Hybrid Execution**: Normal flow is handled automatically by code; the LLM is only consulted for exceptions. A balance of speed and flexibility.
+4. **Versioned, Governed Memory**: Structural changes create traceable revisions;
+   outcomes, provenance, validity, review state, and tool-schema compatibility are
+   managed separately.
 
 ## Inspirations
 
@@ -45,8 +63,9 @@ This is neither "giving fish" (hardcoded pipelines) nor "making them catch bare-
 ## What We Believe
 
 - Agents should learn from experience
-- Execution plans should be structured (graphs, not natural language)
-- Plans should adapt during execution
+- Procedural evidence should be structured and provenance-linked
+- ReAct should use memory as context, not surrender control to a stored plan
+- Tool choice should change when the Situation or latest Observation changes
 - Good frameworks should be domain-agnostic
 
 Chaeshin can be a chef, a doctor, or a coding agent. Just swap the tools and cases.

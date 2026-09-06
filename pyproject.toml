@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "chaeshin"
 version = "0.2.0"
-description = "A framework that retrieves, executes, and adapts Tool Calling graphs from past successful cases using Case-Based Reasoning."
+description = "Procedural ToolGraph memory context for ReAct agents using Case-Based Reasoning."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

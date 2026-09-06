@@ -25,7 +25,11 @@ uv sync --all-extras        # 권장
 # 또는: pip install -e ".[dev]"
 ```
 
-## 2. 요리사 에이전트 데모 실행
+## 2. Legacy 규칙 기반 요리사 데모 실행
+
+> 이 호환 데모는 과거 ToolGraph executor artifact를 보여줍니다. 모든 Layer를
+> Context로 검색하고 ReAct가 다음 Tool 하나를 직접 선택하는 목표 runtime은
+> 아닙니다. 기본 경로는 5절을 사용하세요.
 
 ```bash
 python -m examples.cooking.chef_agent
@@ -69,9 +73,9 @@ python -m examples.cooking.chef_agent
 
 저장된 5개 케이스 중 "김치찌개 2인분 해줘"와 가장 유사한 케이스를 찾아서, 각 도구 노드를 순서대로 실행하고, 성공하면 결과를 다시 저장합니다.
 
-## 3. 흐름 이해하기
+## 3. Legacy 흐름 이해하기
 
-데모는 6단계로 진행됩니다:
+이 legacy 데모는 6단계로 진행됩니다:
 
 ```
 사용자 요청 → Retrieve (유사 케이스 검색)
@@ -93,48 +97,42 @@ python -m examples.cooking.chef_agent
 | `examples/cooking/cases.json` | 5개 CBR 케이스 (김치찌개, 된장찌개, 복구 시나리오) |
 | `examples/cooking/tools.py` | 모의 요리 도구 (썰기, 끓이기, 간보기 등) |
 | `examples/cooking/chef_agent.py` | 규칙 기반 데모 스크립트 |
-| `examples/cooking/chef_agent_llm.py` | LLM + VectorDB 데모 스크립트 |
-| `examples/cooking/app.py` | Gradio 웹 UI 데모 |
+| `examples/cooking/react_demo.py` | 기본 Planner 없는 ReAct + 하이브리드 메모리 데모 |
+| `examples/cooking/chef_agent_llm.py` | legacy GraphPlanner 데모 스크립트 |
+| `examples/cooking/app.py` | legacy GraphPlanner Gradio 웹 UI |
 | `chaeshin/case_store.py` | CBR 케이스 저장 및 검색 |
 | `chaeshin/graph_executor.py` | Tool Graph 실행 엔진 |
-| `chaeshin/planner.py` | LLM 기반 그래프 생성/적응/리플래닝 |
+| `chaeshin/planner.py` | lazy-load되는 legacy 호환 API |
 | `chaeshin/integrations/openai.py` | OpenAI LLM + 임베딩 어댑터 |
 | `chaeshin/integrations/chroma.py` | ChromaDB 벡터 케이스 저장소 |
 | `chaeshin/schema.py` | 데이터 모델 (Case, ToolGraph, Edge, Node) |
 
-## 5. LLM + VectorDB로 실행
+## 5. Planner 없는 ReAct + 하이브리드 메모리로 실행
 
-OpenAI LLM과 ChromaDB 벡터 검색을 사용하는 전체 기능 데모:
+기본 데모는 하나의 ReAct 프롬프트가 검색 프로파일, 검색된 Procedure/ToolGraph
+Context 읽기, 다음 Tool 선택, 상태 변화 후 재검색, 실제 실행 trace 저장을 담당합니다. 검색은
+OpenAI 임베딩과 lexical 신호를 함께 사용합니다.
 
 ```bash
 cp .env.example .env         # OPENAI_API_KEY 입력
-uv run python -m examples.cooking.chef_agent_llm
+uv run python -m examples.cooking.react_demo
 ```
 
 이 데모에서는:
 
-- OpenAI 임베딩으로 케이스를 ChromaDB에 저장
-- 키워드가 아닌 벡터 유사도로 케이스 검색
-- LLM이 검색된 그래프를 현재 상황에 맞게 적응
-- 예상치 못한 상황에서 LLM이 diff 기반으로 그래프 수정
-- 성공한 결과를 ChromaDB에 저장해 다음에 재활용
+- 요리 Case 5개를 seed하고 각각 임베딩 생성
+- ProblemFeatures, L1 ToolGraph와 L2+ Procedure 구조, outcome, provenance를 Context로 반환
+- 검색 순위와 메모리 구조는 참고 근거일 뿐이며 ReAct가 다음 Tool을 직접 선택
+- 별도 Planner 없이 Observation마다 다음 Action 하나를 선택
+- 실제 호출한 도메인 도구만 새 `pending` Case로 저장
 
-옵션:
+기본 요청은 정보형 질문 “김치찌개 끓이는 법 알려줘”이므로 실제 요리 도구를
+호출한 척하지 않고 검색된 절차 Context를 설명합니다. “김치찌개 2인분 만들어줘”
+같은 실행 요청을 사용하면 도메인 Action과 실제 trace 저장을 확인할 수 있습니다.
 
-```bash
-# 새 요리 시나리오 — LLM이 처음부터 그래프 생성
-uv run python -m examples.cooking.chef_agent_llm --scenario new
+## 6. Legacy 웹 UI 데모 (Gradio)
 
-# 두 시나리오 모두 실행
-uv run python -m examples.cooking.chef_agent_llm --scenario both
-
-# ChromaDB 데이터 초기화
-uv run python -m examples.cooking.chef_agent_llm --reset
-```
-
-## 6. 웹 UI 데모 (Gradio)
-
-웹 브라우저에서 인터랙티브하게 체험:
+이 호환용 데모는 아직 기존 GraphPlanner 경로를 사용합니다.
 
 ```bash
 cp .env.example .env         # OPENAI_API_KEY 입력
