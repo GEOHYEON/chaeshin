@@ -131,5 +131,5 @@ Case 약 5~7개로 구성하며 Layer 수는 고정하지 않는다.
 | `CHAESHIN_STORE_DIR` | `~/.chaeshin/` | MCP server / migrations — DB 위치 오버라이드 |
 | `CHAESHIN_DB_PATH` | `~/.chaeshin/chaeshin.db` | monitor 의 better-sqlite3 reader |
 | `CHAESHIN_DEMO_PERSIST` | `0` | examples — `1`이면 ReAct 데모가 실제 DB에 저장 |
-| `CHAESHIN_LLM_MODEL` | `gpt-4o-mini` | OpenAIAdapter 모델 오버라이드 |
+| `CHAESHIN_LLM_MODEL` | `gpt-6-luna` | OpenAIAdapter 모델 오버라이드 |
 | `CHAESHIN_EMBEDDING_MODEL` | `text-embedding-3-small` | 임베딩 모델 오버라이드 |

@@ -511,8 +511,8 @@ def create_app() -> gr.Blocks:
                 with gr.Row():
                     model = gr.Dropdown(
                         label="LLM 모델",
-                        choices=["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"],
-                        value=os.getenv("CHAESHIN_LLM_MODEL", "gpt-4o-mini"),
+                        choices=["gpt-6-luna", "gpt-6-sol"],
+                        value=os.getenv("CHAESHIN_LLM_MODEL", "gpt-6-luna"),
                     )
                     embed_model = gr.Dropdown(
                         label="임베딩 모델",

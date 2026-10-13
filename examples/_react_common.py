@@ -57,7 +57,7 @@ def ensure_openai_key() -> str:
     return key
 
 
-def build_adapter(model: str = "gpt-4o-mini"):
+def build_adapter(model: str = "gpt-6-luna"):
     """OpenAIAdapter 인스턴스 반환. openai 패키지가 없으면 안내 후 종료."""
     ensure_openai_key()
     try:

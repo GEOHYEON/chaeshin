@@ -55,7 +55,7 @@ except ImportError:
 # 설정
 # ═══════════════════════════════════════════════════════════════════════
 
-LLM_MODEL = os.getenv("CHAESHIN_LLM_MODEL", "gpt-4o-mini")
+LLM_MODEL = os.getenv("CHAESHIN_LLM_MODEL", "gpt-6-luna")
 EMBEDDING_MODEL = os.getenv("CHAESHIN_EMBEDDING_MODEL", "text-embedding-3-small")
 CHROMA_DIR = os.path.join(os.path.dirname(__file__), ".chroma_data")
 

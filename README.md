@@ -393,7 +393,7 @@ examples/lifestyle_coaching/ # Chronic-fatigue reset plan — non-medical parall
 | `CHAESHIN_STORE_DIR` | `~/.chaeshin/` | MCP server / migrations — override DB directory |
 | `CHAESHIN_DB_PATH` | `~/.chaeshin/chaeshin.db` | Monitor (`better-sqlite3` reader) |
 | `CHAESHIN_DEMO_PERSIST` | `0` | Examples — set to `1` so ReAct demos write to the real DB instead of a temp |
-| `CHAESHIN_LLM_MODEL` | `gpt-4o-mini` | Override LLM model used by `OpenAIAdapter` |
+| `CHAESHIN_LLM_MODEL` | `gpt-6-luna` | Override LLM model used by `OpenAIAdapter` |
 | `CHAESHIN_EMBEDDING_MODEL` | `text-embedding-3-small` | Override embedding model |
 
 Most demos auto-load a `.env` file via `python-dotenv`. Copy `.env.example` to `.env` to get started.

@@ -1279,7 +1279,7 @@ read 50회 초과, Hospital Case 10k 초과로 제안한다. 이 수치는 현�
 | 구성요소 | 현재 계약 | 주의점 |
 |---|---|---|
 | `ChromaCaseStore` | 기본 collection `chaeshin_cases`, cosine, `persist_dir`가 있으면 PersistentClient 아니면 ephemeral, threshold 0.7 | Case JSON을 metadata에 40,000자로 자름. 재시작 시 기존 collection을 `cases` cache로 hydrate하지 않아 query hit를 Case로 복원하지 못함 |
-| `OpenAIAdapter` | chat 기본 `gpt-4o-mini`, embedding 기본 `text-embedding-3-small`, temperature 0.2, max tokens 4,096 | chat은 async, embedding은 sync. 호출자가 모델/키를 주입하며 MCP는 key가 없으면 lexical |
+| `OpenAIAdapter` | chat 기본 `gpt-6-luna`(reasoning_effort `none`), embedding 기본 `text-embedding-3-small`, temperature 0.2, max completion tokens 4,096 | chat은 async, embedding은 sync. 호출자가 모델/키를 주입하며 MCP는 key가 없으면 lexical |
 | `ChaebiClient` | Bearer REST로 approved Case pull, learned Case push, id/category/status export | pull `/api/chaeshin/sync` 기본 limit 50, push도 같은 endpoint, export는 `/api/chaeshin/export`; 원격 검증/권한은 Chaebi 서버 책임 |
 
 Chaebi 변환은 node/edge/top-level graph 필드를 비교적 완전하게 옮기지만 현재
